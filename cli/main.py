@@ -3,7 +3,7 @@
 
 import os
 import shutil
-import subprocess
+import webbrowser
 import typer
 from pathlib import Path
 from rich.console import Console
@@ -98,7 +98,7 @@ def action_read(item: CurriculumItem) -> None:
         console.print("\n[dim]No lesson found for this item.[/]")
         return
     console.print("\n[dim]Opening lesson in browser...[/]")
-    subprocess.Popen(["open", str(path)])
+    webbrowser.open(path.resolve().as_uri())
 
 
 def action_verify(item: CurriculumItem, state: dict) -> bool:
