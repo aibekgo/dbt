@@ -15,7 +15,7 @@ questions:
       clusters or serverless slots) is what makes cloud warehouses economical
       for ELT — you can store raw data forever and pay for compute only when
       you query.
-    related_item: 03_cloud_data_warehouses
+    related_item: cloud_data_warehouses
 
   - id: cloud_dwh_02
     difficulty: medium
@@ -31,4 +31,4 @@ questions:
       dbt is warehouse-agnostic. What you learn against DuckDB — models,
       sources, tests, materializations, macros — applies unchanged to the
       major cloud warehouses. Only the connection profile changes.
-    related_item: 03_cloud_data_warehouses
+    related_item: cloud_data_warehouses

@@ -14,7 +14,7 @@ questions:
       dbt does not extract or load data. It transforms data that has already
       landed in the warehouse, by running SQL SELECT statements you write,
       organized as a DAG of models.
-    related_item: 04_what_is_dbt
+    related_item: what_is_dbt
 
   - id: what_is_dbt_02
     difficulty: medium
@@ -30,4 +30,4 @@ questions:
       You write only the SELECT. dbt handles the CREATE TABLE / CREATE VIEW /
       MERGE wrapping based on each model's materialization (table, view,
       incremental, ephemeral). This keeps the SQL you write focused on logic.
-    related_item: 04_what_is_dbt
+    related_item: what_is_dbt

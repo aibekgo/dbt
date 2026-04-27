@@ -14,7 +14,7 @@ questions:
       The analytics engineer is the role that emerged with cloud warehouses
       and dbt — they own the SQL transformation layer (staging → marts) with
       engineering rigor: tests, version control, code review, CI.
-    related_item: 02_modern_data_team
+    related_item: modern_data_team
 
   - id: modern_data_team_02
     difficulty: medium
@@ -30,4 +30,4 @@ questions:
       Once transforms became SQL inside the warehouse, neither data engineers
       (focused on infra and ingestion) nor analysts (focused on questions and
       dashboards) were the right owners. The analytics engineer fills that gap.
-    related_item: 02_modern_data_team
+    related_item: modern_data_team

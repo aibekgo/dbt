@@ -59,7 +59,7 @@
 
 <h2>First &mdash; what is a data warehouse?</h2>
 <p>A <strong>data warehouse</strong> is a database designed for <em>analytics</em>, not for running an app. Your company&rsquo;s production systems (Postgres, MySQL, MongoDB&hellip;) are tuned for serving live traffic &mdash; tiny, fast reads and writes for one user at a time. A warehouse is the opposite: it&rsquo;s tuned for huge analytical queries that scan millions of rows to answer questions like &ldquo;how many active users did we have last quarter, broken down by plan tier?&rdquo;</p>
-<img src="../../images/lesson3/data_warehouse_concept.png" alt="Land data in the warehouse, analyze there, then share results with downstream tools">
+<img src="../../images/cloud_data_warehouses/data_warehouse_concept.png" alt="Land data in the warehouse, analyze there, then share results with downstream tools">
 <p>The mental model: data from many systems flows in (sales, marketing, product analytics, billing), gets organized into clean tables, and analysts/dashboards query <em>that</em> &mdash; never the production database. The warehouse is the company&rsquo;s &ldquo;single source of truth.&rdquo;</p>
 
 <table>
@@ -107,7 +107,8 @@
 </ol>
 
 <h2>The major players</h2>
-<img src="../../images/lesson3/modern_data_stack.png" alt="The modern data stack: ingestion tools feeding cloud warehouses, with dbt as the transformation layer">
+<img src="../../images/cloud_data_warehouses/cloud_dwh_comparison.png" alt="Side-by-side comparison of major cloud data warehouses">
+<img src="../../images/cloud_data_warehouses/modern_data_stack.png" alt="The modern data stack: ingestion tools feeding cloud warehouses, with dbt as the transformation layer">
 <table>
   <thead><tr><th>Warehouse</th><th>Key trait</th><th>dbt adapter</th></tr></thead>
   <tbody>
@@ -140,7 +141,7 @@
 </table>
 
 <h2>Why DuckDB for this course</h2>
-<img src="../../images/lesson0/duckdb.png" alt="DuckDB logo" style="max-width: 320px;">
+<img src="../../images/welcome/duckdb.png" alt="DuckDB logo" style="max-width: 320px;">
 <p>The other warehouses in the table above are <em>cloud services</em> &mdash; you sign up, give them a credit card, click around in a UI to create a project, and connect over the network. Great for production. Terrible for learning, because every exercise would need internet, an account, and money.</p>
 
 <p>DuckDB is &ldquo;the SQLite for analytics&rdquo;: a <strong>single binary that runs in-process</strong> on your laptop. No server, no Docker, no cloud account, no credit card. You install it as a Python package, point dbt at a <code>.duckdb</code> file, and you have a full warehouse you can throw away and recreate in seconds.</p>

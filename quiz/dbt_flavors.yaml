@@ -14,7 +14,7 @@ questions:
       dbt Core is the open-source Python package (`dbt-core` plus a warehouse
       adapter like `dbt-duckdb`). It's what runs on your laptop, in CI, or on
       a server. dbt Cloud and dbt Fusion build on top of Core's project model.
-    related_item: 05_dbt_flavors
+    related_item: dbt_flavors
 
   - id: dbt_flavors_02
     difficulty: medium
@@ -30,7 +30,7 @@ questions:
       Fusion is the Rust reimplementation of dbt's core engine, designed to
       fix the parse-time bottleneck on large projects. It also powers the
       VS Code extension's autocomplete, lineage, and CTE preview features.
-    related_item: 05_dbt_flavors
+    related_item: dbt_flavors
 
   - id: dbt_flavors_03
     difficulty: medium
@@ -46,4 +46,4 @@ questions:
       Cloud is a managed product on top of Core's project structure. The same
       `models/`, `seeds/`, `tests/` folders work in both. Cloud adds the
       operational layer most teams would otherwise build themselves.
-    related_item: 05_dbt_flavors
+    related_item: dbt_flavors

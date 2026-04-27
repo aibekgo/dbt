@@ -54,7 +54,7 @@
 </head>
 <body>
 <h1>What is dbt?</h1>
-<img src="../../images/lesson4/dbt_overview.png" alt="dbt sits between raw data and downstream consumers — develop, test, deploy, and serve datasets to BI, ML, and operational analytics">
+<img src="../../images/what_is_dbt/dbt_overview.png" alt="dbt sits between raw data and downstream consumers — develop, test, deploy, and serve datasets to BI, ML, and operational analytics">
 
 <p><strong>dbt</strong> (data build tool) is a transformation framework that lets you write your warehouse transformations as <code>SELECT</code> statements, organized as a directed acyclic graph (DAG) of models, with built-in testing, documentation, and lineage.</p>
 
@@ -74,7 +74,7 @@ from {{ ref('raw_customers') }}
 <p>The <code>{{ ref('raw_customers') }}</code> is dbt&rsquo;s way of saying &ldquo;another model in this project named raw_customers&rdquo;. dbt resolves it to the right table name at compile time and uses it to build the DAG.</p>
 
 <p>Once you have a few models, dbt knows how every model depends on every other one and can render the full lineage graph for you:</p>
-<img src="../../images/lesson4/dbt_lineage_graph.png" alt="dbt Explorer lineage graph: sources flow into staging models, then into marts, with a side panel showing the selected model's metadata">
+<img src="../../images/what_is_dbt/dbt_lineage_graph.png" alt="dbt Explorer lineage graph: sources flow into staging models, then into marts, with a side panel showing the selected model's metadata">
 <p>Each node is a model, each arrow is a <code>ref()</code>. dbt walks this graph at run time to build models in the right order &mdash; you never write a <code>CREATE TABLE</code> manually, and you never schedule the dependencies yourself.</p>
 
 <h2>Why use dbt?</h2>
@@ -115,7 +115,7 @@ from {{ ref('raw_customers') }}
 </table>
 
 <h2>Where dbt fits in the modern data stack</h2>
-<img src="../../images/lesson4/modern_data_stack.png" alt="dbt as the T layer between ingestion tools and downstream BI / ML / reverse-ETL">
+<img src="../../images/what_is_dbt/modern_data_stack.png" alt="dbt as the T layer between ingestion tools and downstream BI / ML / reverse-ETL">
 <div style="display: flex; align-items: stretch; gap: 8px; margin: 24px 0; font-size: 0.9em; flex-wrap: wrap;">
   <div style="flex: 1; min-width: 160px; background: #f0f0f0; border-radius: 6px; padding: 12px;">
     <div style="font-weight: 600; margin-bottom: 6px;">Sources</div>

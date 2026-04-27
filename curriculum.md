@@ -138,7 +138,7 @@ Reset extension in `cli/main.py`:
 ## Curriculum — 7 stages, ~42 items
 
 Naming convention follows `learn_spark`: numeric ID prefix on lessons
-(`00_welcome`), slug on exercises. Folder layout: `lessons/stage{N}/`,
+(`welcome`), slug on exercises. Folder layout: `lessons/stage{N}/`,
 `exercises/stage{N}/`, etc.
 
 > **Legend:** L = pure lesson · X = exercise · each stage ends with a quiz
@@ -152,12 +152,12 @@ conceptual understanding.
 
 | # | id | type | what it teaches |
 |---|---|---|---|
-| 1 | `00_welcome` | L | What this course is, how the CLI works, prereqs |
-| 2 | `01_etl_vs_elt` | L | ETL vs ELT, why the shift, cost / scalability / governance |
-| 3 | `02_modern_data_team` | L | Data engineer / analytics engineer / data analyst roles |
-| 4 | `03_cloud_data_warehouses` | L | Snowflake, BigQuery, Redshift, Databricks, DuckDB |
-| 5 | `04_what_is_dbt` | L | Why dbt, the modern data stack, where dbt fits |
-| 6 | `05_dbt_flavors` | L | dbt Core vs dbt Cloud vs dbt Fusion (Rust engine) — when to use which |
+| 1 | `welcome` | L | What this course is, how the CLI works, prereqs |
+| 2 | `etl_vs_elt` | L | ETL vs ELT, why the shift, cost / scalability / governance |
+| 3 | `modern_data_team` | L | Data engineer / analytics engineer / data analyst roles |
+| 4 | `cloud_data_warehouses` | L | Snowflake, BigQuery, Redshift, Databricks, DuckDB |
+| 5 | `what_is_dbt` | L | Why dbt, the modern data stack, where dbt fits |
+| 6 | `dbt_flavors` | L | dbt Core vs dbt Cloud vs dbt Fusion (Rust engine) — when to use which |
 
 **Quiz `quiz/stage0.yaml`:** ETL vs ELT, role definitions, dbt's place in the
 stack, when to pick Cloud vs Core vs Fusion.
@@ -174,12 +174,12 @@ gitignored.
 
 | # | id | type | verifier | what it teaches |
 |---|---|---|---|---|
-| 1 | `10_dbt_install` | L | — | What dbt-core + dbt-duckdb are, where they live in your venv, what `dbt --version` shows |
-| 2 | `11_dbt_init` | X | file (`dbt_project/dbt_project.yml`) | Run `dbt init dbt_project` to scaffold a fresh project; understand the directory layout it generates |
-| 3 | `12_profiles_yml` | X | dbt (`dbt_debug_success`) | Write `dbt_project/profiles.yml` pointing at a local DuckDB file; `dbt debug` connects |
-| 4 | `13_dbt_seed` | X | dbt (`dbt_seed_success`, `duckdb_table_exists` × 3) | Copy the raw CSVs from `data/` into `dbt_project/seeds/`; run `dbt seed`; verify 3 raw tables exist in DuckDB |
-| 5 | `14_first_model` | X | dbt (`dbt_run_success`, `duckdb_table_exists`) | Write `models/staging/stg_customers.sql` using `{{ ref('raw_customers') }}`; `dbt run --select stg_customers`; verify table |
-| 6 | `15_project_yml` | X | dbt (`manifest_materialization`) | Configure `dbt_project.yml` so models in `staging/` materialize as views by default |
+| 1 | `dbt_install` | L | — | What dbt-core + dbt-duckdb are, where they live in your venv, what `dbt --version` shows |
+| 2 | `dbt_init` | X | file (`dbt_project/dbt_project.yml`) | Run `dbt init dbt_project` to scaffold a fresh project; understand the directory layout it generates |
+| 3 | `profiles_yml` | X | dbt (`dbt_debug_success`) | Write `dbt_project/profiles.yml` pointing at a local DuckDB file; `dbt debug` connects |
+| 4 | `dbt_seed` | X | dbt (`dbt_seed_success`, `duckdb_table_exists` × 3) | Copy the raw CSVs from `data/` into `dbt_project/seeds/`; run `dbt seed`; verify 3 raw tables exist in DuckDB |
+| 5 | `first_model` | X | dbt (`dbt_run_success`, `duckdb_table_exists`) | Write `models/staging/stg_customers.sql` using `{{ ref('raw_customers') }}`; `dbt run --select stg_customers`; verify table |
+| 6 | `project_yml` | X | dbt (`manifest_materialization`) | Configure `dbt_project.yml` so models in `staging/` materialize as views by default |
 
 **Quiz `quiz/stage1.yaml`:** what `dbt init` creates, what `profiles.yml`
 configures, `ref()` vs raw table names, `dbt seed` vs `dbt run`, where output
@@ -363,7 +363,7 @@ Each phase ends with a working `dbt-learn` CLI so we never accumulate broken
 state:
 
 1. **Phase A — Plumbing** (no content): delete `Dockerfile` / `docker-compose.yml`, rewrite `pyproject.toml` for dbt-learn with the entry-point script, scaffold `dbt_project/` with jaffle_shop seeds, run `dbt seed` locally to confirm the connection, scaffold `DbtVerifier` skeleton with one rule (`dbt_run_success`).
-2. **Phase B — Stage 1 end-to-end**: build all 6 Stage 1 items; the `12_dbt_seed` and `13_first_model` exercises must verify cleanly. This is the gate — if the verifier design is wrong, fix it now before writing more content.
+2. **Phase B — Stage 1 end-to-end**: build all 6 Stage 1 items; the `dbt_seed` and `first_model` exercises must verify cleanly. This is the gate — if the verifier design is wrong, fix it now before writing more content.
 3. **Phase C — Stage 0**: write the 6 concept lessons (no exercises, fastest stage to ship).
 4. **Phase D — Stages 2 → 6**: one stage per session, in order. Add new `DbtVerifier` rule types as exercises demand them.
 5. **Phase E — Quizzes**: write all 7 quiz YAMLs in one pass once content is stable.

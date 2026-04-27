@@ -1,78 +1,81 @@
 # curriculum.yaml — defines every lesson and exercise in the dbt-learn course.
 #
-# See curriculum.md for the full multi-stage design. Stage 0 (this file) is
-# concept-only: 6 short lessons covering ELT, the modern data team, cloud
-# warehouses, dbt itself, and the three flavors of dbt. Subsequent stages
-# (Stage 1: first dbt project, etc.) will be added incrementally.
+# See curriculum.md for the full multi-stage design. Stage 0 is concept-only:
+# 6 short lessons covering ELT, the modern data team, cloud warehouses, dbt
+# itself, and the three flavors of dbt. Stage 1 walks the learner through
+# scaffolding their first dbt project from scratch.
+#
+# Item IDs are descriptive (no numeric prefix) so reordering is just shuffling
+# lines in this file — no rename of files or IDs required.
 
 stages:
   - id: stage_0_foundations
     title: "Stage 0 — Foundations"
     items:
-      - id: 00_welcome
+      - id: welcome
         type: lesson
-        file: lessons/stage0/00_welcome.html
+        file: lessons/stage0/welcome.html
 
-      - id: 01_etl_vs_elt
+      - id: etl_vs_elt
         type: lesson
-        file: lessons/stage0/01_etl_vs_elt.html
-        quiz: quiz/01_etl_vs_elt.yaml
+        file: lessons/stage0/etl_vs_elt.html
+        quiz: quiz/etl_vs_elt.yaml
 
-      - id: 02_modern_data_team
+      - id: modern_data_team
         type: lesson
-        file: lessons/stage0/02_modern_data_team.html
-        quiz: quiz/02_modern_data_team.yaml
+        file: lessons/stage0/modern_data_team.html
+        quiz: quiz/modern_data_team.yaml
 
-      - id: 03_cloud_data_warehouses
+      - id: cloud_data_warehouses
         type: lesson
-        file: lessons/stage0/03_cloud_data_warehouses.html
-        quiz: quiz/03_cloud_data_warehouses.yaml
+        file: lessons/stage0/cloud_data_warehouses.html
+        quiz: quiz/cloud_data_warehouses.yaml
 
-      - id: 04_what_is_dbt
+      - id: what_is_dbt
         type: lesson
-        file: lessons/stage0/04_what_is_dbt.html
-        quiz: quiz/04_what_is_dbt.yaml
+        file: lessons/stage0/what_is_dbt.html
+        quiz: quiz/what_is_dbt.yaml
 
-      - id: 05_dbt_flavors
+      - id: dbt_flavors
         type: lesson
-        file: lessons/stage0/05_dbt_flavors.html
-        quiz: quiz/05_dbt_flavors.yaml
+        file: lessons/stage0/dbt_flavors.html
+        quiz: quiz/dbt_flavors.yaml
 
   - id: stage_1_first_project
     title: "Stage 1 — Your First dbt Project"
     items:
-      - id: 10_dbt_install
+      - id: dbt_install
         type: lesson
-        file: lessons/stage1/10_dbt_install.html
+        file: lessons/stage1/dbt_install.html
 
-      - id: 11_dbt_init
+      - id: dbt_init
         type: exercise
-        lesson:   lessons/stage1/10_dbt_install.html
-        exercise: exercises/stage1/11_dbt_init.md
-        original: originals/stage1/11_dbt_init.md
-        hints:    hints/stage1/11_dbt_init.md
+        lesson:   lessons/stage1/dbt_install.html
+        exercise: exercises/stage1/dbt_init.md
+        original: originals/stage1/dbt_init.md
+        hints:    hints/stage1/dbt_init.md
         verifier: file
         file_checks:
           - path: dbt_project/dbt_project.yml
             min_bytes: 100
 
-      - id: 12_profiles_yml
+      - id: profiles_yml
         type: exercise
-        lesson:   lessons/stage1/10_dbt_install.html
-        exercise: exercises/stage1/12_profiles_yml.md
-        original: originals/stage1/12_profiles_yml.md
-        hints:    hints/stage1/12_profiles_yml.md
+        lesson:   lessons/stage1/dbt_install.html
+        exercise: exercises/stage1/profiles_yml.md
+        original: originals/stage1/profiles_yml.md
+        hints:    hints/stage1/profiles_yml.md
         verifier: dbt
         dbt_checks:
           rules:
             - type: dbt_debug_success
 
-      - id: 13_dbt_seed
+      - id: dbt_seed
         type: exercise
-        lesson:   lessons/stage1/10_dbt_install.html
-        exercise: exercises/stage1/13_dbt_seed.md
-        original: originals/stage1/13_dbt_seed.md
-        hints:    hints/stage1/13_dbt_seed.md
+        lesson:   lessons/stage1/dbt_install.html
+        exercise: exercises/stage1/dbt_seed.md
+        original: originals/stage1/dbt_seed.md
+        hints:    hints/stage1/dbt_seed.md
         verifier: dbt
         dbt_checks:
           rules:
@@ -84,12 +87,12 @@ stages:
             - type: duckdb_table_exists
               table: raw_payments
 
-      - id: 14_first_model
+      - id: first_model
         type: exercise
-        lesson:   lessons/stage1/10_dbt_install.html
-        exercise: exercises/stage1/14_first_model.md
-        original: originals/stage1/14_first_model.md
-        hints:    hints/stage1/14_first_model.md
+        lesson:   lessons/stage1/dbt_install.html
+        exercise: exercises/stage1/first_model.md
+        original: originals/stage1/first_model.md
+        hints:    hints/stage1/first_model.md
         verifier: dbt
         dbt_checks:
           rules:
@@ -98,12 +101,12 @@ stages:
             - type: duckdb_table_exists
               table: stg_customers
 
-      - id: 15_project_yml
+      - id: project_yml
         type: exercise
-        lesson:   lessons/stage1/10_dbt_install.html
-        exercise: exercises/stage1/15_project_yml.md
-        original: originals/stage1/15_project_yml.md
-        hints:    hints/stage1/15_project_yml.md
+        lesson:   lessons/stage1/dbt_install.html
+        exercise: exercises/stage1/project_yml.md
+        original: originals/stage1/project_yml.md
+        hints:    hints/stage1/project_yml.md
         verifier: dbt
         quiz:     quiz/stage1.yaml
         dbt_checks:

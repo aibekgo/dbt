@@ -14,7 +14,7 @@ questions:
       ELT means Extract, Load, then Transform — the transform runs in SQL inside
       the cloud warehouse where the raw data was loaded. dbt is the tool that
       defines and orchestrates that transform layer.
-    related_item: 01_etl_vs_elt
+    related_item: etl_vs_elt
 
   - id: etl_vs_elt_02
     difficulty: medium
@@ -30,4 +30,4 @@ questions:
       Cloud warehouses decoupled storage from compute and made both cheap and
       elastic. That made it economical to load raw data first and transform it
       inside the warehouse — the core ELT pattern.
-    related_item: 01_etl_vs_elt
+    related_item: etl_vs_elt

@@ -54,8 +54,13 @@
 </head>
 <body>
 <h1>Stage 1 — Your First dbt Project</h1>
+<div style="display: flex; gap: 16px; align-items: center; margin: 24px 0;">
+  <img src="../../images/dbt_install/dbt_logo.png" alt="dbt logo" style="width: 80px; height: 80px; margin: 0; display: block;">
+  <span style="font-size: 1.6em; color: #888;">+</span>
+  <img src="../../images/welcome/duckdb.png" alt="DuckDB logo" style="width: 200px; margin: 0; display: block;">
+</div>
 
-<p>Stage 0 was concept-only. From here on, you write real code against a real warehouse. By the end of this stage you&rsquo;ll have a working dbt project with raw seed data loaded into DuckDB and your first model materialized as a table.</p>
+<p>Stage 0 was concept-only. From here on, you write real code against a real warehouse. By the end of this stage you&rsquo;ll have a working dbt project with raw seed data loaded into DuckDB and your first model materialized as a view.</p>
 
 <p><strong>You build it.</strong> The repo doesn&rsquo;t ship a pre-made <code>dbt_project/</code> &mdash; you create it yourself with <code>dbt init</code>, write the <code>profiles.yml</code>, drop in the seed CSVs, and run the first model. That way nothing is magic.</p>
 
@@ -114,15 +119,55 @@ Plugins:
 </ul>
 
 <h2>What you&rsquo;ll do this stage</h2>
-<ol>
-  <li><strong>Run <code>dbt init dbt_project</code></strong> &mdash; scaffold the directory above.</li>
-  <li><strong>Write <code>profiles.yml</code></strong> &mdash; tell dbt to use DuckDB at <code>dev.duckdb</code> in the project dir.</li>
-  <li><strong>Run <code>dbt seed</code></strong> &mdash; load the three jaffle_shop CSVs into DuckDB as raw tables.</li>
-  <li><strong>Write your first model</strong> &mdash; <code>stg_customers.sql</code>, a <code>SELECT</code> from <code>{{ ref('raw_customers') }}</code>.</li>
-  <li><strong>Configure <code>dbt_project.yml</code></strong> &mdash; default the staging models to the <code>view</code> materialization.</li>
-</ol>
+
+<div style="display: flex; flex-direction: column; gap: 10px; margin: 24px 0;">
+  <div style="display: flex; align-items: stretch; gap: 12px;">
+    <div style="background: #ff6a00; color: white; font-weight: 700; padding: 12px 16px; border-radius: 6px; min-width: 32px; text-align: center;">1</div>
+    <div style="flex: 1; background: #f0f0f0; border-radius: 6px; padding: 12px 14px;">
+      <div style="font-weight: 600;">Run <code style="background: rgba(255,255,255,0.6);">dbt init dbt_project</code></div>
+      <div style="color: #555; font-size: 0.9em;">Scaffolds the directory tree above.</div>
+    </div>
+  </div>
+  <div style="text-align: center; color: #888;">↓</div>
+  <div style="display: flex; align-items: stretch; gap: 12px;">
+    <div style="background: #ff6a00; color: white; font-weight: 700; padding: 12px 16px; border-radius: 6px; min-width: 32px; text-align: center;">2</div>
+    <div style="flex: 1; background: #f0f0f0; border-radius: 6px; padding: 12px 14px;">
+      <div style="font-weight: 600;">Write <code style="background: rgba(255,255,255,0.6);">profiles.yml</code></div>
+      <div style="color: #555; font-size: 0.9em;">Tell dbt to use DuckDB at <code>dev.duckdb</code> in the project dir.</div>
+    </div>
+  </div>
+  <div style="text-align: center; color: #888;">↓</div>
+  <div style="display: flex; align-items: stretch; gap: 12px;">
+    <div style="background: #ff6a00; color: white; font-weight: 700; padding: 12px 16px; border-radius: 6px; min-width: 32px; text-align: center;">3</div>
+    <div style="flex: 1; background: #f0f0f0; border-radius: 6px; padding: 12px 14px;">
+      <div style="font-weight: 600;">Run <code style="background: rgba(255,255,255,0.6);">dbt seed</code></div>
+      <div style="color: #555; font-size: 0.9em;">Load the three jaffle_shop CSVs into DuckDB as raw tables.</div>
+    </div>
+  </div>
+  <div style="text-align: center; color: #888;">↓</div>
+  <div style="display: flex; align-items: stretch; gap: 12px;">
+    <div style="background: #ff6a00; color: white; font-weight: 700; padding: 12px 16px; border-radius: 6px; min-width: 32px; text-align: center;">4</div>
+    <div style="flex: 1; background: #f0f0f0; border-radius: 6px; padding: 12px 14px;">
+      <div style="font-weight: 600;">Write your first model</div>
+      <div style="color: #555; font-size: 0.9em;"><code>stg_customers.sql</code> &mdash; a <code>SELECT</code> from <code>{{ ref('raw_customers') }}</code>.</div>
+    </div>
+  </div>
+  <div style="text-align: center; color: #888;">↓</div>
+  <div style="display: flex; align-items: stretch; gap: 12px;">
+    <div style="background: #ff6a00; color: white; font-weight: 700; padding: 12px 16px; border-radius: 6px; min-width: 32px; text-align: center;">5</div>
+    <div style="flex: 1; background: #f0f0f0; border-radius: 6px; padding: 12px 14px;">
+      <div style="font-weight: 600;">Configure <code style="background: rgba(255,255,255,0.6);">dbt_project.yml</code></div>
+      <div style="color: #555; font-size: 0.9em;">Default everything in <code>staging/</code> to the <code>view</code> materialization.</div>
+    </div>
+  </div>
+</div>
 
 <p>Everything you build under <code>dbt_project/</code> is gitignored &mdash; the repo only ships the raw CSVs in <code>data/</code>. If you want to start over, run <code>dbt-learn reset</code>; the CLI deletes <code>dbt_project/</code> and you&rsquo;re back to a blank slate.</p>
+
+<h2>What it&rsquo;ll look like in DuckDB</h2>
+<p>By the end of this stage, your DuckDB warehouse will have three raw tables (loaded by <code>dbt seed</code>) and one view (<code>stg_customers</code>, your first model). In a real warehouse browser the layout looks like this &mdash; tables and views side by side under the same schema:</p>
+<img src="../../images/dbt_install/tables_and_views.png" alt="A schema in a database UI showing tables and views grouped under one schema" style="max-width: 360px;">
+<p>That&rsquo;s the goal. Five exercises stand between you and it.</p>
 
 <h2>Common pitfalls</h2>
 <ul>

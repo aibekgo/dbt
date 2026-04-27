@@ -54,20 +54,21 @@
 </head>
 <body>
 <h1>ETL vs ELT</h1>
+<img src="../../images/etl_vs_elt/elt_vs_etl.png" alt="Side-by-side comparison of ETL and ELT pipelines">
 
 <h2>The two acronyms</h2>
 <p>Every data pipeline has the same three primitives: get the data out of the source (<strong>Extract</strong>), reshape it into something analysts can use (<strong>Transform</strong>), and write it somewhere queryable (<strong>Load</strong>). What changes is the order.</p>
 
 <h3>ETL &mdash; Extract, Transform, Load</h3>
 <p>Pull raw data out of source systems, run it through a transformation engine on a separate machine (an ETL tool, a Spark cluster, a Python job), then load only the cleaned, modeled data into the warehouse.</p>
-<img src="../../images/lesson1/etl_flow.png" alt="ETL: extract from sources, transform on a separate box, then load into the warehouse">
+<img src="../../images/etl_vs_elt/etl_flow.png" alt="ETL: extract from sources, transform on a separate box, then load into the warehouse">
 <pre><code>Source &rarr; [Transform on a separate box] &rarr; Warehouse
 </code></pre>
 <p>ETL was the dominant pattern from the 1980s through the early 2010s, when warehouse compute was expensive and disk was scarce. You did the heavy lifting <em>before</em> the warehouse so the warehouse only stored what you needed.</p>
 
 <h3>ELT &mdash; Extract, Load, Transform</h3>
 <p>Pull raw data out of source systems, dump it into the warehouse <em>as-is</em>, then transform it in place using SQL.</p>
-<img src="../../images/lesson1/elt_flow.png" alt="ELT: extract from sources, load raw into the warehouse, then transform in place">
+<img src="../../images/etl_vs_elt/elt_flow.png" alt="ELT: extract from sources, load raw into the warehouse, then transform in place">
 <pre><code>Source &rarr; Warehouse (raw) &rarr; Warehouse (transformed)
 </code></pre>
 <p>This is what cloud warehouses like Snowflake, BigQuery, Redshift, Databricks, and DuckDB are built for. <strong>dbt is the &ldquo;T&rdquo; in ELT.</strong></p>
