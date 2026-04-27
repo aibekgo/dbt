@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>Your first model</h1>
+
+<p>Three raw tables now sit in DuckDB. Time to write the thing dbt is actually for &mdash; a <strong>model</strong>.</p>
+
+<h2>What is a model?</h2>
+<p>A dbt <strong>model</strong> is a single <code>.sql</code> file under <code>models/</code> that contains exactly one <code>SELECT</code> statement. That&rsquo;s it. No <code>CREATE TABLE</code>, no <code>INSERT</code>, no DDL of any kind &mdash; you write the query, dbt wraps it in the right DDL and runs it for you.</p>
+
+<pre><code class="language-sql">-- models/staging/stg_customers.sql
+select
+    id          as customer_id,
+    first_name,
+    last_name
+from {{ ref('raw_customers') }}
+</code></pre>
+
+<p>When you run <code>dbt run --select stg_customers</code>, dbt translates that to roughly:</p>
+
+<pre><code class="language-sql">create or replace view dev.main.stg_customers as (
+  select
+      id as customer_id,
+      first_name,
+      last_name
+  from dev.main.raw_customers
+);
+</code></pre>
+<p>(<code>dev</code> here is the DuckDB database file <code>database/dev.duckdb</code>; <code>main</code> is its default schema.)</p>
+
+<p>You write the <em>logic</em>; dbt handles the boilerplate, the dependency order, the schema names, and the cleanup.</p>
+
+<h2>The <code>ref()</code> macro</h2>
+<p><code>{{ ref('raw_customers') }}</code> is dbt&rsquo;s way of saying &ldquo;the thing called <code>raw_customers</code> &mdash; whatever its real name is in this environment.&rdquo; At compile time dbt swaps it for the fully qualified table name (e.g. <code>dev.main.raw_customers</code> in dev, <code>prod.analytics.raw_customers</code> in prod).</p>
+
+<p>Three things <code>ref()</code> buys you:</p>
+<ol>
+  <li><strong>Dependency tracking.</strong> dbt sees that <code>stg_customers</code> depends on <code>raw_customers</code> and builds them in the right order.</li>
+  <li><strong>Environment-aware names.</strong> The same model code runs against your dev DuckDB file, against CI, against prod &mdash; without changing a character of SQL.</li>
+  <li><strong>The lineage graph.</strong> Every <code>ref()</code> becomes an edge in the DAG dbt renders for documentation and impact analysis.</li>
+</ol>
+
+<p>The rule: <strong>never hardcode a table name in dbt SQL.</strong> Use <code>ref()</code> for models and seeds, <code>source()</code> for tables you didn&rsquo;t build (we&rsquo;ll cover sources in Stage 2).</p>
+
+<h2>The staging convention</h2>
+<p>Every dbt project organizes models into layers. The <strong>staging</strong> layer is the first one &mdash; it sits directly on top of raw and does almost nothing:</p>
+
+<table>
+  <thead><tr><th>Allowed in staging</th><th>Not allowed in staging</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Renaming columns to business-friendly names (<code>id &rarr; customer_id</code>)</td>
+      <td>Joins between tables</td>
+    </tr>
+    <tr>
+      <td>Casting types (<code>created_at::timestamp</code>)</td>
+      <td>Aggregations</td>
+    </tr>
+    <tr>
+      <td>Light cleanup (trim whitespace, lowercase emails)</td>
+      <td>Business logic of any kind</td>
+    </tr>
+    <tr>
+      <td>Picking which raw columns to surface</td>
+      <td>Filters that drop rows</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The convention is <strong>one staging model per source table</strong>, named <code>stg_&lt;source&gt;_&lt;table&gt;</code> or just <code>stg_&lt;table&gt;</code>. You end up with a thin shim layer that other models build on top of &mdash; so when raw schemas change, you only have to fix one model per table.</p>
+
+<h2>Compile vs run</h2>
+<p>Two commands you&rsquo;ll use a lot:</p>
+<table>
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>dbt compile</code></td>
+      <td>Reads your models, expands all the Jinja (<code>ref()</code>, <code>source()</code>, macros), writes the resulting raw SQL to <code>target/compiled/</code>. <strong>Doesn&rsquo;t touch the warehouse.</strong></td>
+    </tr>
+    <tr>
+      <td><code>dbt run</code></td>
+      <td>Compiles, then actually executes the SQL against the warehouse.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>When a model misbehaves, <code>dbt compile</code> + reading the file in <code>target/compiled/</code> is the fastest way to see what dbt is actually about to run.</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>Hardcoding table names.</strong> &mdash; <code>FROM main.raw_customers</code> works in dev and breaks everywhere else. Always <code>{{ ref('raw_customers') }}</code>.</li>
+  <li><strong>Writing <code>CREATE TABLE</code> in a model.</strong> &mdash; You&rsquo;re fighting the framework. dbt owns DDL; you own the <code>SELECT</code>.</li>
+  <li><strong>Putting business logic in staging.</strong> &mdash; Once joins or filters creep in, you&rsquo;ve lost the &ldquo;one model per source table&rdquo; property and refactors get painful. Keep it boring.</li>
+  <li><strong>Forgetting to run <code>dbt seed</code> first.</strong> &mdash; <code>ref('raw_customers')</code> resolves to a table that has to actually exist. If you skipped seeding, <code>dbt run</code> fails with <em>relation not found</em>.</li>
+</ul>
+
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+</html>

@@ -35,7 +35,7 @@ from .base import BaseVerifier, TestResult, VerifyResult
 ROOT = Path(os.environ.get("COURSE_ROOT", Path(__file__).parent.parent))
 CURRICULUM_PATH = ROOT / "curriculum.yaml"
 DBT_PROJECT_DIR = ROOT / "dbt_project"
-DUCKDB_PATH = DBT_PROJECT_DIR / "dev.duckdb"
+DUCKDB_PATH = ROOT / "database" / "dev.duckdb"
 MANIFEST_PATH = DBT_PROJECT_DIR / "target" / "manifest.json"
 
 
@@ -97,9 +97,59 @@ def _run_dbt(*args: str) -> DbtRun:
     return DbtRun(returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr)
 
 
+def _run_dbt_anywhere(*args: str) -> DbtRun:
+    """Run `dbt <args>` from the repo root — for checks that don't need a project (e.g. --version)."""
+    cmd = ["dbt", *args]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    return DbtRun(returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr)
+
+
 # ---------------------------------------------------------------------------
 # Rule handlers — each returns a list[TestResult]
 # ---------------------------------------------------------------------------
+
+def _check_dbt_installed(rule: dict) -> list[TestResult]:
+    """`dbt --version` exits 0 and the duckdb adapter is loaded."""
+    try:
+        run = _run_dbt_anywhere("--version")
+    except FileNotFoundError:
+        return [TestResult(
+            name="dbt installed",
+            passed=False,
+            message=(
+                "`dbt` command not found. Activate your virtualenv with "
+                "`source .venv/bin/activate` and try again."
+            ),
+        )]
+    output = run.stdout + run.stderr
+    if not run.ok:
+        return [TestResult(
+            name="dbt --version",
+            passed=False,
+            message=_tail(output, lines=15),
+        )]
+    has_duckdb = "duckdb" in output.lower()
+    return [
+        TestResult(
+            name="dbt --version exits 0",
+            passed=True,
+            message=_tail(output, lines=8),
+        ),
+        TestResult(
+            name="dbt-duckdb adapter loaded",
+            passed=has_duckdb,
+            message="" if has_duckdb else (
+                "dbt is installed but the duckdb plugin isn't listed. "
+                "Run `uv pip install -e .` from the repo root."
+            ),
+        ),
+    ]
+
 
 def _check_dbt_run_success(rule: dict) -> list[TestResult]:
     if not DBT_PROJECT_DIR.exists():
@@ -246,6 +296,7 @@ def _tail(text: str, lines: int = 20) -> str:
 RuleHandler = Callable[[dict], list[TestResult]]
 
 RULE_HANDLERS: dict[str, RuleHandler] = {
+    "dbt_installed":            _check_dbt_installed,
     "dbt_debug_success":        _check_dbt_debug_success,
     "dbt_seed_success":         _check_dbt_seed_success,
     "dbt_run_success":          _check_dbt_run_success,

@@ -32,7 +32,7 @@ This installs `dbt-core`, `dbt-duckdb`, and the CLI itself in editable mode. Aft
 dbt-learn
 ```
 
-The CLI runs everything locally. dbt commands execute on your host against the embedded DuckDB file at `dbt_project/dev.duckdb`. Progress is saved to `progress.txt` in your workspace.
+The CLI runs everything locally. dbt commands execute on your host against the embedded DuckDB file at `database/dev.duckdb`. Progress is saved to `progress.txt` in your workspace.
 
 ## Interactive session
 

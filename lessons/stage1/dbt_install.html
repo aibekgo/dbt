@@ -88,6 +88,7 @@
 <pre><code class="language-bash">dbt --version
 </code></pre>
 <p>You should see something like:</p>
+<img src="../../images/dbt_install/dbt_version.png" alt="Output of dbt --version showing dbt-core and the duckdb plugin">
 <pre><code>Core:
   - installed: 1.8.x
   - latest:    1.8.x
@@ -97,26 +98,6 @@ Plugins:
 </code></pre>
 
 <p>If <code>dbt</code> is not found, your virtualenv is not activated &mdash; run <code>source .venv/bin/activate</code> from the repo root and try again.</p>
-
-<h2>What <code>dbt init</code> does</h2>
-<p>dbt ships with a project generator. <code>dbt init &lt;name&gt;</code> creates a fresh directory tree with everything dbt expects:</p>
-
-<pre><code>dbt_project/
-├── dbt_project.yml      ← project config: name, version, model paths, defaults
-├── analyses/            ← ad-hoc SQL that doesn&rsquo;t materialize
-├── macros/              ← reusable Jinja-templated SQL snippets
-├── models/              ← your transformations live here (this is where you spend most of your time)
-├── seeds/               ← static CSVs loaded as tables (raw lookup data, jaffle_shop CSVs)
-├── snapshots/           ← SCD2 history tables
-├── tests/               ← custom singular SQL tests
-└── README.md
-</code></pre>
-
-<p>Two files are missing from this list, on purpose:</p>
-<ul>
-  <li><strong><code>profiles.yml</code></strong> &mdash; the <em>connection config</em>. Says which warehouse to use, where it lives, what credentials. By default dbt looks for it in <code>~/.dbt/profiles.yml</code> (your home dir), but for this course we keep it inside <code>dbt_project/</code> so the project is self-contained. <strong>You write it in the next exercise.</strong></li>
-  <li><strong><code>target/</code></strong> &mdash; the build output (compiled SQL, manifests, run results). dbt creates this on the first <code>dbt run</code>; you never write to it by hand.</li>
-</ul>
 
 <h2>What you&rsquo;ll do this stage</h2>
 
@@ -133,7 +114,7 @@ Plugins:
     <div style="background: #ff6a00; color: white; font-weight: 700; padding: 12px 16px; border-radius: 6px; min-width: 32px; text-align: center;">2</div>
     <div style="flex: 1; background: #f0f0f0; border-radius: 6px; padding: 12px 14px;">
       <div style="font-weight: 600;">Write <code style="background: rgba(255,255,255,0.6);">profiles.yml</code></div>
-      <div style="color: #555; font-size: 0.9em;">Tell dbt to use DuckDB at <code>dev.duckdb</code> in the project dir.</div>
+      <div style="color: #555; font-size: 0.9em;">Tell dbt to use DuckDB at <code>database/dev.duckdb</code> at the repo root.</div>
     </div>
   </div>
   <div style="text-align: center; color: #888;">↓</div>
@@ -166,7 +147,7 @@ Plugins:
 
 <h2>What it&rsquo;ll look like in DuckDB</h2>
 <p>By the end of this stage, your DuckDB warehouse will have three raw tables (loaded by <code>dbt seed</code>) and one view (<code>stg_customers</code>, your first model). In a real warehouse browser the layout looks like this &mdash; tables and views side by side under the same schema:</p>
-<img src="../../images/dbt_install/tables_and_views.png" alt="A schema in a database UI showing tables and views grouped under one schema" style="max-width: 360px;">
+<img src="../../images/dbt_install/tables_and_views.png" alt="A schema in a database UI showing tables and views grouped under one schema">
 <p>That&rsquo;s the goal. Five exercises stand between you and it.</p>
 
 <h2>Common pitfalls</h2>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>profiles.yml &mdash; the connection config</h1>
+
+<p>You ran <code>dbt init</code> last exercise and got a project skeleton. The skeleton describes <em>what</em> to build &mdash; model paths, project name, defaults. It says nothing about <em>where</em> to build it. That&rsquo;s what <code>profiles.yml</code> is for.</p>
+
+<h2>Two files, two responsibilities</h2>
+<table>
+  <thead><tr><th>File</th><th>Describes</th><th>Travels with</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>dbt_project.yml</code></td>
+      <td>The <strong>project</strong>: name, paths, model defaults, materializations.</td>
+      <td>The repo &mdash; everyone on the team uses the same one.</td>
+    </tr>
+    <tr>
+      <td><code>profiles.yml</code></td>
+      <td>The <strong>connection</strong>: which warehouse, which credentials, which schema.</td>
+      <td>Often the developer&rsquo;s machine &mdash; credentials don&rsquo;t belong in git.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>By default dbt looks for <code>profiles.yml</code> at <code>~/.dbt/profiles.yml</code> (your home dir). For this course we override that and keep it inside <code>dbt_project/</code> so the whole project is self-contained &mdash; the verifier sets <code>DBT_PROFILES_DIR=dbt_project/</code> when it runs dbt commands for you.</p>
+
+<blockquote>
+<p>In a real team setup the connection config lives outside the repo (env vars, a secrets manager, dbt Cloud). Bundling it inside the project is a learning convenience, not a production pattern.</p>
+</blockquote>
+
+<h2>What profiles.yml looks like</h2>
+
+<pre><code class="language-yaml">dbt_project:                          # &larr; matches the `profile:` field in dbt_project.yml
+  target: dev                         # &larr; which output to use by default
+  outputs:
+    dev:
+      type: duckdb                    # &larr; which adapter (must match an installed dbt-&lt;adapter&gt; package)
+      path: ../database/dev.duckdb    # &larr; relative to dbt_project/ &rarr; &lt;repo-root&gt;/database/dev.duckdb
+      threads: 4                      # &larr; how many models to build in parallel
+</code></pre>
+<img src="../../images/profiles_yml/example_profile.png" alt="profiles.yml file open in an editor with the DuckDB connection config">
+
+<p>The <code>path</code> is relative to wherever you run dbt from (typically <code>dbt_project/</code>), so <code>../database/dev.duckdb</code> resolves to a single shared <code>database/</code> directory at the repo root. Keeping the warehouse outside the project means <code>dbt-learn reset</code> can wipe <code>dbt_project/</code> without nuking your raw data alongside it.</p>
+
+<p>Key things to notice:</p>
+<ul>
+  <li><strong>The top-level key must match the <code>profile:</code> field</strong> inside <code>dbt_project.yml</code>. <code>dbt init</code> set both to your project name, so as long as you don&rsquo;t rename anything they line up.</li>
+  <li><strong><code>outputs</code> is a map.</strong> Real teams have <code>dev</code>, <code>ci</code>, <code>prod</code> entries side by side and switch between them with <code>--target ci</code>. We only need <code>dev</code>.</li>
+  <li><strong>Different adapters need different fields.</strong> Snowflake needs <code>account</code>, <code>user</code>, <code>password</code>, <code>warehouse</code>. BigQuery needs <code>project</code>, <code>dataset</code>, a keyfile path. DuckDB just needs a <code>path</code>.</li>
+</ul>
+
+<h2><code>dbt debug</code> &mdash; the smoke test</h2>
+
+<p>Once <code>profiles.yml</code> is in place, <code>dbt debug</code> tells you whether dbt can:</p>
+<ol>
+  <li>Find <code>dbt_project.yml</code></li>
+  <li>Parse <code>profiles.yml</code></li>
+  <li>Match the project to a profile</li>
+  <li>Open a connection to the warehouse</li>
+  <li>Run a trivial smoke query (<code>SELECT 1</code>)</li>
+</ol>
+
+<p>If all five pass you see:</p>
+<pre><code>All checks passed!
+</code></pre>
+<img src="../../images/profiles_yml/dbt_debug.png" alt="Terminal output of dbt debug ending in 'All checks passed!'">
+
+<p>If any fail, dbt prints the exact step that broke. <code>dbt debug</code> is the first thing you run when something stops working &mdash; before <code>dbt run</code>, before reading model code, before anything else.</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>YAML indentation.</strong> &mdash; YAML is whitespace-sensitive. Use spaces, never tabs. Two-space indent throughout.</li>
+  <li><strong>Profile name mismatch.</strong> &mdash; If <code>dbt_project.yml</code> says <code>profile: jaffle_shop</code> but <code>profiles.yml</code>&rsquo;s top-level key is <code>dbt_project</code>, dbt will say <em>&ldquo;Could not find profile named &lsquo;jaffle_shop&rsquo;.&rdquo;</em> Make them match.</li>
+  <li><strong>Forgetting <code>type:</code>.</strong> &mdash; Without it, dbt doesn&rsquo;t know which adapter to load and the error message is cryptic. Every output needs a <code>type:</code>.</li>
+  <li><strong>Putting <code>profiles.yml</code> in the repo for a real warehouse.</strong> &mdash; Fine for DuckDB on a learning project. Never do it with credentials. Use env vars (<code>{{ env_var('SNOWFLAKE_PASSWORD') }}</code>) or a secrets manager.</li>
+</ul>
+
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+</html>

@@ -54,12 +54,12 @@ You should see one node succeed in green: `1 of 1 START sql view model ... [OK .
 ## What the verifier checks
 
 - `dbt run --select stg_customers` exits 0
-- A relation named `stg_customers` exists in `dev.duckdb`
+- A relation named `stg_customers` exists in `database/dev.duckdb`
 
 ## Inspecting the result
 
 ```bash
-duckdb dbt_project/dev.duckdb -c "SELECT * FROM stg_customers LIMIT 3;"
+duckdb database/dev.duckdb -c "SELECT * FROM stg_customers LIMIT 3;"
 ```
 
 You should see customer rows with the renamed column.

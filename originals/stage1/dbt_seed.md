@@ -42,7 +42,7 @@ You should see dbt create three tables, one per CSV. The CSV's filename (without
 ## What the verifier checks
 
 - `dbt seed` exits 0
-- The three tables `raw_customers`, `raw_orders`, `raw_payments` all exist somewhere in `dev.duckdb`'s schemas
+- The three tables `raw_customers`, `raw_orders`, `raw_payments` all exist somewhere in `database/dev.duckdb`'s schemas
 
 The exact schema name is up to dbt — by default it's `main_<your_target_schema>`, but the verifier searches all schemas so you don't have to memorize it.
 
@@ -51,7 +51,7 @@ The exact schema name is up to dbt — by default it's `main_<your_target_schema
 After `dbt seed` runs, you can poke at the DuckDB file directly:
 
 ```bash
-duckdb dbt_project/dev.duckdb
+duckdb database/dev.duckdb
 ```
 
 Then in the duckdb shell:

@@ -8,4 +8,4 @@ Make sure the top-level key matches the `profile:` field inside `dbt_project/dbt
 
 ## Hint 3
 
-If `dbt debug` fails with a connection error, double-check `type: duckdb` (not `duckdb_db` or `duck`) and that `path: dev.duckdb` has a colon and a single space after it. YAML is whitespace-sensitive — use **spaces**, never tabs, and indent each level by exactly 2 spaces.
+If `dbt debug` fails with a connection error, double-check `type: duckdb` (not `duckdb_db` or `duck`) and that `path: ../database/dev.duckdb` has a colon and a single space after it. The path is relative to `dbt_project/`, which is why it walks up one directory. YAML is whitespace-sensitive — use **spaces**, never tabs, and indent each level by exactly 2 spaces.

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Seeds &mdash; loading raw CSVs into the warehouse</h1>
+
+  <p>Your warehouse is connected and empty. To build models, you need <em>something</em> to model from. In a real
+    project the &ldquo;something&rdquo; is data piped in by Fivetran, Airbyte, or a custom ingestion job. For learning,
+    we use dbt&rsquo;s built-in mechanism for loading static CSVs &mdash; <strong>seeds</strong>.</p>
+
+  <h2>What is a seed?</h2>
+  <p>A <strong>seed</strong> is a CSV file under <code>seeds/</code> in your dbt project. When you run
+    <code>dbt seed</code>, dbt:</p>
+  <ol>
+    <li>Reads each CSV.</li>
+    <li>Infers column types (or uses ones you declare).</li>
+    <li>Issues a <code>CREATE TABLE</code> in the warehouse named after the file (e.g. <code>raw_customers.csv</code>
+      &rarr; table <code>raw_customers</code>).</li>
+    <li><code>INSERT</code>s every row.</li>
+  </ol>
+
+  <p>From dbt&rsquo;s perspective seeds behave just like any other model: they have a name, they live in the manifest,
+    you can <code>{{ ref('raw_customers') }}</code> them from a model.</p>
+
+  <h2>When to use seeds &mdash; and when not to</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Good fit</th>
+        <th>Bad fit</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Lookup tables (country codes, ISO currency, plan tier &rarr; price)</td>
+        <td>Operational data (orders, events, users)</td>
+      </tr>
+      <tr>
+        <td>Sample / fixture data while learning or building demos</td>
+        <td>Anything that updates more than once a quarter</td>
+      </tr>
+      <tr>
+        <td>Small reference tables that change with code, not with the business</td>
+        <td>Anything bigger than a few thousand rows</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The rule of thumb: if it would feel weird to <code>git diff</code> the data, it doesn&rsquo;t belong in a seed.
+    Production data flows in through ingestion, not through commits.</p>
+
+  <h2>The jaffle_shop sample data</h2>
+
+  <p>This course ships with three CSVs in <code>data/</code> (top-level, outside <code>dbt_project/</code>):</p>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Rows</th>
+        <th>What it represents</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>raw_customers.csv</code></td>
+        <td>~100</td>
+        <td>Customer records: id, first_name, last_name</td>
+      </tr>
+      <tr>
+        <td><code>raw_orders.csv</code></td>
+        <td>~99</td>
+        <td>Orders: id, user_id, order_date, status</td>
+      </tr>
+      <tr>
+        <td><code>raw_payments.csv</code></td>
+        <td>~113</td>
+        <td>Payment events: id, order_id, payment_method, amount</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>This is the canonical <em>jaffle_shop</em> dataset that ships with dbt&rsquo;s own tutorials. It pretends to be a
+    small e-commerce shop selling Australian breakfast sandwiches. Tiny on purpose &mdash; you can hold the whole schema
+    in your head while learning.</p>
+
+  <blockquote>
+    <p>Why are the CSVs in <code>data/</code> instead of <code>dbt_project/seeds/</code>? Because
+      <code>dbt_project/</code> is gitignored &mdash; if we put the CSVs there, <code>dbt-learn reset</code> would
+      delete them. Keeping them in <code>data/</code> means a reset only nukes <em>your work</em>, not the source data.
+    </p>
+  </blockquote>
+
+  <h2>What <code>dbt seed</code> outputs</h2>
+
+  <pre><code>$ cd dbt_project &amp;&amp; dbt seed
+Running with dbt=1.8.x
+Found 3 seeds, 0 models, 0 sources, 0 exposures, ...
+
+1 of 3 START seed file main.raw_customers ...... [RUN]
+1 of 3 OK   loaded seed file main.raw_customers .. [INSERT 100 in 0.05s]
+2 of 3 START seed file main.raw_orders ......... [RUN]
+2 of 3 OK   loaded seed file main.raw_orders .... [INSERT 99 in 0.04s]
+3 of 3 START seed file main.raw_payments ....... [RUN]
+3 of 3 OK   loaded seed file main.raw_payments .. [INSERT 113 in 0.04s]
+
+Completed successfully
+</code></pre>
+
+  <p>After this completes, <code>database/dev.duckdb</code> contains three real, queryable tables. You can verify by
+    opening the file with the DuckDB CLI:</p>
+  <pre><code class="language-bash">duckdb database/dev.duckdb -c "SELECT count(*) FROM raw_customers;"
+</code></pre>
+
+  <h2>Common pitfalls</h2>
+  <ul>
+    <li><strong>Putting CSVs in the wrong directory.</strong> &mdash; They have to live under
+      <code>dbt_project/seeds/</code>. <code>dbt seed</code> won&rsquo;t look at <code>data/</code>, the project root,
+      or anywhere else.</li>
+    <li><strong>Treating seeds like a load mechanism.</strong> &mdash; Seeds are slow for big files because every row
+      goes through SQL <code>INSERT</code> statements. Real ingestion uses bulk-load APIs (<code>COPY</code>,
+      <code>LOAD DATA</code>, or vendor-specific connectors). For anything &gt; a few MB use a real loader.</li>
+    <li><strong>Hardcoding seed table names downstream.</strong> &mdash; Always reference seeds via
+      <code>{{ ref('raw_customers') }}</code>, never <code>SELECT * FROM main.raw_customers</code>. <code>ref()</code>
+      works in dev, ci, prod &mdash; hardcoded names break the moment the schema changes.</li>
+  </ul>
+
+  <p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

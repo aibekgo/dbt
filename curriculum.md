@@ -114,7 +114,7 @@ shell wrapper.
 The course ships a pre-scaffolded dbt project at `<repo>/dbt_project/` with:
 
 - `dbt_project.yml` (minimal)
-- `profiles.yml` (DuckDB target → `<repo>/dbt_project/dev.duckdb`; uses
+- `profiles.yml` (DuckDB target → `<repo>/database/dev.duckdb`; uses
   `DBT_PROFILES_DIR` pointed at the project dir, or relies on dbt's default
   search path)
 - `seeds/raw_*.csv` (jaffle_shop)
@@ -130,7 +130,7 @@ Reset extension in `cli/main.py`:
 
 - `shutil.rmtree(dbt_project/target)`
 - `shutil.rmtree(dbt_project/dbt_packages)` (if present)
-- delete `dbt_project/dev.duckdb`
+- delete `database/dev.duckdb`
 - run `dbt seed` to repopulate raw tables
 
 ---
@@ -190,7 +190,7 @@ lands in DuckDB, view vs table materialization.
 - Add `dbt_project/` to `.gitignore` (learner-generated; reset wipes it)
 - Extend `cli/main.py reset()` to `rm -rf dbt_project/` (so learner can start over cleanly); skip `dbt seed` when the project doesn't exist
 - New `DbtVerifier` rule types: `dbt_debug_success`, `dbt_seed_success`, `duckdb_table_exists`, `manifest_materialization`
-- `duckdb_table_exists` queries `dbt_project/dev.duckdb` directly via the `duckdb` Python package (already in `pyproject.toml`)
+- `duckdb_table_exists` queries `database/dev.duckdb` directly via the `duckdb` Python package (already in `pyproject.toml`)
 - Exercise scaffold pattern for "run-a-command" items: a `.md` instructions file in `exercises/stage1/<id>.md` that the learner reads (no edits); the verifier checks the resulting side effect, not the file
 
 ---
@@ -321,7 +321,7 @@ Per the template's README rules:
 - `cli/main.py` — `COURSE_NAME`, `COURSE_EMOJI`, register `DbtVerifier` and `FileVerifier`, extend `reset()` to wipe `target/` and `dev.duckdb`; strip any `docker exec` plumbing from `LocalVerifier` (run pytest in-process via `subprocess.run([sys.executable, "-m", "pytest", ...])`)
 - `curriculum.yaml` — replace skeleton with the 7-stage structure above
 - `README.md` — rewrite per template spec
-- `.gitignore` — add `lessons/**/*.md`, `dbt_project/target/`, `dbt_project/dbt_packages/`, `dbt_project/dev.duckdb`, `dbt_project/logs/`
+- `.gitignore` — add `lessons/**/*.md`, `dbt_project/`, `database/*.duckdb`, `database/*.duckdb.wal`
 
 ### Create
 

@@ -45,12 +45,19 @@ stages:
     title: "Stage 1 — Your First dbt Project"
     items:
       - id: dbt_install
-        type: lesson
-        file: lessons/stage1/dbt_install.html
+        type: exercise
+        lesson:   lessons/stage1/dbt_install.html
+        exercise: exercises/stage1/dbt_install.md
+        original: originals/stage1/dbt_install.md
+        hints:    hints/stage1/dbt_install.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_installed
 
       - id: dbt_init
         type: exercise
-        lesson:   lessons/stage1/dbt_install.html
+        lesson:   lessons/stage1/dbt_init.html
         exercise: exercises/stage1/dbt_init.md
         original: originals/stage1/dbt_init.md
         hints:    hints/stage1/dbt_init.md
@@ -61,7 +68,7 @@ stages:
 
       - id: profiles_yml
         type: exercise
-        lesson:   lessons/stage1/dbt_install.html
+        lesson:   lessons/stage1/profiles_yml.html
         exercise: exercises/stage1/profiles_yml.md
         original: originals/stage1/profiles_yml.md
         hints:    hints/stage1/profiles_yml.md
@@ -72,7 +79,7 @@ stages:
 
       - id: dbt_seed
         type: exercise
-        lesson:   lessons/stage1/dbt_install.html
+        lesson:   lessons/stage1/dbt_seed.html
         exercise: exercises/stage1/dbt_seed.md
         original: originals/stage1/dbt_seed.md
         hints:    hints/stage1/dbt_seed.md
@@ -89,7 +96,7 @@ stages:
 
       - id: first_model
         type: exercise
-        lesson:   lessons/stage1/dbt_install.html
+        lesson:   lessons/stage1/first_model.html
         exercise: exercises/stage1/first_model.md
         original: originals/stage1/first_model.md
         hints:    hints/stage1/first_model.md
@@ -103,7 +110,7 @@ stages:
 
       - id: project_yml
         type: exercise
-        lesson:   lessons/stage1/dbt_install.html
+        lesson:   lessons/stage1/project_yml.html
         exercise: exercises/stage1/project_yml.md
         original: originals/stage1/project_yml.md
         hints:    hints/stage1/project_yml.md

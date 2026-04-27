@@ -33,6 +33,7 @@ COURSE_EMOJI = os.environ.get("COURSE_EMOJI", "🔧")
 # dbt project state we wipe on reset
 ROOT = Path(__file__).resolve().parent.parent
 DBT_PROJECT = ROOT / "dbt_project"
+DATABASE_DIR = ROOT / "database"
 
 
 def _get_verifier(item: CurriculumItem):
@@ -85,6 +86,7 @@ def show_prompt(item: CurriculumItem) -> None:
         parts.append("[bold]h[/]:hint")
         parts.append("[bold]v[/]:verify")
     parts.append("[bold]n[/]:next")
+    parts.append("[bold]p[/]:previous")
     parts.append("[bold]r[/]:reset-progress")
     parts.append("[bold]q[/]:quit")
     console.print("\n" + "  ".join(parts) + " ? ", end="")
@@ -191,6 +193,19 @@ def action_list(state: dict) -> None:
     console.print()
 
 
+def action_previous(item: CurriculumItem, state: dict) -> CurriculumItem:
+    idx = get_index(item.id)
+    if idx <= 0:
+        console.print("\n[dim]Already at the first item.[/]")
+        return item
+
+    prev_item = CURRICULUM[idx - 1]
+    state["current"] = prev_item.id
+    save_state(state)
+    show_item(prev_item, state)
+    return prev_item
+
+
 def action_next(item: CurriculumItem, state: dict) -> CurriculumItem | None:
     if item.has_verifier and not is_verified(state, item.id):
         console.print(
@@ -263,6 +278,9 @@ def interactive_session() -> None:
             if result is None:
                 break
             item = result
+        elif cmd == "p":
+            state = load_state()
+            item = action_previous(item, state)
         elif cmd == "x":
             if item.type == "lesson":
                 console.print("\n[dim]Nothing to reset for a lesson.[/]")
@@ -356,6 +374,11 @@ def reset() -> None:
     if DBT_PROJECT.exists():
         console.print(f"[dim]Wiping learner-created dbt project at {DBT_PROJECT.name}/...[/]")
         shutil.rmtree(DBT_PROJECT, ignore_errors=True)
+
+    if DATABASE_DIR.exists():
+        for f in DATABASE_DIR.glob("*.duckdb*"):
+            console.print(f"[dim]Wiping {f.relative_to(ROOT)}...[/]")
+            f.unlink(missing_ok=True)
 
     console.print("[green]✅ Reset complete.[/]")
 

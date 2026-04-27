@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>Configuring <code>dbt_project.yml</code></h1>
+
+<p>Your <code>stg_customers</code> model is built as a <em>view</em> &mdash; that&rsquo;s dbt&rsquo;s default. In a real project you&rsquo;ll want different layers built differently: staging as views, marts as tables, snapshots as their own thing. <code>dbt_project.yml</code> is where you declare those defaults.</p>
+
+<h2>What is a materialization?</h2>
+<p>A <strong>materialization</strong> is what dbt does with the SQL you write &mdash; the kind of object it creates in the warehouse:</p>
+
+<table>
+  <thead><tr><th>Materialization</th><th>What dbt issues</th><th>Best for</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>view</code> (default)</td>
+      <td><code>CREATE OR REPLACE VIEW</code></td>
+      <td>Cheap to build. Reads recompute every time. Fine for staging and small lookups.</td>
+    </tr>
+    <tr>
+      <td><code>table</code></td>
+      <td><code>CREATE OR REPLACE TABLE</code></td>
+      <td>Expensive to build, fast to read. Use for marts and anything queried by dashboards.</td>
+    </tr>
+    <tr>
+      <td><code>incremental</code></td>
+      <td><code>INSERT</code> / <code>MERGE</code> for new rows</td>
+      <td>Big append-only tables (events, logs). Builds only the new rows on each run.</td>
+    </tr>
+    <tr>
+      <td><code>ephemeral</code></td>
+      <td>Inlined as a CTE in downstream models</td>
+      <td>Reusable SQL fragments. Never lands in the warehouse.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Same SQL, different storage strategy. Switching a model from <code>view</code> to <code>table</code> changes nothing about the query &mdash; only about how dbt stores the result.</p>
+
+<h2>Three places to set materialization</h2>
+
+<p>dbt resolves materialization in increasing specificity. The most specific wins.</p>
+
+<ol>
+  <li>
+    <strong>Project-wide default in <code>dbt_project.yml</code></strong>
+    <pre><code class="language-yaml">models:
+  +materialized: view   # everything in the project, unless overridden
+</code></pre>
+  </li>
+  <li>
+    <strong>Folder-level default in <code>dbt_project.yml</code></strong> &mdash; the workhorse.
+    <pre><code class="language-yaml">models:
+  dbt_project:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+</code></pre>
+  </li>
+  <li>
+    <strong>Per-model in the SQL file</strong> &mdash; the escape hatch.
+    <pre><code class="language-sql">-- models/marts/orders_summary.sql
+{{ config(materialized='incremental', unique_key='order_id') }}
+
+select ...
+</code></pre>
+  </li>
+</ol>
+
+<p>In a real project, 95% of materializations come from the folder-level config. The per-model <code>config()</code> block is for the special cases &mdash; the one model that needs to be incremental, the one staging model you want as a table for some performance reason.</p>
+
+<h2>The leading <code>+</code> sigil</h2>
+
+<p>Notice <code>+materialized</code>, not <code>materialized</code>. The <code>+</code> tells dbt &ldquo;this is a configuration to apply to every model in this folder&rdquo; instead of &ldquo;this is the name of a sub-folder.&rdquo;</p>
+
+<pre><code class="language-yaml">models:
+  dbt_project:
+    staging:
+      materialized: view   # &larr; WRONG: dbt looks for models/staging/materialized/view.sql
+      +materialized: view  # &larr; RIGHT: applies to every model under staging/
+</code></pre>
+
+<p>You&rsquo;ll see the same pattern with <code>+enabled</code>, <code>+tags</code>, <code>+schema</code>, <code>+meta</code>, and any other config dbt understands.</p>
+
+<h2>Why set it explicitly when <code>view</code> is already the default?</h2>
+
+<p>Two reasons:</p>
+<ul>
+  <li><strong>Future-proofing.</strong> When you decide later that staging should be ephemeral or table for some reason, you change one line in <code>dbt_project.yml</code> instead of editing every staging model.</li>
+  <li><strong>Documentation.</strong> A reader of your repo sees the materialization choice declared in one place. No surprise behavior depending on which dbt version&rsquo;s defaults are in play.</li>
+</ul>
+
+<h2>What the verifier checks</h2>
+
+<p>The verifier runs <code>dbt parse</code> to refresh <code>target/manifest.json</code>, then inspects the manifest entry for <code>stg_customers</code> and confirms its <code>config.materialized</code> resolved to <code>view</code>. The manifest is dbt&rsquo;s own ground-truth view of what each model is configured as &mdash; if it reads <code>view</code> there, dbt agrees with you.</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>Forgetting the <code>+</code> sigil.</strong> &mdash; Without it, dbt treats <code>materialized: view</code> as a path. Confusing parse errors.</li>
+  <li><strong>Wrong project name.</strong> &mdash; The second key under <code>models:</code> must match <code>name:</code> at the top of the same file. If they disagree, dbt silently ignores your config.</li>
+  <li><strong>Indentation drift.</strong> &mdash; YAML uses spaces, two-per-level. Mixing tabs or 3-space indents breaks the file in non-obvious ways.</li>
+  <li><strong>Setting it per-model when you could set it per-folder.</strong> &mdash; Works, but means every new model needs the boilerplate. Folder-level config wins for any project bigger than a handful of models.</li>
+</ul>
+
+<p>Press <code>n</code> to start the exercise &mdash; the last one in Stage 1.</p>
+</body>
+</html>

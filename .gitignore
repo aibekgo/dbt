@@ -222,6 +222,10 @@ __marimo__/
 # dbt project — created by the learner via `dbt init` in Stage 1; never committed
 dbt_project/
 
+# Local DuckDB warehouse — committed dir + README, never the actual database file
+database/*.duckdb
+database/*.duckdb.wal
+
 # Lesson markdown sources (build_lessons.py renders to .html which IS committed)
 lessons/**/*.md
 

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1><code>dbt init</code> &mdash; scaffolding your project</h1>
+
+<p>dbt is installed. Now you need a <strong>project</strong> &mdash; a specific directory layout that dbt knows how to read. <code>dbt init &lt;name&gt;</code> generates that layout for you. You only run it once per project, ever.</p>
+
+<h2>What <code>dbt init</code> creates</h2>
+
+<pre><code>dbt_project/
+├── dbt_project.yml      ← project config: name, version, model paths, defaults
+├── analyses/            ← ad-hoc SQL that doesn&rsquo;t materialize
+├── macros/              ← reusable Jinja-templated SQL snippets
+├── models/              ← your transformations live here (this is where you spend most of your time)
+├── seeds/               ← static CSVs loaded as tables (raw lookup data, jaffle_shop CSVs)
+├── snapshots/           ← SCD2 history tables
+├── tests/               ← custom singular SQL tests
+└── README.md
+</code></pre>
+<img src="../../images/dbt_install/dbt_dir.png" alt="The dbt_project directory tree as shown in a file explorer">
+
+<p>Each folder maps to a section of <code>dbt_project.yml</code>. You can rename them (<code>model-paths: ["transformations"]</code> etc.) but the defaults are what 99% of projects use &mdash; sticking to convention makes your repo legible to anyone who&rsquo;s seen another dbt project.</p>
+
+<h2>Two files are missing &mdash; on purpose</h2>
+<ul>
+  <li><strong><code>profiles.yml</code></strong> &mdash; the <em>connection config</em>. Says which warehouse to use, where it lives, what credentials. By default dbt looks for it in <code>~/.dbt/profiles.yml</code> (your home dir), but for this course we keep it inside <code>dbt_project/</code> so the project is self-contained. <strong>You write it in the next exercise.</strong></li>
+  <li><strong><code>target/</code></strong> &mdash; the build output (compiled SQL, manifests, run results). dbt creates this on the first <code>dbt run</code>; you never write to it by hand.</li>
+</ul>
+
+<h2>The interactive prompts</h2>
+<p>When you run <code>dbt init dbt_project</code>, dbt asks you a couple of questions before scaffolding. Use these answers:</p>
+
+<table>
+  <thead><tr><th>Prompt</th><th>Answer</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>Which database would you like to use?</code></td>
+      <td><code>1</code> (or whichever number is next to <strong>duckdb</strong>)</td>
+    </tr>
+    <tr>
+      <td>Profile-related prompts (path, threads, schema)</td>
+      <td>Press Enter to accept defaults. We overwrite <code>profiles.yml</code> properly in the next exercise.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>If <code>dbt init</code> doesn&rsquo;t prompt for a database (some versions skip it when only one adapter is installed), that&rsquo;s fine &mdash; it just scaffolds the project.</p>
+
+<blockquote>
+<p>Some versions of <code>dbt init</code> drop a sample <code>example/</code> folder under <code>models/</code> with two starter SQL files. We ignore those for the rest of the course &mdash; you&rsquo;ll write your own under <code>models/staging/</code>.</p>
+</blockquote>
+
+<h2>Where the directory ends up</h2>
+<p>Run <code>dbt init dbt_project</code> from the <em>repo root</em> (the directory that contains this <code>README.md</code> and <code>curriculum.yaml</code>). dbt creates a folder named after the argument you pass, so the result is <code>&lt;repo-root&gt;/dbt_project/</code>. The verifier in the next exercise looks for <code>dbt_project/dbt_project.yml</code> at exactly that path.</p>
+
+<p>Everything under <code>dbt_project/</code> is gitignored &mdash; the repo ships only the raw CSVs in <code>data/</code>. If you mess up, run <code>dbt-learn reset</code>; the CLI deletes <code>dbt_project/</code> and you&rsquo;re back to a blank slate.</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>Running <code>dbt init</code> from inside <code>dbt_project/</code>.</strong> &mdash; You&rsquo;ll end up with <code>dbt_project/dbt_project/</code>. Always run it from the repo root.</li>
+  <li><strong>Picking the wrong adapter at the prompt.</strong> &mdash; If you accidentally pick a non-duckdb adapter, the generated <code>~/.dbt/profiles.yml</code> won&rsquo;t match. Easy to fix &mdash; <code>dbt-learn reset</code> and try again.</li>
+  <li><strong>Editing <code>~/.dbt/profiles.yml</code>.</strong> &mdash; <code>dbt init</code> may write a profile there in your home directory. Ignore it &mdash; this course uses <code>dbt_project/profiles.yml</code> via <code>DBT_PROFILES_DIR</code>, set automatically by the verifier.</li>
+</ul>
+
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+</html>
