@@ -37,3 +37,77 @@ stages:
         type: lesson
         file: lessons/stage0/05_dbt_flavors.html
         quiz: quiz/05_dbt_flavors.yaml
+
+  - id: stage_1_first_project
+    title: "Stage 1 — Your First dbt Project"
+    items:
+      - id: 10_dbt_install
+        type: lesson
+        file: lessons/stage1/10_dbt_install.html
+
+      - id: 11_dbt_init
+        type: exercise
+        lesson:   lessons/stage1/10_dbt_install.html
+        exercise: exercises/stage1/11_dbt_init.md
+        original: originals/stage1/11_dbt_init.md
+        hints:    hints/stage1/11_dbt_init.md
+        verifier: file
+        file_checks:
+          - path: dbt_project/dbt_project.yml
+            min_bytes: 100
+
+      - id: 12_profiles_yml
+        type: exercise
+        lesson:   lessons/stage1/10_dbt_install.html
+        exercise: exercises/stage1/12_profiles_yml.md
+        original: originals/stage1/12_profiles_yml.md
+        hints:    hints/stage1/12_profiles_yml.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_debug_success
+
+      - id: 13_dbt_seed
+        type: exercise
+        lesson:   lessons/stage1/10_dbt_install.html
+        exercise: exercises/stage1/13_dbt_seed.md
+        original: originals/stage1/13_dbt_seed.md
+        hints:    hints/stage1/13_dbt_seed.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_seed_success
+            - type: duckdb_table_exists
+              table: raw_customers
+            - type: duckdb_table_exists
+              table: raw_orders
+            - type: duckdb_table_exists
+              table: raw_payments
+
+      - id: 14_first_model
+        type: exercise
+        lesson:   lessons/stage1/10_dbt_install.html
+        exercise: exercises/stage1/14_first_model.md
+        original: originals/stage1/14_first_model.md
+        hints:    hints/stage1/14_first_model.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: stg_customers
+            - type: duckdb_table_exists
+              table: stg_customers
+
+      - id: 15_project_yml
+        type: exercise
+        lesson:   lessons/stage1/10_dbt_install.html
+        exercise: exercises/stage1/15_project_yml.md
+        original: originals/stage1/15_project_yml.md
+        hints:    hints/stage1/15_project_yml.md
+        verifier: dbt
+        quiz:     quiz/stage1.yaml
+        dbt_checks:
+          rules:
+            - type: manifest_materialization
+              model: stg_customers
+              expected: view

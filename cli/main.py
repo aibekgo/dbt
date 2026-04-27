@@ -353,24 +353,9 @@ def reset() -> None:
         if item.type == "exercise" and item.original:
             reset_exercise(item)
 
-    console.print("[dim]Cleaning dbt artifacts...[/]")
-    for sub in ("target", "dbt_packages", "logs"):
-        shutil.rmtree(DBT_PROJECT / sub, ignore_errors=True)
-    for f in ("dev.duckdb", "dev.duckdb.wal"):
-        (DBT_PROJECT / f).unlink(missing_ok=True)
-
-    if (DBT_PROJECT / "dbt_project.yml").exists():
-        console.print("[dim]Re-seeding raw tables...[/]")
-        result = subprocess.run(
-            ["dbt", "seed"],
-            cwd=str(DBT_PROJECT),
-            env={**os.environ, "DBT_PROFILES_DIR": str(DBT_PROJECT)},
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            console.print("[yellow]⚠️  `dbt seed` failed during reset — run it manually if needed.[/]")
-            console.print(result.stdout[-500:] + result.stderr[-500:])
+    if DBT_PROJECT.exists():
+        console.print(f"[dim]Wiping learner-created dbt project at {DBT_PROJECT.name}/...[/]")
+        shutil.rmtree(DBT_PROJECT, ignore_errors=True)
 
     console.print("[green]✅ Reset complete.[/]")
 

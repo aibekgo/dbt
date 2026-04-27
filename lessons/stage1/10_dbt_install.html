@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>Stage 1 — Your First dbt Project</h1>
+
+<p>Stage 0 was concept-only. From here on, you write real code against a real warehouse. By the end of this stage you&rsquo;ll have a working dbt project with raw seed data loaded into DuckDB and your first model materialized as a table.</p>
+
+<p><strong>You build it.</strong> The repo doesn&rsquo;t ship a pre-made <code>dbt_project/</code> &mdash; you create it yourself with <code>dbt init</code>, write the <code>profiles.yml</code>, drop in the seed CSVs, and run the first model. That way nothing is magic.</p>
+
+<h2>What you already have installed</h2>
+<p>When you ran <code>uv pip install -e .</code> during setup, you installed three things that matter for this stage:</p>
+<table>
+  <thead><tr><th>Package</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>dbt-core</code></td>
+      <td>The dbt CLI itself. Provides the <code>dbt</code> command and the project-parsing engine.</td>
+    </tr>
+    <tr>
+      <td><code>dbt-duckdb</code></td>
+      <td>The <strong>adapter</strong> that lets dbt talk to DuckDB. Each warehouse has its own adapter package &mdash; <code>dbt-snowflake</code>, <code>dbt-bigquery</code>, etc. You install the one that matches your warehouse.</td>
+    </tr>
+    <tr>
+      <td><code>duckdb</code></td>
+      <td>The DuckDB engine itself. The adapter depends on it; we also use it directly in the verifier to inspect your warehouse.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Confirm everything is wired up:</p>
+<pre><code class="language-bash">dbt --version
+</code></pre>
+<p>You should see something like:</p>
+<pre><code>Core:
+  - installed: 1.8.x
+  - latest:    1.8.x
+
+Plugins:
+  - duckdb: 1.8.x
+</code></pre>
+
+<p>If <code>dbt</code> is not found, your virtualenv is not activated &mdash; run <code>source .venv/bin/activate</code> from the repo root and try again.</p>
+
+<h2>What <code>dbt init</code> does</h2>
+<p>dbt ships with a project generator. <code>dbt init &lt;name&gt;</code> creates a fresh directory tree with everything dbt expects:</p>
+
+<pre><code>dbt_project/
+├── dbt_project.yml      ← project config: name, version, model paths, defaults
+├── analyses/            ← ad-hoc SQL that doesn&rsquo;t materialize
+├── macros/              ← reusable Jinja-templated SQL snippets
+├── models/              ← your transformations live here (this is where you spend most of your time)
+├── seeds/               ← static CSVs loaded as tables (raw lookup data, jaffle_shop CSVs)
+├── snapshots/           ← SCD2 history tables
+├── tests/               ← custom singular SQL tests
+└── README.md
+</code></pre>
+
+<p>Two files are missing from this list, on purpose:</p>
+<ul>
+  <li><strong><code>profiles.yml</code></strong> &mdash; the <em>connection config</em>. Says which warehouse to use, where it lives, what credentials. By default dbt looks for it in <code>~/.dbt/profiles.yml</code> (your home dir), but for this course we keep it inside <code>dbt_project/</code> so the project is self-contained. <strong>You write it in the next exercise.</strong></li>
+  <li><strong><code>target/</code></strong> &mdash; the build output (compiled SQL, manifests, run results). dbt creates this on the first <code>dbt run</code>; you never write to it by hand.</li>
+</ul>
+
+<h2>What you&rsquo;ll do this stage</h2>
+<ol>
+  <li><strong>Run <code>dbt init dbt_project</code></strong> &mdash; scaffold the directory above.</li>
+  <li><strong>Write <code>profiles.yml</code></strong> &mdash; tell dbt to use DuckDB at <code>dev.duckdb</code> in the project dir.</li>
+  <li><strong>Run <code>dbt seed</code></strong> &mdash; load the three jaffle_shop CSVs into DuckDB as raw tables.</li>
+  <li><strong>Write your first model</strong> &mdash; <code>stg_customers.sql</code>, a <code>SELECT</code> from <code>{{ ref('raw_customers') }}</code>.</li>
+  <li><strong>Configure <code>dbt_project.yml</code></strong> &mdash; default the staging models to the <code>view</code> materialization.</li>
+</ol>
+
+<p>Everything you build under <code>dbt_project/</code> is gitignored &mdash; the repo only ships the raw CSVs in <code>data/</code>. If you want to start over, run <code>dbt-learn reset</code>; the CLI deletes <code>dbt_project/</code> and you&rsquo;re back to a blank slate.</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>&ldquo;<code>dbt</code>: command not found.&rdquo;</strong> &mdash; Your venv is not activated. Run <code>source .venv/bin/activate</code> from the repo root.</li>
+  <li><strong>Confusing <code>dbt_project.yml</code> with <code>profiles.yml</code>.</strong> &mdash; <code>dbt_project.yml</code> describes the <em>project</em> (paths, model defaults). <code>profiles.yml</code> describes the <em>connection</em> (which warehouse, which credentials). Project files travel with the repo; profiles can be machine-local. We bundle both inside <code>dbt_project/</code> for this course because the warehouse is a local file.</li>
+  <li><strong>Editing files in <code>target/</code>.</strong> &mdash; Don&rsquo;t. <code>target/</code> is regenerated on every <code>dbt run</code>. Your work lives in <code>models/</code>, <code>seeds/</code>, <code>snapshots/</code>, <code>macros/</code>, and <code>tests/</code>.</li>
+</ul>
+
+<p>When you&rsquo;re ready, press <code>n</code> to start the first exercise.</p>
+</body>
+</html>

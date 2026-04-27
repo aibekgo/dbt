@@ -1,0 +1,85 @@
+topic: stage1
+questions:
+  - id: stage1_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What's the difference between `dbt_project.yml` and `profiles.yml`?"
+    options:
+      a: "They're the same file under two names — dbt looks for whichever exists"
+      b: "`dbt_project.yml` describes the project (paths, defaults, name); `profiles.yml` describes the connection (which warehouse, credentials)"
+      c: "`dbt_project.yml` is for dbt Core, `profiles.yml` is for dbt Cloud"
+      d: "`profiles.yml` is the older format that `dbt_project.yml` replaced"
+    answer: b
+    explanation: |
+      Project files live with your repo (everyone on the team uses the same one). Profiles can be machine-local because they hold connection details. We bundle both inside `dbt_project/` for this course because the warehouse is just a local DuckDB file with no credentials.
+    related_item: 12_profiles_yml
+
+  - id: stage1_02
+    difficulty: easy
+    type: multiple_choice
+    prompt: "When you write `from {{ ref('raw_customers') }}` in a model, what does dbt do at compile time?"
+    options:
+      a: "Inlines the entire SELECT of `raw_customers` as a CTE"
+      b: "Replaces it with the fully-qualified table name (e.g., `dev.main_dbt.raw_customers`) and adds an edge to the DAG"
+      c: "Throws an error because `ref()` is only for tests"
+      d: "Calls a Python function named `ref` from your project"
+    answer: b
+    explanation: |
+      `ref()` does two jobs: it produces the right table name for the active target, and it tells dbt's parser "this model depends on `raw_customers`," which is how dbt knows the build order. Hardcoding `from raw_customers` would break both.
+    related_item: 14_first_model
+
+  - id: stage1_03
+    difficulty: easy
+    type: multiple_choice
+    prompt: "You added a CSV at `dbt_project/seeds/raw_orders.csv`. Which command loads it into the warehouse?"
+    options:
+      a: "`dbt run`"
+      b: "`dbt build`"
+      c: "`dbt seed`"
+      d: "`dbt source freshness`"
+    answer: c
+    explanation: |
+      `dbt seed` is the only command that loads CSVs from `seeds/` into the warehouse. `dbt run` only runs models. `dbt build` runs seeds + models + tests in dependency order — it would also work, but `dbt seed` is the surgical choice.
+    related_item: 13_dbt_seed
+
+  - id: stage1_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "After `dbt seed` finishes, where in DuckDB do the seed tables live?"
+    options:
+      a: "In a special `seeds` schema that dbt creates"
+      b: "In the schema dbt computes from your profile's `schema:` field (often `main_<schema_name>`)"
+      c: "Always in the `main` schema"
+      d: "In a temporary in-memory schema that vanishes after the run"
+    answer: b
+    explanation: |
+      dbt-duckdb writes tables into a schema derived from your target's `schema:` setting (or a default like `main_dbt_<user>`). The exact name is up to your profile; what matters is that `ref()` resolves to the right place at compile time so you don't have to think about it.
+    related_item: 13_dbt_seed
+
+  - id: stage1_05
+    difficulty: medium
+    type: multiple_choice
+    prompt: "In `dbt_project.yml`, why does the materialization config have a leading `+` (`+materialized: view`)?"
+    options:
+      a: "Without the `+`, dbt would treat `materialized` as a sub-folder name and silently ignore the setting"
+      b: "It's purely cosmetic — both forms work"
+      c: "The `+` enables hot-reload during `dbt run --watch`"
+      d: "It marks the config as required (vs optional)"
+    answer: a
+    explanation: |
+      In a folder-config block, dbt distinguishes between *paths* (folders under `models/`) and *configs* by the leading `+`. Drop the `+` and dbt looks for a folder named `materialized` containing a model named `view.sql`. Annoyingly silent failure — your config just doesn't apply.
+    related_item: 15_project_yml
+
+  - id: stage1_06
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which materialization recomputes the SQL on every read but doesn't store rows?"
+    options:
+      a: "table"
+      b: "view"
+      c: "incremental"
+      d: "ephemeral"
+    answer: b
+    explanation: |
+      A view is a stored SQL definition; querying it re-runs the SELECT every time. `table` materializes once per `dbt run` and stores the rows. `ephemeral` doesn't even create an object in the warehouse — dbt inlines the SQL as a CTE in downstream models. Views are the right default for the staging layer because they're free to rebuild.
+    related_item: 15_project_yml

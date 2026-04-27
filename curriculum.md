@@ -166,20 +166,32 @@ stack, when to pick Cloud vs Core vs Fusion.
 
 ### Stage 1 — Your First dbt Project · 6 items
 
-Maps to `02-dbt-101-fundamental.md`. Student goes from `dbt debug` to a
-working model.
+Maps to `02-dbt-101-fundamental.md`. Student builds a real dbt project from
+scratch — `dbt init` to first running model. **No bundled `dbt_project/`** —
+the learner creates and configures every piece. The repo ships only the raw
+CSVs in `data/`; everything under `dbt_project/` is learner-generated and
+gitignored.
 
 | # | id | type | verifier | what it teaches |
 |---|---|---|---|---|
-| 1 | `10_install_overview` | L | — | What's in the bundled dbt project, how DuckDB acts as the warehouse |
-| 2 | `11_dbt_debug` | X | dbt | Run `dbt debug`, fix `profiles.yml` so the connection succeeds |
-| 3 | `12_dbt_seed` | X | dbt | `dbt seed`; verify three raw tables exist via `duckdb_table_exists` |
-| 4 | `13_first_model` | X | dbt | Write `models/staging/stg_customers.sql` selecting from `{{ ref('raw_customers') }}`; verify row count |
-| 5 | `14_dbt_run` | X | dbt | Run model, inspect `target/run_results.json`, verify node status `success` |
-| 6 | `15_project_yml` | X | dbt | Configure `dbt_project.yml` to materialize staging as views by default |
+| 1 | `10_dbt_install` | L | — | What dbt-core + dbt-duckdb are, where they live in your venv, what `dbt --version` shows |
+| 2 | `11_dbt_init` | X | file (`dbt_project/dbt_project.yml`) | Run `dbt init dbt_project` to scaffold a fresh project; understand the directory layout it generates |
+| 3 | `12_profiles_yml` | X | dbt (`dbt_debug_success`) | Write `dbt_project/profiles.yml` pointing at a local DuckDB file; `dbt debug` connects |
+| 4 | `13_dbt_seed` | X | dbt (`dbt_seed_success`, `duckdb_table_exists` × 3) | Copy the raw CSVs from `data/` into `dbt_project/seeds/`; run `dbt seed`; verify 3 raw tables exist in DuckDB |
+| 5 | `14_first_model` | X | dbt (`dbt_run_success`, `duckdb_table_exists`) | Write `models/staging/stg_customers.sql` using `{{ ref('raw_customers') }}`; `dbt run --select stg_customers`; verify table |
+| 6 | `15_project_yml` | X | dbt (`manifest_materialization`) | Configure `dbt_project.yml` so models in `staging/` materialize as views by default |
 
-**Quiz `quiz/stage1.yaml`:** `ref()` vs raw table names, what `dbt run` does
-vs `dbt seed`, where output lands in DuckDB.
+**Quiz `quiz/stage1.yaml`:** what `dbt init` creates, what `profiles.yml`
+configures, `ref()` vs raw table names, `dbt seed` vs `dbt run`, where output
+lands in DuckDB, view vs table materialization.
+
+**Engine changes Stage 1 needs:**
+
+- Add `dbt_project/` to `.gitignore` (learner-generated; reset wipes it)
+- Extend `cli/main.py reset()` to `rm -rf dbt_project/` (so learner can start over cleanly); skip `dbt seed` when the project doesn't exist
+- New `DbtVerifier` rule types: `dbt_debug_success`, `dbt_seed_success`, `duckdb_table_exists`, `manifest_materialization`
+- `duckdb_table_exists` queries `dbt_project/dev.duckdb` directly via the `duckdb` Python package (already in `pyproject.toml`)
+- Exercise scaffold pattern for "run-a-command" items: a `.md` instructions file in `exercises/stage1/<id>.md` that the learner reads (no edits); the verifier checks the resulting side effect, not the file
 
 ---
 

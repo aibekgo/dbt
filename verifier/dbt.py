@@ -1,4 +1,4 @@
-"""DbtVerifier — runs dbt commands against the bundled DuckDB project and checks results.
+"""DbtVerifier — runs dbt commands against the learner's DuckDB project and checks results.
 
 Each exercise declares its verification rules in curriculum.yaml under
 `dbt_checks`. This verifier dispatches each rule by `type` to a `_check_*`
@@ -6,18 +6,22 @@ helper. Add new rule types by writing a new helper and registering it in
 RULE_HANDLERS at the bottom of this file.
 
 Currently implemented rule types:
+  - dbt_debug_success: `dbt debug` exits 0
+  - dbt_seed_success: `dbt seed` exits 0 (optional `select` to scope)
   - dbt_run_success: `dbt run --select <model>` exits 0
+  - duckdb_table_exists: query dev.duckdb's information_schema for the table
+  - manifest_materialization: parse target/manifest.json, check node materialized=<expected>
 
-Planned rule types (added per-stage as needed):
-  - dbt_test_success, dbt_seed_success, dbt_snapshot_success, dbt_build_success
-  - manifest_node_exists, manifest_materialization, manifest_test_count,
+Planned (added per-stage as needed):
+  - dbt_test_success, dbt_snapshot_success, dbt_build_success
+  - manifest_node_exists, manifest_test_count,
     manifest_source_declared, manifest_exposure_exists
-  - duckdb_query, duckdb_table_exists
-  - run_results_node_status, incremental_row_growth
+  - duckdb_query, run_results_node_status, incremental_row_growth
 """
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from dataclasses import dataclass
@@ -31,6 +35,19 @@ from .base import BaseVerifier, TestResult, VerifyResult
 ROOT = Path(os.environ.get("COURSE_ROOT", Path(__file__).parent.parent))
 CURRICULUM_PATH = ROOT / "curriculum.yaml"
 DBT_PROJECT_DIR = ROOT / "dbt_project"
+DUCKDB_PATH = DBT_PROJECT_DIR / "dev.duckdb"
+MANIFEST_PATH = DBT_PROJECT_DIR / "target" / "manifest.json"
+
+
+def _project_missing_result(name: str) -> list[TestResult]:
+    return [TestResult(
+        name=name,
+        passed=False,
+        message=(
+            f"`dbt_project/` doesn't exist yet — run `dbt init dbt_project` "
+            "from the repo root first."
+        ),
+    )]
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +102,8 @@ def _run_dbt(*args: str) -> DbtRun:
 # ---------------------------------------------------------------------------
 
 def _check_dbt_run_success(rule: dict) -> list[TestResult]:
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_run_success")
     select = rule.get("select", "")
     if not select:
         return [TestResult(
@@ -100,6 +119,121 @@ def _check_dbt_run_success(rule: dict) -> list[TestResult]:
     )]
 
 
+def _check_dbt_debug_success(rule: dict) -> list[TestResult]:
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_debug_success")
+    run = _run_dbt("debug")
+    return [TestResult(
+        name="dbt debug",
+        passed=run.ok,
+        message="" if run.ok else _tail(run.stdout + run.stderr, lines=25),
+    )]
+
+
+def _check_dbt_seed_success(rule: dict) -> list[TestResult]:
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_seed_success")
+    args = ["seed"]
+    select = rule.get("select")
+    if select:
+        args += ["--select", select]
+    run = _run_dbt(*args)
+    label = "dbt seed" + (f" --select {select}" if select else "")
+    return [TestResult(
+        name=label,
+        passed=run.ok,
+        message="" if run.ok else _tail(run.stdout + run.stderr, lines=20),
+    )]
+
+
+def _check_duckdb_table_exists(rule: dict) -> list[TestResult]:
+    table = rule.get("table")
+    if not table:
+        return [TestResult(
+            name="duckdb_table_exists",
+            passed=False,
+            message="rule is missing required `table` field",
+        )]
+    if not DUCKDB_PATH.exists():
+        return [TestResult(
+            name=f"duckdb_table_exists:{table}",
+            passed=False,
+            message=(
+                f"DuckDB file not found at {DUCKDB_PATH.relative_to(ROOT)}. "
+                "Did `dbt seed` / `dbt run` complete successfully?"
+            ),
+        )]
+    try:
+        import duckdb
+    except ImportError:
+        return [TestResult(
+            name=f"duckdb_table_exists:{table}",
+            passed=False,
+            message="duckdb python package not installed",
+        )]
+    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    try:
+        rows = con.execute(
+            "select table_schema from information_schema.tables where table_name = ?",
+            [table],
+        ).fetchall()
+    finally:
+        con.close()
+    if rows:
+        schemas = ", ".join(sorted({r[0] for r in rows}))
+        return [TestResult(
+            name=f"duckdb_table_exists:{table}",
+            passed=True,
+            message=f"found in schema(s): {schemas}",
+        )]
+    return [TestResult(
+        name=f"duckdb_table_exists:{table}",
+        passed=False,
+        message=f"table '{table}' not found in any schema in dev.duckdb",
+    )]
+
+
+def _check_manifest_materialization(rule: dict) -> list[TestResult]:
+    model = rule.get("model")
+    expected = rule.get("expected")
+    if not model or not expected:
+        return [TestResult(
+            name="manifest_materialization",
+            passed=False,
+            message="rule needs both `model` and `expected` fields",
+        )]
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("manifest_materialization")
+    # Refresh the manifest so we read the current project state
+    parse = _run_dbt("parse")
+    if not parse.ok:
+        return [TestResult(
+            name="dbt parse",
+            passed=False,
+            message=_tail(parse.stdout + parse.stderr, lines=20),
+        )]
+    if not MANIFEST_PATH.exists():
+        return [TestResult(
+            name="manifest_materialization",
+            passed=False,
+            message=f"manifest.json not found at {MANIFEST_PATH.relative_to(ROOT)}",
+        )]
+    manifest = json.loads(MANIFEST_PATH.read_text())
+    for node in manifest.get("nodes", {}).values():
+        if node.get("name") == model and node.get("resource_type") == "model":
+            actual = node.get("config", {}).get("materialized")
+            return [TestResult(
+                name=f"materialization:{model}",
+                passed=actual == expected,
+                message="" if actual == expected else f"expected '{expected}', got '{actual}'",
+            )]
+    return [TestResult(
+        name=f"materialization:{model}",
+        passed=False,
+        message=f"model '{model}' not found in manifest.json",
+    )]
+
+
 def _tail(text: str, lines: int = 20) -> str:
     parts = [ln for ln in text.splitlines() if ln.strip()]
     return "\n".join(parts[-lines:])
@@ -112,8 +246,11 @@ def _tail(text: str, lines: int = 20) -> str:
 RuleHandler = Callable[[dict], list[TestResult]]
 
 RULE_HANDLERS: dict[str, RuleHandler] = {
-    "dbt_run_success": _check_dbt_run_success,
-    # add more rule types here as exercises start needing them
+    "dbt_debug_success":        _check_dbt_debug_success,
+    "dbt_seed_success":         _check_dbt_seed_success,
+    "dbt_run_success":          _check_dbt_run_success,
+    "duckdb_table_exists":      _check_duckdb_table_exists,
+    "manifest_materialization": _check_manifest_materialization,
 }
 
 
