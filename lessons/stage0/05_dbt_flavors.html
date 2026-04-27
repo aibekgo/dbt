@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>The Three Flavors of dbt</h1>
+
+<p>&ldquo;dbt&rdquo; is one project but three things you can install and run. They all execute the same kind of dbt project &mdash; same SQL, same YAML, same DAG &mdash; but they differ in <strong>what runs the project</strong>, <strong>where it runs</strong>, and <strong>what surrounds it</strong>.</p>
+
+<h2>1. dbt Core &mdash; the open-source CLI</h2>
+<p>The original. A Python package (<code>dbt-core</code>) plus a warehouse adapter (<code>dbt-snowflake</code>, <code>dbt-bigquery</code>, <code>dbt-duckdb</code>, &hellip;). You install it with <code>pip</code> and run it from your terminal:</p>
+<pre><code class="language-bash">pip install dbt-core dbt-duckdb
+dbt run
+dbt test
+</code></pre>
+<p>This is what you&rsquo;ll use throughout this course. It&rsquo;s free, it works offline (against DuckDB), and every dbt-Cloud or dbt-Fusion concept is built on top of it.</p>
+
+<h2>2. dbt Cloud &mdash; the managed product</h2>
+<p>dbt Cloud (run by dbt Labs, the company behind dbt) wraps dbt Core with a hosted UI, scheduler, and IDE.</p>
+<img src="../../images/lesson5/dbt_cloud_ide.png" alt="dbt Cloud Studio IDE: file tree on the left, SQL editor in the middle, lineage graph and command bar at the bottom">
+<p>This is the dbt Cloud browser IDE: file tree, SQL editor, command bar, and live lineage all in one tab &mdash; no local setup required.</p>
+<p>What you get on top of Core:</p>
+<ul>
+  <li>Browser-based IDE for editing models</li>
+  <li>Scheduled job runs with retries, alerts, and SLAs</li>
+  <li>CI integration (run dbt on every PR)</li>
+  <li>Hosted documentation site</li>
+  <li>Semantic Layer / MetricFlow as a service</li>
+  <li>RBAC, SSO, audit logs &mdash; the things enterprises ask for</li>
+</ul>
+<p>dbt Cloud has a free Developer tier and paid Team / Enterprise tiers.</p>
+
+<h2>3. dbt Fusion &mdash; the new Rust engine</h2>
+<p>Announced in 2025, <strong>dbt Fusion</strong> is a from-scratch reimplementation of dbt&rsquo;s core engine in <strong>Rust</strong>. The Python <code>dbt-core</code> parser was the bottleneck for large projects (parsing 5,000 models could take minutes). Fusion parses the same project in seconds.</p>
+<img src="../../images/lesson5/dbt_fusion_authoring.png" alt="Familiar dbt authoring layer with the new Rust-based Fusion engine underneath">
+<p>What Fusion adds beyond raw speed:</p>
+<ul>
+  <li><strong>Native SQL comprehension</strong> &mdash; Fusion actually understands the SQL it&rsquo;s about to run, not just the Jinja around it.</li>
+  <li><strong>Column-level lineage</strong> &mdash; available without running the project.</li>
+  <li><strong>VS Code extension</strong> &mdash; powered by Fusion&rsquo;s LSP. You get autocomplete, jump-to-definition, real-time error squiggles, and CTE preview directly in your editor.</li>
+  <li><strong>Compile cache</strong> &mdash; only re-parses what changed.</li>
+</ul>
+<p>Fusion runs the same project structure as Core. You can install it alongside Core and switch between them.</p>
+
+<h2>Quick comparison</h2>
+<table>
+  <thead><tr><th></th><th>dbt Core</th><th>dbt Cloud</th><th>dbt Fusion</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Language</strong></td>
+      <td>Python</td>
+      <td>(wraps Core / Fusion)</td>
+      <td>Rust</td>
+    </tr>
+    <tr>
+      <td><strong>Cost</strong></td>
+      <td>Free</td>
+      <td>Free tier + paid</td>
+      <td>Free (in beta as of 2025)</td>
+    </tr>
+    <tr>
+      <td><strong>Where it runs</strong></td>
+      <td>Your laptop / your CI / your server</td>
+      <td>dbt Labs&rsquo; cloud</td>
+      <td>Your laptop / your CI</td>
+    </tr>
+    <tr>
+      <td><strong>Scheduler</strong></td>
+      <td>BYO (cron, Airflow, GitHub Actions)</td>
+      <td>Built in</td>
+      <td>BYO</td>
+    </tr>
+    <tr>
+      <td><strong>IDE</strong></td>
+      <td>BYO (VS Code, Cursor, &hellip;)</td>
+      <td>Browser IDE</td>
+      <td>VS Code extension</td>
+    </tr>
+    <tr>
+      <td><strong>Speed on big projects</strong></td>
+      <td>Slow parse phase</td>
+      <td>Same as underlying engine</td>
+      <td>~30x faster parse</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Which should you use?</h2>
+<table>
+  <thead><tr><th>If you&rsquo;re &hellip;</th><th>Pick</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Just learning, working on a hobby project, or building a side project</td>
+      <td><strong>Core</strong> (this course)</td>
+    </tr>
+    <tr>
+      <td>A small team that wants a managed scheduler, IDE, and docs without setting them up</td>
+      <td><strong>Cloud</strong></td>
+    </tr>
+    <tr>
+      <td>A big project where parsing latency hurts your inner loop, or you want VS Code-grade autocomplete</td>
+      <td><strong>Fusion</strong> (still in beta as of 2025; runs alongside Core)</td>
+    </tr>
+    <tr>
+      <td>An enterprise that needs SSO, RBAC, audit logs, SLAs</td>
+      <td><strong>Cloud Enterprise</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Why Core for this course</h2>
+<p>Everything in dbt Cloud and dbt Fusion is built on top of dbt Core&rsquo;s project structure. Learn Core well, and you&rsquo;ll be productive in any of the three on day one. We&rsquo;ll come back to Fusion specifically in Stage 6 once you have a real project to point it at.</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>&ldquo;dbt Cloud is the &lsquo;real&rsquo; dbt.&rdquo;</strong> &mdash; No. Cloud is dbt Core wrapped in a managed scheduler and IDE. Plenty of large companies run Core in their own infrastructure with Airflow or GitHub Actions.</li>
+  <li><strong>&ldquo;Fusion replaces Core.&rdquo;</strong> &mdash; Not yet. Fusion is the future runtime, but as of 2025 it&rsquo;s in beta and Core is still the daily driver for most projects.</li>
+</ul>
+
+<hr />
+<p>That&rsquo;s the end of Stage 0. Press <code>n</code> to take the stage quiz, then on to Stage 1 where we install dbt and run it for real.</p>
+</body>
+</html>

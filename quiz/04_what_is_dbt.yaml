@@ -1,0 +1,33 @@
+topic: what_is_dbt
+questions:
+  - id: what_is_dbt_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "Which letter of ELT does dbt own?"
+    options:
+      a: "E (Extract)"
+      b: "L (Load)"
+      c: "T (Transform)"
+      d: "All three"
+    answer: c
+    explanation: |
+      dbt does not extract or load data. It transforms data that has already
+      landed in the warehouse, by running SQL SELECT statements you write,
+      organized as a DAG of models.
+    related_item: 04_what_is_dbt
+
+  - id: what_is_dbt_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does a dbt 'model' actually contain?"
+    options:
+      a: "A CREATE TABLE statement"
+      b: "A SELECT statement; dbt wraps it with the right DDL based on the model's materialization config"
+      c: "A Python class"
+      d: "A YAML schema definition"
+    answer: b
+    explanation: |
+      You write only the SELECT. dbt handles the CREATE TABLE / CREATE VIEW /
+      MERGE wrapping based on each model's materialization (table, view,
+      incremental, ephemeral). This keeps the SQL you write focused on logic.
+    related_item: 04_what_is_dbt

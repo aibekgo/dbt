@@ -1,0 +1,49 @@
+topic: dbt_flavors
+questions:
+  - id: dbt_flavors_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What is dbt Core?"
+    options:
+      a: "A managed cloud product run by dbt Labs"
+      b: "The free, open-source Python CLI installed via pip — the foundation everything else builds on"
+      c: "A Rust-based reimplementation of dbt"
+      d: "A VS Code extension"
+    answer: b
+    explanation: |
+      dbt Core is the open-source Python package (`dbt-core` plus a warehouse
+      adapter like `dbt-duckdb`). It's what runs on your laptop, in CI, or on
+      a server. dbt Cloud and dbt Fusion build on top of Core's project model.
+    related_item: 05_dbt_flavors
+
+  - id: dbt_flavors_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which flavor of dbt would you reach for first if your project has thousands of models and you want a fast inner loop with autocomplete in your editor?"
+    options:
+      a: "dbt Core"
+      b: "dbt Cloud"
+      c: "dbt Fusion (the Rust engine + VS Code extension)"
+      d: "It doesn't matter — they all parse at the same speed"
+    answer: c
+    explanation: |
+      Fusion is the Rust reimplementation of dbt's core engine, designed to
+      fix the parse-time bottleneck on large projects. It also powers the
+      VS Code extension's autocomplete, lineage, and CTE preview features.
+    related_item: 05_dbt_flavors
+
+  - id: dbt_flavors_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which is true of dbt Cloud relative to dbt Core?"
+    options:
+      a: "dbt Cloud uses a different SQL dialect"
+      b: "dbt Cloud projects are incompatible with dbt Core projects"
+      c: "dbt Cloud wraps Core with a managed scheduler, IDE, hosted docs, and enterprise features (SSO, RBAC, audit logs)"
+      d: "dbt Cloud is open source"
+    answer: c
+    explanation: |
+      Cloud is a managed product on top of Core's project structure. The same
+      `models/`, `seeds/`, `tests/` folders work in both. Cloud adds the
+      operational layer most teams would otherwise build themselves.
+    related_item: 05_dbt_flavors

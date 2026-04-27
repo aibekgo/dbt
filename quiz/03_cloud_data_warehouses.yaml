@@ -1,0 +1,34 @@
+topic: cloud_data_warehouses
+questions:
+  - id: cloud_dwh_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "Which architectural change is the defining feature of modern cloud data warehouses?"
+    options:
+      a: "They store data in JSON instead of relational tables"
+      b: "They decouple storage from compute, scaling each independently"
+      c: "They use NoSQL engines under the hood"
+      d: "They run only on a single cloud provider"
+    answer: b
+    explanation: |
+      Decoupling storage (cheap object storage) from compute (elastic, on-demand
+      clusters or serverless slots) is what makes cloud warehouses economical
+      for ELT — you can store raw data forever and pay for compute only when
+      you query.
+    related_item: 03_cloud_data_warehouses
+
+  - id: cloud_dwh_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Why is DuckDB a reasonable choice for learning dbt, even though it isn't a cloud warehouse?"
+    options:
+      a: "DuckDB is the only warehouse dbt supports"
+      b: "DuckDB and Snowflake share the same source code"
+      c: "DuckDB speaks the same SQL dbt expects, so concepts transfer 1:1 to Snowflake / BigQuery / Redshift / Databricks"
+      d: "DuckDB is faster than every cloud warehouse"
+    answer: c
+    explanation: |
+      dbt is warehouse-agnostic. What you learn against DuckDB — models,
+      sources, tests, materializations, macros — applies unchanged to the
+      major cloud warehouses. Only the connection profile changes.
+    related_item: 03_cloud_data_warehouses

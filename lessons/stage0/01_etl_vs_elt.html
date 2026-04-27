@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>ETL vs ELT</h1>
+
+<h2>The two acronyms</h2>
+<p>Every data pipeline has the same three primitives: get the data out of the source (<strong>Extract</strong>), reshape it into something analysts can use (<strong>Transform</strong>), and write it somewhere queryable (<strong>Load</strong>). What changes is the order.</p>
+
+<h3>ETL &mdash; Extract, Transform, Load</h3>
+<p>Pull raw data out of source systems, run it through a transformation engine on a separate machine (an ETL tool, a Spark cluster, a Python job), then load only the cleaned, modeled data into the warehouse.</p>
+<img src="../../images/lesson1/etl_flow.png" alt="ETL: extract from sources, transform on a separate box, then load into the warehouse">
+<pre><code>Source &rarr; [Transform on a separate box] &rarr; Warehouse
+</code></pre>
+<p>ETL was the dominant pattern from the 1980s through the early 2010s, when warehouse compute was expensive and disk was scarce. You did the heavy lifting <em>before</em> the warehouse so the warehouse only stored what you needed.</p>
+
+<h3>ELT &mdash; Extract, Load, Transform</h3>
+<p>Pull raw data out of source systems, dump it into the warehouse <em>as-is</em>, then transform it in place using SQL.</p>
+<img src="../../images/lesson1/elt_flow.png" alt="ELT: extract from sources, load raw into the warehouse, then transform in place">
+<pre><code>Source &rarr; Warehouse (raw) &rarr; Warehouse (transformed)
+</code></pre>
+<p>This is what cloud warehouses like Snowflake, BigQuery, Redshift, Databricks, and DuckDB are built for. <strong>dbt is the &ldquo;T&rdquo; in ELT.</strong></p>
+
+<h2>Why the industry shifted to ELT</h2>
+<table>
+  <thead><tr><th>Reason</th><th>What changed</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Cost</strong></td>
+      <td>Cloud warehouse compute is cheap and elastic. Running a transform inside the warehouse is often cheaper than maintaining a separate Spark cluster or ETL tool.</td>
+    </tr>
+    <tr>
+      <td><strong>Scalability</strong></td>
+      <td>Modern warehouses scale storage and compute independently and on demand. You can transform a billion-row table without provisioning anything.</td>
+    </tr>
+    <tr>
+      <td><strong>Flexibility</strong></td>
+      <td>Raw data is preserved in the warehouse, so you can re-transform it whenever business logic changes &mdash; no need to re-extract from the source.</td>
+    </tr>
+    <tr>
+      <td><strong>Time-to-insight</strong></td>
+      <td>Loading raw first means analysts can poke at the data immediately, even before the modeled tables are built.</td>
+    </tr>
+    <tr>
+      <td><strong>Governance</strong></td>
+      <td>Raw data sticks around in a known place. Auditing, lineage, and compliance reviews all happen in one system instead of being scattered across an ETL tool, a Spark job, and the warehouse.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Where dbt fits</h2>
+<p>dbt does not extract data and it does not load data. It only does the &ldquo;T&rdquo; &mdash; and it does it as <strong>SQL that runs inside your warehouse</strong>. You write <code>SELECT</code> statements, dbt wraps them in the right DDL (<code>CREATE TABLE</code>, <code>CREATE VIEW</code>, <code>MERGE</code>) and runs them in the correct dependency order.</p>
+
+<blockquote>
+<p>Tools you might use for the E and L: Fivetran, Airbyte, Stitch, Meltano, custom Python jobs. Tools for the T: dbt (this course), or hand-rolled SQL scripts (which is what dbt replaces).</p>
+</blockquote>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>&ldquo;ELT means we don&rsquo;t need transformations.&rdquo;</strong> &mdash; Wrong. The transformations still happen; they just happen in the warehouse instead of before it. dbt is how you keep them organized, tested, and version-controlled.</li>
+  <li><strong>&ldquo;ETL is dead.&rdquo;</strong> &mdash; Also wrong. ETL still wins when you must redact PII before it lands in the warehouse, or when the source is huge and you only want a slice. Use the right pattern for the constraint, not the trend.</li>
+</ul>
+
+<p>Press <code>n</code> when you&rsquo;re ready for the next lesson.</p>
+</body>
+</html>

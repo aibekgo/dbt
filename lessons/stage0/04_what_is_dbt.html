@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>What is dbt?</h1>
+<img src="../../images/lesson4/dbt_overview.png" alt="dbt sits between raw data and downstream consumers — develop, test, deploy, and serve datasets to BI, ML, and operational analytics">
+
+<p><strong>dbt</strong> (data build tool) is a transformation framework that lets you write your warehouse transformations as <code>SELECT</code> statements, organized as a directed acyclic graph (DAG) of models, with built-in testing, documentation, and lineage.</p>
+
+<p>You write SQL. dbt handles the rest: dependency resolution, the <code>CREATE TABLE</code> / <code>CREATE VIEW</code> wrapping, running models in the right order, generating docs, running tests, and producing artifacts you can audit.</p>
+
+<h2>The core idea: a model is a SELECT</h2>
+<p>A dbt &ldquo;model&rdquo; is just a <code>.sql</code> file containing a <code>SELECT</code> statement. You don&rsquo;t write <code>CREATE TABLE</code> or <code>INSERT INTO</code> &mdash; dbt does that for you based on the model&rsquo;s configuration.</p>
+
+<pre><code class="language-sql">-- models/staging/stg_customers.sql
+select
+    id          as customer_id,
+    first_name,
+    last_name
+from {{ ref('raw_customers') }}
+</code></pre>
+
+<p>The <code>{{ ref('raw_customers') }}</code> is dbt&rsquo;s way of saying &ldquo;another model in this project named raw_customers&rdquo;. dbt resolves it to the right table name at compile time and uses it to build the DAG.</p>
+
+<p>Once you have a few models, dbt knows how every model depends on every other one and can render the full lineage graph for you:</p>
+<img src="../../images/lesson4/dbt_lineage_graph.png" alt="dbt Explorer lineage graph: sources flow into staging models, then into marts, with a side panel showing the selected model's metadata">
+<p>Each node is a model, each arrow is a <code>ref()</code>. dbt walks this graph at run time to build models in the right order &mdash; you never write a <code>CREATE TABLE</code> manually, and you never schedule the dependencies yourself.</p>
+
+<h2>Why use dbt?</h2>
+<table>
+  <thead><tr><th>Capability</th><th>Without dbt</th><th>With dbt</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Dependencies</strong></td>
+      <td>You manage execution order by hand or with Airflow tasks</td>
+      <td>Inferred automatically from <code>ref()</code> calls; dbt builds the DAG</td>
+    </tr>
+    <tr>
+      <td><strong>Tests</strong></td>
+      <td>Hand-written queries scheduled separately</td>
+      <td>Declare <code>not_null</code>, <code>unique</code>, <code>relationships</code> in YAML; dbt generates and runs them</td>
+    </tr>
+    <tr>
+      <td><strong>Docs</strong></td>
+      <td>A wiki page that goes stale</td>
+      <td>Auto-generated from your YAML and code, including column-level lineage</td>
+    </tr>
+    <tr>
+      <td><strong>Reuse</strong></td>
+      <td>Copy-paste SQL between scripts</td>
+      <td>Macros (Jinja-templated SQL) and packages</td>
+    </tr>
+    <tr>
+      <td><strong>Environments</strong></td>
+      <td>Manually point queries at <code>dev</code> / <code>prod</code> schemas</td>
+      <td>One <code>profiles.yml</code> with multiple targets</td>
+    </tr>
+    <tr>
+      <td><strong>Version control</strong></td>
+      <td>SQL lives in a wiki or in BI-tool definitions</td>
+      <td>SQL lives in git, gets PRs, gets CI</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Where dbt fits in the modern data stack</h2>
+<img src="../../images/lesson4/modern_data_stack.png" alt="dbt as the T layer between ingestion tools and downstream BI / ML / reverse-ETL">
+<div style="display: flex; align-items: stretch; gap: 8px; margin: 24px 0; font-size: 0.9em; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 160px; background: #f0f0f0; border-radius: 6px; padding: 12px;">
+    <div style="font-weight: 600; margin-bottom: 6px;">Sources</div>
+    <div style="color: #555;">Salesforce, Stripe, Postgres, Kafka, S3 buckets, &hellip;</div>
+  </div>
+  <div style="display: flex; align-items: center; font-size: 1.4em; color: #888;">&rarr;</div>
+  <div style="flex: 1; min-width: 160px; background: #f0f0f0; border-radius: 6px; padding: 12px;">
+    <div style="font-weight: 600; margin-bottom: 6px;">E + L</div>
+    <div style="color: #555;">Fivetran, Airbyte, custom Python jobs</div>
+  </div>
+  <div style="display: flex; align-items: center; font-size: 1.4em; color: #888;">&rarr;</div>
+  <div style="flex: 1.2; min-width: 180px; background: #fff4e6; border: 2px solid #ff8c42; border-radius: 6px; padding: 12px;">
+    <div style="font-weight: 600; margin-bottom: 6px;">Warehouse</div>
+    <div style="color: #555;">Snowflake / BigQuery / Databricks / DuckDB</div>
+    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ff8c42; font-weight: 600; color: #ff6a00;">&uarr; dbt (the &ldquo;T&rdquo; layer)</div>
+  </div>
+  <div style="display: flex; align-items: center; font-size: 1.4em; color: #888;">&rarr;</div>
+  <div style="flex: 1; min-width: 160px; background: #f0f0f0; border-radius: 6px; padding: 12px;">
+    <div style="font-weight: 600; margin-bottom: 6px;">BI / ML</div>
+    <div style="color: #555;">Looker, Tableau, Mode, Hex, Jupyter, ML models</div>
+  </div>
+</div>
+
+<p>Notice dbt has only one job. It does not move data into the warehouse and it does not visualize the output. It transforms what&rsquo;s already in the warehouse.</p>
+
+<h2>What you actually write</h2>
+<p>A dbt project is mostly four kinds of files:</p>
+<ul>
+  <li><strong><code>.sql</code> models</strong> &mdash; the transformations themselves.</li>
+  <li><strong><code>.yml</code> configs</strong> &mdash; sources, tests, docs, exposures.</li>
+  <li><strong><code>.csv</code> seeds</strong> &mdash; small static data (lookup tables, country codes) loaded with <code>dbt seed</code>.</li>
+  <li><strong><code>.sql</code> macros</strong> &mdash; reusable Jinja-templated SQL snippets.</li>
+</ul>
+
+<p>That&rsquo;s the entire surface area. The rest is just running <code>dbt run</code>, <code>dbt test</code>, and <code>dbt build</code>.</p>
+
+<h2>The promise</h2>
+<blockquote>
+<p>Every transformation lives in version control. Every transformation has tests. Every transformation has documentation. Every transformation runs in dependency order. None of this is optional &mdash; dbt makes the boring engineering hygiene the default.</p>
+</blockquote>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>&ldquo;dbt is a database.&rdquo;</strong> &mdash; No. dbt has no storage and no execution engine of its own. It generates SQL and asks the warehouse to run it.</li>
+  <li><strong>&ldquo;dbt is an orchestrator.&rdquo;</strong> &mdash; Sort of, but only within a single dbt run. For scheduling and cross-system orchestration you still want Airflow, Dagster, dbt Cloud, or cron.</li>
+  <li><strong>&ldquo;dbt replaces analysts.&rdquo;</strong> &mdash; It changes <em>where</em> their work lives. Analysts now consume modeled, tested marts instead of building them on the fly. Many analysts also <em>write</em> dbt models &mdash; that&rsquo;s the analytics engineer role we covered last lesson.</li>
+</ul>
+
+<p>One more lesson before we start writing real dbt &mdash; press <code>n</code>.</p>
+</body>
+</html>

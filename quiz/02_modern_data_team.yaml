@@ -1,0 +1,33 @@
+topic: modern_data_team
+questions:
+  - id: modern_data_team_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "In the modern data team, who owns the Transform layer (turning raw warehouse data into clean, tested marts)?"
+    options:
+      a: "Data engineer"
+      b: "Analytics engineer"
+      c: "Data analyst"
+      d: "Site reliability engineer"
+    answer: b
+    explanation: |
+      The analytics engineer is the role that emerged with cloud warehouses
+      and dbt — they own the SQL transformation layer (staging → marts) with
+      engineering rigor: tests, version control, code review, CI.
+    related_item: 02_modern_data_team
+
+  - id: modern_data_team_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Why did the analytics engineer role emerge?"
+    options:
+      a: "Because cloud warehouses run faster than on-prem warehouses"
+      b: "Because ELT made SQL the transformation language, leaving a gap between data engineers (E+L) and analysts (questions)"
+      c: "Because Python lost popularity in data work"
+      d: "Because dbt requires a dedicated full-time owner per project"
+    answer: b
+    explanation: |
+      Once transforms became SQL inside the warehouse, neither data engineers
+      (focused on infra and ingestion) nor analysts (focused on questions and
+      dashboards) were the right owners. The analytics engineer fills that gap.
+    related_item: 02_modern_data_team

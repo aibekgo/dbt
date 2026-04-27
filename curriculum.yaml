@@ -1,0 +1,39 @@
+# curriculum.yaml — defines every lesson and exercise in the dbt-learn course.
+#
+# See curriculum.md for the full multi-stage design. Stage 0 (this file) is
+# concept-only: 6 short lessons covering ELT, the modern data team, cloud
+# warehouses, dbt itself, and the three flavors of dbt. Subsequent stages
+# (Stage 1: first dbt project, etc.) will be added incrementally.
+
+stages:
+  - id: stage_0_foundations
+    title: "Stage 0 — Foundations"
+    items:
+      - id: 00_welcome
+        type: lesson
+        file: lessons/stage0/00_welcome.html
+
+      - id: 01_etl_vs_elt
+        type: lesson
+        file: lessons/stage0/01_etl_vs_elt.html
+        quiz: quiz/01_etl_vs_elt.yaml
+
+      - id: 02_modern_data_team
+        type: lesson
+        file: lessons/stage0/02_modern_data_team.html
+        quiz: quiz/02_modern_data_team.yaml
+
+      - id: 03_cloud_data_warehouses
+        type: lesson
+        file: lessons/stage0/03_cloud_data_warehouses.html
+        quiz: quiz/03_cloud_data_warehouses.yaml
+
+      - id: 04_what_is_dbt
+        type: lesson
+        file: lessons/stage0/04_what_is_dbt.html
+        quiz: quiz/04_what_is_dbt.yaml
+
+      - id: 05_dbt_flavors
+        type: lesson
+        file: lessons/stage0/05_dbt_flavors.html
+        quiz: quiz/05_dbt_flavors.yaml

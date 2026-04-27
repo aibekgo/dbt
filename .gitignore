@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+/notion_dbt_series/
+
+# dbt artifacts (generated; not committed)
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+dbt_project/dev.duckdb
+dbt_project/dev.duckdb.wal
+
+# Lesson markdown sources (build_lessons.py renders to .html which IS committed)
+lessons/**/*.md
+
+# Local learner progress — per-machine, never committed
+progress.txt

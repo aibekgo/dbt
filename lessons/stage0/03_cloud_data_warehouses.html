@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>Cloud Data Warehouses</h1>
+
+<p>dbt sits on top of a warehouse. To understand why dbt looks the way it does, you need to understand what changed about warehouses in the last fifteen years.</p>
+
+<h2>First &mdash; what is a data warehouse?</h2>
+<p>A <strong>data warehouse</strong> is a database designed for <em>analytics</em>, not for running an app. Your company&rsquo;s production systems (Postgres, MySQL, MongoDB&hellip;) are tuned for serving live traffic &mdash; tiny, fast reads and writes for one user at a time. A warehouse is the opposite: it&rsquo;s tuned for huge analytical queries that scan millions of rows to answer questions like &ldquo;how many active users did we have last quarter, broken down by plan tier?&rdquo;</p>
+<img src="../../images/lesson3/data_warehouse_concept.png" alt="Land data in the warehouse, analyze there, then share results with downstream tools">
+<p>The mental model: data from many systems flows in (sales, marketing, product analytics, billing), gets organized into clean tables, and analysts/dashboards query <em>that</em> &mdash; never the production database. The warehouse is the company&rsquo;s &ldquo;single source of truth.&rdquo;</p>
+
+<table>
+  <thead><tr><th></th><th>Operational database</th><th>Data warehouse</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Optimized for</strong></td>
+      <td>Many small reads/writes per second (OLTP)</td>
+      <td>A few huge analytical scans (OLAP)</td>
+    </tr>
+    <tr>
+      <td><strong>Typical query</strong></td>
+      <td><code>SELECT * FROM users WHERE id = 42</code></td>
+      <td><code>SELECT plan, COUNT(*) FROM users GROUP BY plan</code></td>
+    </tr>
+    <tr>
+      <td><strong>Schema</strong></td>
+      <td>Normalized, lots of small tables</td>
+      <td>Denormalized, wide fact &amp; dimension tables</td>
+    </tr>
+    <tr>
+      <td><strong>Examples</strong></td>
+      <td>Postgres, MySQL, MongoDB</td>
+      <td>Snowflake, BigQuery, Redshift, Databricks, DuckDB</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>The old model</h2>
+<p>Traditional databases like Oracle, SQL Server, or on-prem Teradata coupled <strong>storage</strong> and <strong>compute</strong> to the same hardware. If you wanted more query power, you bought a bigger box. If you wanted more space, you bought a bigger box. Scaling either dimension meant a procurement cycle, downtime, and a license renegotiation.</p>
+
+<h2>The cloud warehouse model</h2>
+<p>Modern cloud warehouses decouple storage from compute. Storage lives in cheap object storage (S3, GCS, Azure Blob). Compute is a separate, elastic pool that you spin up on demand and pay for by the second.</p>
+
+<pre><code>[Cheap object storage]   &larr; data lives here, always
+        &uarr;
+[Elastic compute pool]   &larr; spun up on demand, paid by the second
+</code></pre>
+
+<p>Three consequences:</p>
+<ol>
+  <li><strong>Cost scales with use.</strong> No idle hardware. If no queries are running, you pay only for storage.</li>
+  <li><strong>Storage is effectively unlimited.</strong> Loading raw data is cheap, so you can keep it. This is what makes ELT work &mdash; the &ldquo;Load raw first, transform later&rdquo; pattern only makes sense when storing raw is cheap.</li>
+  <li><strong>Multiple workloads can run side by side.</strong> A long ad-hoc query in one warehouse doesn&rsquo;t starve a hourly dbt build in another.</li>
+</ol>
+
+<h2>The major players</h2>
+<img src="../../images/lesson3/modern_data_stack.png" alt="The modern data stack: ingestion tools feeding cloud warehouses, with dbt as the transformation layer">
+<table>
+  <thead><tr><th>Warehouse</th><th>Key trait</th><th>dbt adapter</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Snowflake</strong></td>
+      <td>The reference cloud-native warehouse. Per-second billing, separate &ldquo;virtual warehouse&rdquo; compute clusters per workload.</td>
+      <td><code>dbt-snowflake</code></td>
+    </tr>
+    <tr>
+      <td><strong>BigQuery</strong></td>
+      <td>Google&rsquo;s serverless warehouse. No clusters &mdash; you submit a query and pay per byte scanned (or buy slot capacity).</td>
+      <td><code>dbt-bigquery</code></td>
+    </tr>
+    <tr>
+      <td><strong>Redshift</strong></td>
+      <td>AWS&rsquo;s warehouse. Original launch was cluster-based; newer Redshift Serverless is fully elastic.</td>
+      <td><code>dbt-redshift</code></td>
+    </tr>
+    <tr>
+      <td><strong>Databricks</strong></td>
+      <td>Lakehouse on top of Delta Lake. Compute is Spark-based; SQL warehouse endpoints make it look like a warehouse to dbt.</td>
+      <td><code>dbt-databricks</code></td>
+    </tr>
+    <tr>
+      <td><strong>DuckDB</strong></td>
+      <td><em>Embedded</em> &mdash; runs in-process, no server, no cloud. Single-file database. Great for laptops, CI, and learning.</td>
+      <td><code>dbt-duckdb</code> (this course)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Why DuckDB for this course</h2>
+<img src="../../images/lesson0/duckdb.png" alt="DuckDB logo" style="max-width: 320px;">
+<p>The other warehouses in the table above are <em>cloud services</em> &mdash; you sign up, give them a credit card, click around in a UI to create a project, and connect over the network. Great for production. Terrible for learning, because every exercise would need internet, an account, and money.</p>
+
+<p>DuckDB is &ldquo;the SQLite for analytics&rdquo;: a <strong>single binary that runs in-process</strong> on your laptop. No server, no Docker, no cloud account, no credit card. You install it as a Python package, point dbt at a <code>.duckdb</code> file, and you have a full warehouse you can throw away and recreate in seconds.</p>
+
+<p>What makes it a real warehouse and not a toy:</p>
+<ul>
+  <li><strong>Columnar storage</strong> &mdash; same architecture as Snowflake/BigQuery, optimized for the analytical scans we just talked about.</li>
+  <li><strong>Reads Parquet, CSV, and Arrow natively</strong> &mdash; the same file formats production warehouses use.</li>
+  <li><strong>Standard SQL</strong> &mdash; CTEs, window functions, JSON, geospatial, the works.</li>
+  <li><strong>Fast enough that <code>dbt build</code> finishes in seconds</strong>, even on a laptop, even with thousands of rows of seed data.</li>
+</ul>
+
+<p>Because dbt is warehouse-agnostic, <strong>every concept you learn in this course transfers directly to Snowflake, BigQuery, Redshift, or Databricks.</strong> The only thing that changes between adapters is the connection profile and a small set of warehouse-specific SQL features (e.g., Snowflake&rsquo;s clustering keys, BigQuery&rsquo;s partition expiration).</p>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>&ldquo;Warehouse&rdquo; vs &ldquo;data lake&rdquo; vs &ldquo;lakehouse.&rdquo;</strong> &mdash; A data lake is raw files in object storage. A warehouse adds a query engine and table semantics on top. A &ldquo;lakehouse&rdquo; (Databricks&rsquo; term) tries to be both. dbt works with all of them as long as the engine speaks SQL.</li>
+  <li><strong>Forgetting compute is metered.</strong> &mdash; A bad query against a real cloud warehouse can cost real money. DuckDB has no such concern, which is another reason it&rsquo;s nice to learn on.</li>
+</ul>
+
+<p>Press <code>n</code> when you&rsquo;re ready &mdash; next we&rsquo;ll finally talk about dbt itself.</p>
+</body>
+</html>
