@@ -158,8 +158,8 @@ def _run_stage_quiz(stage_id: str) -> None:
     from quiz.runner import render_summary, run_all
 
     stage_items = get_stage_items(stage_id)
-    item_ids = [it.id for it in stage_items if it.quiz_path]
-    topics = load_topics_for_items(item_ids)
+    items_with_quiz = [it for it in stage_items if it.quiz_path]
+    topics = load_topics_for_items(items_with_quiz)
     if not topics:
         return
 
@@ -230,8 +230,54 @@ def action_next(item: CurriculumItem, state: dict) -> CurriculumItem | None:
     else:
         state["current"] = ""
         save_state(state)
-        console.print("\n[green]🎉 You've completed the curriculum![/]\n")
         return None
+
+
+def show_completion_screen(state: dict) -> CurriculumItem | None:
+    """Celebrate, then offer review / reset / quit. Returns the item to switch to, or None to exit."""
+    console.print()
+    console.print(Panel(
+        "[bold green]🎉 You've completed all exercises![/]\n\n"
+        "What's next?\n"
+        "  [bold]p[/]  go back and review previous lessons\n"
+        "  [bold]r[/]  reset progress and start over\n"
+        "  [bold]q[/]  quit",
+        title=f"{COURSE_EMOJI} {COURSE_NAME}  ·  Complete",
+        border_style="green",
+    ))
+    while True:
+        console.print("\n[bold]p[/]:review  [bold]r[/]:reset  [bold]q[/]:quit ? ", end="")
+        try:
+            cmd = input().strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            console.print()
+            return None
+        if cmd in ("q", ""):
+            console.print("👋 See you next time!")
+            return None
+        if cmd == "p":
+            item = CURRICULUM[-1]
+            state["current"] = item.id
+            save_state(state)
+            show_item(item, state)
+            return item
+        if cmd == "r":
+            console.print("[yellow]Reset progress and start over?[/] [dim](y/N)[/] ", end="")
+            try:
+                confirm = input().strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                confirm = ""
+            if confirm == "y":
+                state.clear()
+                state.update({"current": CURRICULUM[0].id, "done": [], "verified": []})
+                save_state(state)
+                item = CURRICULUM[0]
+                console.print("\n[green]✅ Progress reset.[/]")
+                show_item(item, state)
+                return item
+            console.print("[dim]Cancelled.[/]")
+            continue
+        console.print(f"[dim]Unknown command: '{cmd}'[/]")
 
 
 # --- Interactive session ---
@@ -242,11 +288,11 @@ def interactive_session() -> None:
     item = get_item(state["current"]) if state["current"] else None
 
     if not item:
-        console.print(f"[green]🎉 You've completed all exercises![/]")
-        console.print(f"[dim]Run [bold]{COURSE_NAME} reset[/] to start over.[/]")
-        return
-
-    show_item(item, state)
+        item = show_completion_screen(state)
+        if item is None:
+            return
+    else:
+        show_item(item, state)
 
     while item:
         show_prompt(item)
@@ -276,7 +322,10 @@ def interactive_session() -> None:
             state = load_state()
             result = action_next(item, state)
             if result is None:
-                break
+                state = load_state()
+                result = show_completion_screen(state)
+                if result is None:
+                    break
             item = result
         elif cmd == "p":
             state = load_state()
@@ -396,8 +445,8 @@ def quiz() -> None:
     from quiz.loader import load_topics_for_items
     from quiz.runner import render_summary, run_all
 
-    item_ids = [it.id for it in CURRICULUM if it.quiz_path]
-    topics = load_topics_for_items(item_ids)
+    items_with_quiz = [it for it in CURRICULUM if it.quiz_path]
+    topics = load_topics_for_items(items_with_quiz)
     if not topics:
         console.print("[dim]No quiz questions available yet.[/]")
         return

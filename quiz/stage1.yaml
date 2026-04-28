@@ -3,6 +3,20 @@ questions:
   - id: stage1_01
     difficulty: easy
     type: multiple_choice
+    prompt: "What does the `dbt-duckdb` package add on top of `dbt-core`?"
+    options:
+      a: "A web UI for browsing models"
+      b: "An adapter that teaches dbt-core how to talk to DuckDB"
+      c: "A faster SQL parser"
+      d: "DuckDB itself — it's a different database engine"
+    answer: b
+    explanation: |
+      `dbt-core` is warehouse-agnostic — it parses models, builds the DAG, and orchestrates runs, but it can't execute SQL anywhere on its own. An adapter (`dbt-duckdb`, `dbt-snowflake`, `dbt-bigquery`, etc.) plugs in the connection logic for a specific warehouse.
+    related_item: dbt_install
+
+  - id: stage1_02
+    difficulty: easy
+    type: multiple_choice
     prompt: "What's the difference between `dbt_project.yml` and `profiles.yml`?"
     options:
       a: "They're the same file under two names — dbt looks for whichever exists"
@@ -11,52 +25,80 @@ questions:
       d: "`profiles.yml` is the older format that `dbt_project.yml` replaced"
     answer: b
     explanation: |
-      Project files live with your repo (everyone on the team uses the same one). Profiles can be machine-local because they hold connection details. We bundle both inside `dbt_project/` for this course because the warehouse is just a local DuckDB file with no credentials.
+      Project files live with the repo (everyone on the team uses the same one). Profiles can be machine-local because they hold connection details. We bundle both inside `dbt_project/` for this course because the warehouse is just a local DuckDB file with no credentials.
     related_item: profiles_yml
-
-  - id: stage1_02
-    difficulty: easy
-    type: multiple_choice
-    prompt: "When you write `from {{ ref('raw_customers') }}` in a model, what does dbt do at compile time?"
-    options:
-      a: "Inlines the entire SELECT of `raw_customers` as a CTE"
-      b: "Replaces it with the fully-qualified table name (e.g., `dev.main_dbt.raw_customers`) and adds an edge to the DAG"
-      c: "Throws an error because `ref()` is only for tests"
-      d: "Calls a Python function named `ref` from your project"
-    answer: b
-    explanation: |
-      `ref()` does two jobs: it produces the right table name for the active target, and it tells dbt's parser "this model depends on `raw_customers`," which is how dbt knows the build order. Hardcoding `from raw_customers` would break both.
-    related_item: first_model
 
   - id: stage1_03
     difficulty: easy
     type: multiple_choice
-    prompt: "You added a CSV at `dbt_project/seeds/raw_orders.csv`. Which command loads it into the warehouse?"
+    prompt: "Why do we use a Python script (`scripts/ingest_raw.py`) to load `raw_customers`, `raw_orders`, `raw_payments` instead of `dbt seed`?"
     options:
-      a: "`dbt run`"
-      b: "`dbt build`"
-      c: "`dbt seed`"
-      d: "`dbt source freshness`"
-    answer: c
+      a: "`dbt seed` doesn't support DuckDB"
+      b: "Seeds are reserved for small static lookup tables (country codes, currency lists). Real raw data is loaded by external ingestion tools — the Python script stands in for Fivetran/Airbyte"
+      c: "`dbt seed` only works with JSON files, not CSVs"
+      d: "Performance — `dbt seed` is too slow for files over 50 rows"
+    answer: b
     explanation: |
-      `dbt seed` is the only command that loads CSVs from `seeds/` into the warehouse. `dbt run` only runs models. `dbt build` runs seeds + models + tests in dependency order — it would also work, but `dbt seed` is the surgical choice.
-    related_item: dbt_seed
+      In production, raw tables land via tools like Fivetran, Airbyte, or streaming pipelines — owned by data engineers, completely outside dbt. `dbt seed` is for small reference data that lives *with* the dbt repo. We'll use it later for genuine lookup tables.
+    related_item: ingestion
 
   - id: stage1_04
     difficulty: medium
     type: multiple_choice
-    prompt: "After `dbt seed` finishes, where in DuckDB do the seed tables live?"
+    prompt: "In the modern data stack, who owns the ingestion (extract-load) step?"
     options:
-      a: "In a special `seeds` schema that dbt creates"
-      b: "In the schema dbt computes from your profile's `schema:` field (often `main_<schema_name>`)"
-      c: "Always in the `main` schema"
-      d: "In a temporary in-memory schema that vanishes after the run"
+      a: "Analytics engineers — they write the SQL that pulls data in"
+      b: "Data engineers — they own the infrastructure that lands raw data in the warehouse"
+      c: "Whoever wrote the dbt project"
+      d: "dbt itself, via `dbt seed`"
     answer: b
     explanation: |
-      dbt-duckdb writes tables into a schema derived from your target's `schema:` setting (or a default like `main_dbt_<user>`). The exact name is up to your profile; what matters is that `ref()` resolves to the right place at compile time so you don't have to think about it.
-    related_item: dbt_seed
+      The ELT split: data engineers own E+L (ingestion infra, freshness, schema drift); analytics engineers own T (transformation in dbt). For this course we just trust raw tables are there and focus on transformation.
+    related_item: ingestion
 
   - id: stage1_05
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When you run `dbt run --select stg__customers`, what does dbt do (in order)?"
+    options:
+      a: "Execute → compile → parse → record"
+      b: "Parse the project → compile Jinja to raw SQL → execute against the warehouse → record results"
+      c: "Compile → execute — there are no other steps"
+      d: "Validate the model file's syntax and stop"
+    answer: b
+    explanation: |
+      Parse builds the in-memory project graph; compile expands `{{ source(...) }}`, `{{ ref(...) }}`, macros into raw SQL (written to `target/compiled/`); execute wraps it in DDL and ships it to the warehouse; record writes `run_results.json` and the manifest. `dbt compile` runs steps 1–2 only.
+    related_item: first_model
+
+  - id: stage1_06
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What's the difference between `{{ source('raw', 'raw_customers') }}` and `{{ ref('stg__customers') }}`?"
+    options:
+      a: "`source()` is for tables outside dbt; `ref()` is for tables dbt builds itself"
+      b: "Nothing — they're aliases for each other"
+      c: "`source()` is deprecated; always use `ref()`"
+      d: "`source()` only works in YAML files; `ref()` only works in SQL"
+    answer: a
+    explanation: |
+      Both compile to a fully-qualified table name, but they signal different ownership to dbt. `source()` says "I trust this exists, declared in `_sources.yml`." `ref()` says "dbt built this, build the dependency first." Both add the right edge to the DAG.
+    related_item: add_sources
+
+  - id: stage1_07
+    difficulty: medium
+    type: multiple_choice
+    prompt: "In `_sources.yml` you wrote `name: raw` and `schema: main`. What does each field control?"
+    options:
+      a: "`name` is the logical name used in `source('raw', ...)`; `schema` is the actual DuckDB schema where the table physically lives"
+      b: "Both are aliases for the same thing — pick whichever you prefer"
+      c: "`name` is the schema; `schema` is the database"
+      d: "`name` is the table name; `schema` is the column prefix"
+    answer: a
+    explanation: |
+      `name` is the logical identifier — what you pass into `source('raw', ...)`. `schema` is where the physical table actually lives (DuckDB's default `main` for our ingest script). A common pitfall is writing `schema: raw` — dbt then looks in a `raw` schema that doesn't exist.
+    related_item: add_sources
+
+  - id: stage1_08
     difficulty: medium
     type: multiple_choice
     prompt: "In `dbt_project.yml`, why does the materialization config have a leading `+` (`+materialized: view`)?"
@@ -70,7 +112,7 @@ questions:
       In a folder-config block, dbt distinguishes between *paths* (folders under `models/`) and *configs* by the leading `+`. Drop the `+` and dbt looks for a folder named `materialized` containing a model named `view.sql`. Annoyingly silent failure — your config just doesn't apply.
     related_item: project_yml
 
-  - id: stage1_06
+  - id: stage1_09
     difficulty: medium
     type: multiple_choice
     prompt: "Which materialization recomputes the SQL on every read but doesn't store rows?"
@@ -81,5 +123,5 @@ questions:
       d: "ephemeral"
     answer: b
     explanation: |
-      A view is a stored SQL definition; querying it re-runs the SELECT every time. `table` materializes once per `dbt run` and stores the rows. `ephemeral` doesn't even create an object in the warehouse — dbt inlines the SQL as a CTE in downstream models. Views are the right default for the staging layer because they're free to rebuild.
+      A view is a stored SQL definition; querying it re-runs the SELECT every time. `table` materializes once per `dbt run` and stores the rows. `ephemeral` doesn't create an object in the warehouse at all — dbt inlines the SQL as a CTE in downstream models. Views are the right default for the staging layer because they're free to rebuild.
     related_item: project_yml

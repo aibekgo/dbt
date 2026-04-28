@@ -128,6 +128,11 @@ stages:
         quiz:     quiz/stage1.yaml
         dbt_checks:
           rules:
+            - type: dbt_run_success
+              select: +dim_customers
             - type: manifest_materialization
               model: stg__customers
               expected: view
+            - type: manifest_materialization
+              model: dim_customers
+              expected: table

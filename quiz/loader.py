@@ -49,25 +49,37 @@ def _parse_question(raw: dict) -> Question:
     )
 
 
-def load_topic(item_id: str) -> Topic | None:
-    path = QUIZ_DIR / f"{item_id}.yaml"
+def _load_topic_at(path: Path, key: str) -> Topic | None:
     if not path.exists():
         return None
     with open(path) as f:
         data = yaml.safe_load(f)
-    title = data.get("topic", item_id).replace("_", " ").title()
+    title = data.get("topic", key).replace("_", " ").title()
     questions = [_parse_question(q) for q in data.get("questions", [])]
-    return Topic(key=item_id, title=title, questions=questions)
+    return Topic(key=key, title=title, questions=questions)
 
 
-def load_topics_for_items(item_ids: list[str]) -> list[Topic]:
+def load_topic(item_id: str) -> Topic | None:
+    return _load_topic_at(QUIZ_DIR / f"{item_id}.yaml", item_id)
+
+
+def load_topics_for_items(items: list) -> list[Topic]:
+    """Load quiz topics for a list of CurriculumItem objects (or item id strings)."""
     topics = []
     seen: set[str] = set()
-    for item_id in item_ids:
-        if item_id in seen:
-            continue
-        seen.add(item_id)
-        topic = load_topic(item_id)
+    for item in items:
+        if isinstance(item, str):
+            key = item
+            if key in seen:
+                continue
+            seen.add(key)
+            topic = load_topic(key)
+        else:
+            key = item.id
+            if key in seen or not getattr(item, "quiz_file", ""):
+                continue
+            seen.add(key)
+            topic = _load_topic_at(ROOT / item.quiz_file, key)
         if topic:
             topics.append(topic)
     return topics

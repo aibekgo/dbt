@@ -1,57 +1,121 @@
-# Exercise 15 — Configuring `dbt_project.yml`
+# Exercise — Configure `dbt_project.yml`
 
 ## Goal
 
-Tell dbt that everything under `models/staging/` should default to the `view` materialization (instead of dbt's built-in default of `view` — which sounds like a no-op, but you'll set it explicitly so future stages can switch staging to ephemeral or something else without touching every model file).
+Use folder-level config in `dbt_project.yml` to materialize **staging models as views** (cheap, recompute-on-read) and **marts as tables** (paid once, fast forever) — without touching any SQL file.
 
-You'll also see how `dbt_project.yml` is the place to set defaults that apply to whole folders.
-
-## Background
-
-Every model in dbt has a **materialization** — what dbt does with the SQL:
-
-| Materialization | What dbt does |
-|---|---|
-| `view` | `CREATE OR REPLACE VIEW` (default) — recomputes on every read |
-| `table` | `CREATE OR REPLACE TABLE` — physically materializes once per run |
-| `incremental` | inserts/upserts new rows on each run |
-| `ephemeral` | inlines the SQL as a CTE in downstream models — never lands in the warehouse |
-
-You can set the materialization three ways, in increasing specificity:
-
-1. Project-wide default in `dbt_project.yml` (this exercise)
-2. Folder-level default in `dbt_project.yml`
-3. Per-model with `{{ config(materialized='table') }}` at the top of the file
-
-The folder-level config is the workhorse — it lets a 200-model project say "everything in `staging/` is a view, everything in `marts/` is a table" in five lines of YAML.
+To prove it works you'll add a second model — `dim_customers` under `models/marts/` — and watch dbt build it as a *table* even though the SQL has no `{{ config() }}` block.
 
 ## Steps
 
-**1.** Open `dbt_project/dbt_project.yml`. `dbt init` left you a `models:` block at the bottom. Replace it (or its contents) with:
+**1.** Make sure you're inside `dbt_project/`:
+
+```bash
+cd dbt_project   # if you're not already here
+```
+
+**2.** Create the marts folder and a new model called `dim_customers`:
+
+```bash
+mkdir -p models/marts
+touch models/marts/dim_customers.sql
+```
+
+**3.** Paste this into `models/marts/dim_customers.sql`:
+
+```sql
+select
+    customer_id,
+    first_name,
+    last_name
+from {{ ref('stg__customers') }}
+```
+
+Two things to notice:
+- **No `{{ config(materialized='table') }}` at the top.** The materialization will come entirely from `dbt_project.yml` in the next step.
+- `{{ ref('stg__customers') }}` — marts depend on staging models via `ref()`, the same way staging depends on raw via `source()`. dbt will build `stg__customers` first, then `dim_customers`.
+
+**4.** Open `dbt_project/dbt_project.yml`. Scroll to the bottom — `dbt init` left you a `models:` block that points at the demo `example/` folder:
+
+```yaml
+models:
+  dbt_project:
+    example:
+      +materialized: view
+```
+
+Replace it with two folder configs — one for the `staging/` folder, one for the new `marts/` folder. **The key change is `+materialized: table` on the marts block — that's what flips `dim_customers` from a view (the default) to a table.**
 
 ```yaml
 models:
   dbt_project:
     staging:
       +materialized: view
+    marts:
+      +materialized: table
 ```
 
-Indentation matters. Two-space indent throughout. The structure reads as:
+What this YAML says:
 - `models:` — top-level config block
-- `dbt_project:` — name of your project (matches `name:` at the top of the file)
-- `staging:` — folder under `models/`
-- `+materialized: view` — the leading `+` marks this as a config to apply to every model in the folder
+- `dbt_project:` — your project name (must match the `name:` field at the top of the same file)
+- `staging:` and `marts:` — folders under `models/` that the configs apply to
+- `+materialized: <view|table>` — the leading `+` marks the line as a config, not a sub-folder. Without `+`, dbt looks for a folder called `materialized/` containing `view.sql` and silently no-ops.
 
-**2.** Press `v`.
+**5.** Build everything:
+
+```bash
+dbt run
+```
+
+You should see two green nodes — `stg__customers` (view) and `dim_customers` (table). Look closely at the log:
+
+```
+1 of 2 OK created sql view  model main.stg__customers ...
+2 of 2 OK created sql table model main.dim_customers ...
+```
+
+The words `view` and `table` come from the folder-level config you just set.
+
+**6.** Sanity check the materializations actually differ in the warehouse:
+
+```bash
+duckdb ../database/dev.duckdb -c "
+  select table_name, table_type
+  from information_schema.tables
+  where table_schema = 'main_main'
+  order by table_name;
+"
+```
+
+Expected:
+
+```
+┌────────────────┬────────────┐
+│   table_name   │ table_type │
+├────────────────┼────────────┤
+│ dim_customers  │ BASE TABLE │
+│ stg__customers │ VIEW       │
+└────────────────┴────────────┘
+```
+
+**7.** Press `v`.
 
 ## What the verifier checks
 
-The verifier runs `dbt parse` to refresh `target/manifest.json`, then inspects the manifest entry for `stg_customers` and confirms its `config.materialized` is `view`.
+- `dbt run --select +dim_customers` exits 0 (the `+` prefix means "this and all upstream").
+- `target/manifest.json` reports `dim_customers` resolved to `materialized: table`.
+- `target/manifest.json` reports `stg__customers` is still `materialized: view`.
 
-## Why the leading `+` on `+materialized`
+If both materializations come out right, your folder-level config is wired correctly.
 
-Without the `+`, dbt treats `materialized: view` as the *name of a sub-folder* called `materialized` containing a model called `view`. The `+` is dbt's way of saying "this is a configuration, not a path." You'll see `+enabled`, `+tags`, `+schema` etc. in real projects.
+## Common failure modes
+
+| Symptom | Fix |
+|---|---|
+| `Compilation Error: Model 'dim_customers' depends on a node named 'stg__customers' which was not found` | The staging model wasn't built yet. Run `dbt run` (no select) — `+dim_customers` covers it but full `dbt run` is foolproof. |
+| `dim_customers` shows up as `VIEW` in DuckDB | Either your `marts:` block is missing the `+` on `materialized`, or it's nested under the wrong project name. Re-check the YAML against step 4. |
+| YAML parse error / `Could not run dbt` | Indentation. Two spaces per level, no tabs. |
 
 ## After you pass
 
-Press `n` for the Stage 1 quiz. After that, Stage 2 — sources, refs, and the staging→marts pattern.
+Press `n` for the Stage 1 quiz. After that — Stage 2.
