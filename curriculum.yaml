@@ -103,9 +103,20 @@ stages:
         dbt_checks:
           rules:
             - type: dbt_run_success
-              select: stg_customers
+              select: stg__customers
             - type: duckdb_table_exists
-              table: stg_customers
+              table: stg__customers
+
+      - id: add_sources
+        type: exercise
+        lesson:   lessons/stage1/add_sources.html
+        exercise: exercises/stage1/add_sources.md
+        original: originals/stage1/add_sources.md
+        hints:    hints/stage1/add_sources.md
+        verifier: file
+        file_checks:
+          - path: dbt_project/models/staging/_sources.yml
+            min_bytes: 80
 
       - id: project_yml
         type: exercise
@@ -118,5 +129,5 @@ stages:
         dbt_checks:
           rules:
             - type: manifest_materialization
-              model: stg_customers
+              model: stg__customers
               expected: view

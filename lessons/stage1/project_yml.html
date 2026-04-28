@@ -55,7 +55,7 @@
 <body>
 <h1>Configuring <code>dbt_project.yml</code></h1>
 
-<p>Your <code>stg_customers</code> model is built as a <em>view</em> &mdash; that&rsquo;s dbt&rsquo;s default. In a real project you&rsquo;ll want different layers built differently: staging as views, marts as tables, snapshots as their own thing. <code>dbt_project.yml</code> is where you declare those defaults.</p>
+<p>Your <code>stg__customers</code> model is built as a <em>view</em> &mdash; that&rsquo;s dbt&rsquo;s default. In a real project you&rsquo;ll want different layers built differently: staging as views, marts as tables, snapshots as their own thing. <code>dbt_project.yml</code> is where you declare those defaults.</p>
 
 <h2>What is a materialization?</h2>
 <p>A <strong>materialization</strong> is what dbt does with the SQL you write &mdash; the kind of object it creates in the warehouse:</p>
@@ -144,7 +144,7 @@ select ...
 
 <h2>What the verifier checks</h2>
 
-<p>The verifier runs <code>dbt parse</code> to refresh <code>target/manifest.json</code>, then inspects the manifest entry for <code>stg_customers</code> and confirms its <code>config.materialized</code> resolved to <code>view</code>. The manifest is dbt&rsquo;s own ground-truth view of what each model is configured as &mdash; if it reads <code>view</code> there, dbt agrees with you.</p>
+<p>The verifier runs <code>dbt parse</code> to refresh <code>target/manifest.json</code>, then inspects the manifest entry for <code>stg__customers</code> and confirms its <code>config.materialized</code> resolved to <code>view</code>. The manifest is dbt&rsquo;s own ground-truth view of what each model is configured as &mdash; if it reads <code>view</code> there, dbt agrees with you.</p>
 
 <h2>Common pitfalls</h2>
 <ul>

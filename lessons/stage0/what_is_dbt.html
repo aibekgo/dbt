@@ -63,7 +63,7 @@
 <h2>The core idea: a model is a SELECT</h2>
 <p>A dbt &ldquo;model&rdquo; is just a <code>.sql</code> file containing a <code>SELECT</code> statement. You don&rsquo;t write <code>CREATE TABLE</code> or <code>INSERT INTO</code> &mdash; dbt does that for you based on the model&rsquo;s configuration.</p>
 
-<pre><code class="language-sql">-- models/staging/stg_customers.sql
+<pre><code class="language-sql">-- models/staging/stg__customers.sql
 select
     id          as customer_id,
     first_name,

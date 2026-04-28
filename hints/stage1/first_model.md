@@ -1,18 +1,18 @@
 ## Hint 1
 
-One file. From the repo root:
+One file, no YAML, no Jinja. From the repo root:
 
 ```bash
 cd dbt_project
 mkdir -p models/staging
-touch models/staging/stg_customers.sql
+touch models/staging/stg__customers.sql
 ```
 
-Then paste the SELECT into that file. No YAML, no `{{ source(...) }}` macro for now — just a plain SQL query.
+Then write a plain `SELECT` with `from main.raw_customers` (no `ref()`, no `source()`).
 
 ## Hint 2
 
-The model is literally three columns from one raw table:
+The full file:
 
 ```sql
 select
@@ -22,7 +22,7 @@ select
 from main.raw_customers
 ```
 
-`main` is DuckDB's default schema, where `scripts/ingest_raw.py` wrote the raw tables. We hardcode it for this very first model so you can see dbt run end-to-end with zero ceremony. Stage 2 wires up `{{ source(...) }}` properly.
+`main` is DuckDB's default schema, where `scripts/ingest_raw.py` wrote the raw tables. We're hardcoding it on purpose for this very first model. The next exercise (`add_sources`) wires up `{{ source(...) }}` properly.
 
 ## Hint 3
 
@@ -32,4 +32,4 @@ If `dbt run` fails with `Relation "dev"."main"."raw_customers" does not exist`, 
 python scripts/ingest_raw.py
 ```
 
-…then come back to `dbt_project/` and re-run `dbt run --select stg_customers`. Sanity check: `dbt ls --select stg_customers` should print `dbt_project.staging.stg_customers`.
+Then come back to `dbt_project/` and re-run `dbt run --select stg__customers`. Sanity check: `dbt ls --select stg__customers` should print `dbt_project.staging.stg__customers`.
