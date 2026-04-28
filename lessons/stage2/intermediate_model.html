@@ -83,16 +83,16 @@
 </ul>
 <p>In our case: aggregating <code>stg__payments</code> (113 rows, one per payment) into one row per <code>order_id</code> is exactly that — it&rsquo;s not what an analyst queries, but it&rsquo;s the thing <code>fct_orders</code> joins to. Without an intermediate, you&rsquo;d inline the aggregation as a CTE inside <code>fct_orders.sql</code> — fine for one consumer, painful when a second one shows up.</p>
 <h2>Where it lives</h2>
-<p>Inside <code>models/marts/intermediate/</code>. Two reasons to nest it under marts rather than peer to staging:</p>
+<p>Inside <code>models/intermediate/</code> — a peer of <code>models/staging/</code> and <code>models/marts/</code>, not nested under either. The folder layout mirrors the DAG: data flows top-to-bottom from sources → staging → intermediate → marts, and the directory tree reads the same way.</p>
 <ol>
-<li>The <code>marts</code> folder config already in <code>dbt_project.yml</code> (<code>+materialized: table</code>) cascades down. Intermediates land as tables, same as facts/dims — quick to query while you debug.</li>
-<li>It signals <strong>scope</strong>: intermediates serve marts, not the other way around. A staging model never depends on an intermediate; intermediates always depend on staging.</li>
+<li><strong>It signals scope at a glance.</strong> Intermediates serve marts but aren&rsquo;t marts. Putting them in their own folder keeps that distinction obvious; nesting them under <code>marts/intermediate/</code> would put work-in-progress next to the production-facing facts and dims.</li>
+<li><strong>Configs stay clean.</strong> Each layer gets its own block in <code>dbt_project.yml</code> (<code>staging: view</code>, <code>intermediate: view</code>, <code>marts: table</code>) so you can change one without affecting another.</li>
 </ol>
 <blockquote>
-<p>The other common convention is <code>models/intermediate/</code> as a peer of <code>models/staging/</code> and <code>models/marts/</code>. Both are valid — pick one and stick to it. We use the nested layout here because Stage 1 already configured the marts folder.</p>
+<p>The other common convention is <code>models/marts/intermediate/</code> nested under marts. You&rsquo;ll see it in older dbt projects. Modern dbt-labs reference projects use the peer layout, so we do too.</p>
 </blockquote>
 <h2>The model itself</h2>
-<p><code>models/marts/intermediate/int_order_payments.sql</code>:</p>
+<p><code>models/intermediate/int_order_payments.sql</code>:</p>
 <pre><code class="language-sql">select
     order_id,
     sum(amount)              as total_amount,

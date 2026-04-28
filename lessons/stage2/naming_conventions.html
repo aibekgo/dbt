@@ -126,9 +126,9 @@
 │   ├── stg__customers.sql
 │   ├── stg__orders.sql
 │   └── stg__payments.sql
+├── intermediate/
+│   └── int_order_payments.sql
 └── marts/
-    ├── intermediate/
-    │   └── int_order_payments.sql
     ├── dim_customers.sql
     └── fct_orders.sql
 </code></pre>
@@ -194,7 +194,7 @@ src.stripe.raw_payments      ──► stg__payments ──► int_order_payment
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong><code>final_orders</code> / <code>cleaned_orders</code> / <code>orders_v2</code>.</strong> Names that describe their <em>history</em> rather than their <em>layer</em>. Future-you won&rsquo;t remember which one is current.</li>
-<li><strong>Mixing <code>int_</code> and <code>stg_</code> in the same folder.</strong> Folders should match prefixes — staging models in <code>staging/</code>, intermediates in <code>intermediate/</code> (or <code>marts/intermediate/</code>), facts and dims in <code>marts/</code>.</li>
+<li><strong>Mixing <code>int_</code> and <code>stg_</code> in the same folder.</strong> Folders should match prefixes — staging models in <code>staging/</code>, intermediates in <code>intermediate/</code>, facts and dims in <code>marts/</code>.</li>
 <li><strong>Overusing <code>int_</code> to dodge naming decisions.</strong> If a model is going to ship to BI, name it <code>fct_</code> or <code>dim_</code> from the start, even if the SQL is short.</li>
 <li><strong>Skipping the staging layer.</strong> Joining <code>source('stripe', 'raw_payments')</code> directly into a fact &ldquo;saves a model&rdquo; but pushes raw-shape concerns (cents, weird types, vendor column names) into business logic. Always go through a <code>stg_</code> first.</li>
 </ul>

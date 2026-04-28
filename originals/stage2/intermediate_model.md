@@ -6,11 +6,11 @@ Create your first intermediate model. It rolls `stg__payments` (113 rows, one pe
 
 ## Steps
 
-**1.** From the repo root, create the intermediate folder and the new model file:
+**1.** From the repo root, create the intermediate folder (peer of `staging/` and `marts/`, not nested under either) and the new model file:
 
 ```bash
-mkdir -p dbt_project/models/marts/intermediate
-touch dbt_project/models/marts/intermediate/int_order_payments.sql
+mkdir -p dbt_project/models/intermediate
+touch dbt_project/models/intermediate/int_order_payments.sql
 ```
 
 **2.** Paste this into `int_order_payments.sql`:
@@ -28,7 +28,7 @@ Three things to notice:
 
 - **`{{ ref('stg__payments') }}`** — intermediates depend on staging via `ref()`, not on the source. The `amount / 100.0` cast you wrote in staging is already applied; you get dollars here, not cents.
 - **`group by order_id`** — collapses 113 payment rows to 99 unique-order rows.
-- **No `{{ config(...) }}` block at the top.** The model lives under `models/marts/`, so it inherits `+materialized: table` from `dbt_project.yml`. That's what we want — intermediate tables are quick to query while you debug.
+- **No `{{ config(...) }}` block at the top.** Without an explicit `intermediate:` entry in `dbt_project.yml`, the model defaults to `view` — which is the conventional choice for intermediates: cheap to recompute while you debug, no warehouse storage to babysit.
 
 **3.** Build it:
 
