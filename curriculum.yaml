@@ -77,16 +77,15 @@ stages:
           rules:
             - type: dbt_debug_success
 
-      - id: dbt_seed
+      - id: ingestion
         type: exercise
-        lesson:   lessons/stage1/dbt_seed.html
-        exercise: exercises/stage1/dbt_seed.md
-        original: originals/stage1/dbt_seed.md
-        hints:    hints/stage1/dbt_seed.md
+        lesson:   lessons/stage1/ingestion.html
+        exercise: exercises/stage1/ingestion.md
+        original: originals/stage1/ingestion.md
+        hints:    hints/stage1/ingestion.md
         verifier: dbt
         dbt_checks:
           rules:
-            - type: dbt_seed_success
             - type: duckdb_table_exists
               table: raw_customers
             - type: duckdb_table_exists

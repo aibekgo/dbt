@@ -1,21 +1,35 @@
 ## Hint 1
 
-The file path matters: `dbt_project/models/staging/stg_customers.sql`. Make the `staging/` subdir if it doesn't exist (`mkdir -p dbt_project/models/staging`).
+One file. From the repo root:
+
+```bash
+cd dbt_project
+mkdir -p models/staging
+touch models/staging/stg_customers.sql
+```
+
+Then paste the SELECT into that file. No YAML, no `{{ source(...) }}` macro for now — just a plain SQL query.
 
 ## Hint 2
 
-Inside the SQL file, do **not** write `from raw_customers` or `from main.raw_customers`. Use `{{ ref('raw_customers') }}` so dbt builds the dependency graph and inserts the fully qualified table name at compile time.
-
-## Hint 3
-
-The full minimum-viable file:
+The model is literally three columns from one raw table:
 
 ```sql
 select
-    id as customer_id,
+    id          as customer_id,
     first_name,
     last_name
-from {{ ref('raw_customers') }}
+from main.raw_customers
 ```
 
-Then from `dbt_project/`, run `dbt run --select stg_customers`. If you forgot to mkdir the `staging/` subdir, dbt will silently not find the file — `dbt ls --select stg_customers` should show your model if it's wired up correctly.
+`main` is DuckDB's default schema, where `scripts/ingest_raw.py` wrote the raw tables. We hardcode it for this very first model so you can see dbt run end-to-end with zero ceremony. Stage 2 wires up `{{ source(...) }}` properly.
+
+## Hint 3
+
+If `dbt run` fails with `Relation "dev"."main"."raw_customers" does not exist`, you skipped ingestion. From the repo root:
+
+```bash
+python scripts/ingest_raw.py
+```
+
+…then come back to `dbt_project/` and re-run `dbt run --select stg_customers`. Sanity check: `dbt ls --select stg_customers` should print `dbt_project.staging.stg_customers`.

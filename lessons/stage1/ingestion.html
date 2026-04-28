@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { margin-top: 2em; }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+<h1>Ingestion &mdash; getting raw data into the warehouse</h1>
+
+<img src="../../images/ingestions/ingestion_tool.png" alt="Landscape of ingestion tools moving data from source systems into the warehouse">
+
+<p>Your warehouse is connected and empty. dbt won&rsquo;t do anything for you until there&rsquo;s data in the warehouse to transform. The step that lands raw data is called <strong>ingestion</strong> &mdash; and in a real company, it isn&rsquo;t your job.</p>
+
+<h2>Whose job is this in real life?</h2>
+
+<p><strong>Data engineers</strong> own ingestion. Their day-to-day is hooking up source systems (a Postgres replica of the production app, a Salesforce export, an event stream) to the warehouse so the raw bytes show up reliably. They use:</p>
+
+<ul>
+  <li><strong>Managed connectors</strong> &mdash; Fivetran, Airbyte, Stitch, Hevo. Click-to-connect SaaS that handles incremental sync, schema drift, retries.</li>
+  <li><strong>Custom Python or Spark jobs</strong> &mdash; for sources that don&rsquo;t have an off-the-shelf connector, or where the connector is too expensive at scale.</li>
+  <li><strong>Streaming pipelines</strong> &mdash; Kafka &rarr; Snowpipe / BigQuery streaming inserts &rarr; warehouse, for real-time data.</li>
+</ul>
+
+<img src="../../images/ingestions/dbt_fivetran.png" alt="A typical modern stack: Fivetran ingests raw data into the warehouse, then dbt transforms it">
+
+<p>Whatever the mechanism, the end result is the same: tables in the warehouse with names like <code>raw_customers</code>, <code>raw_orders</code>, <code>stripe_charges</code>, <code>segment_events</code> &mdash; untouched copies of the source. Analytics engineers (you) start your day by reading <em>those</em>.</p>
+
+<h3>The role split &mdash; what you actually need to know</h3>
+
+<table>
+  <thead><tr><th>If you&rsquo;re a&hellip;</th><th>Your job is&hellip;</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Analytics engineer</strong> (this course)</td>
+      <td>Transform the data that already landed in the warehouse. You <em>trust</em> that the <code>raw_*</code> tables exist and are fresh; you don&rsquo;t need to know how they got there. Your output: clean, tested, documented marts that analysts and dashboards consume.</td>
+    </tr>
+    <tr>
+      <td><strong>Data engineer</strong></td>
+      <td>Own the infrastructure that powers ingestion (the <strong>E</strong> and <strong>L</strong> of ELT). Pick the right connector or write the custom job, monitor it, fix it when it breaks, make sure data in the warehouse stays up to date. You <em>don&rsquo;t</em> write the business-logic SQL that turns raw bytes into &ldquo;monthly active users&rdquo;.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The walls aren&rsquo;t high &mdash; at small companies one person plays both roles &mdash; but the responsibilities are distinct. This course lives entirely on the analytics-engineer side. The Python script you&rsquo;re about to run stands in for the data-engineering team so the rest of the lesson can focus on transformation.</p>
+
+<blockquote>
+<p>This is the <strong>L</strong> in ELT. It already happened before any dbt model runs.</p>
+</blockquote>
+
+<h2>How we simplify for this course</h2>
+
+<p>This course doesn&rsquo;t come with a Fivetran subscription or a streaming Kafka cluster &mdash; that infrastructure is overkill for learning the analytics-engineer side of the stack. We mimic ingestion with a tiny Python script that does the same thing in 30 lines: read the CSVs in <code>data/</code>, write them as tables in DuckDB.</p>
+
+<div style="display: flex; align-items: stretch; gap: 12px; margin: 24px 0; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 200px; background: #f0f0f0; border-radius: 6px; padding: 14px;">
+    <div style="font-weight: 700; margin-bottom: 8px; color: #333;">Source CSVs</div>
+    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; color: #555; line-height: 1.5;">
+      data/raw_customers.csv<br>
+      data/raw_orders.csv<br>
+      data/raw_payments.csv
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; font-size: 1.8em; color: #ff6a00;">&rarr;</div>
+  <div style="flex: 1; min-width: 200px; background: #ff6a00; color: white; border-radius: 6px; padding: 14px;">
+    <div style="font-weight: 700; margin-bottom: 8px;">scripts/ingest_raw.py</div>
+    <div style="font-size: 0.85em; opacity: 0.95; line-height: 1.5;">
+      read_csv_auto<br>
+      + CREATE OR REPLACE TABLE
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; font-size: 1.8em; color: #ff6a00;">&rarr;</div>
+  <div style="flex: 1; min-width: 200px; background: #f0f0f0; border-radius: 6px; padding: 14px;">
+    <div style="font-weight: 700; margin-bottom: 8px; color: #333;">database/dev.duckdb</div>
+    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; color: #555; line-height: 1.5;">
+      main.raw_customers<br>
+      main.raw_orders<br>
+      main.raw_payments
+    </div>
+  </div>
+</div>
+
+<p>From dbt&rsquo;s point of view, the result is indistinguishable from a real ingestion pipeline: three <code>raw_*</code> tables sitting in <code>main</code> schema, ready to be modeled. The only thing the script skips is everything that makes real ingestion hard &mdash; auth, retries, schema evolution, incremental loads, monitoring.</p>
+
+<h2>Why not <code>dbt seed</code>?</h2>
+
+<p>dbt has a built-in command, <code>dbt seed</code>, that loads CSVs into the warehouse. We deliberately <em>don&rsquo;t</em> use it here, even though it would technically work for the jaffle_shop CSVs. Two reasons:</p>
+
+<ol>
+  <li><strong>It would teach the wrong mental model.</strong> Seeds are great for tiny lookup tables that travel with the code &mdash; ISO country codes, plan-tier mappings. They&rsquo;re a poor fit for &ldquo;raw operational data,&rdquo; which is what <code>raw_customers</code> represents. Conflating the two leads to projects that try to seed real data and fall over the moment a CSV grows past a few MB.</li>
+  <li><strong>We want to use <code>dbt seed</code> later for what it&rsquo;s actually good at.</strong> A later stage adds a real lookup table (a country-code reference, a plan-tier map) via <code>dbt seed</code>. By keeping the two concepts separate from the start, that lesson stays clean.</li>
+</ol>
+
+<h2>The jaffle_shop sample data</h2>
+
+<p>The repo ships three CSVs in <code>data/</code> at the top level (outside <code>dbt_project/</code>):</p>
+<table>
+  <thead><tr><th>File</th><th>Rows</th><th>What it represents</th></tr></thead>
+  <tbody>
+    <tr><td><code>raw_customers.csv</code></td><td>~100</td><td>Customer records: id, first_name, last_name</td></tr>
+    <tr><td><code>raw_orders.csv</code></td><td>~99</td><td>Orders: id, user_id, order_date, status</td></tr>
+    <tr><td><code>raw_payments.csv</code></td><td>~113</td><td>Payment events: id, order_id, payment_method, amount</td></tr>
+  </tbody>
+</table>
+
+<p>This is the canonical <em>jaffle_shop</em> dataset that ships with dbt&rsquo;s own tutorials &mdash; a tiny imaginary cafe selling Australian breakfast sandwiches. Small on purpose: you can hold the whole schema in your head while learning.</p>
+
+<blockquote>
+<p>Why are the CSVs in <code>data/</code> instead of <code>dbt_project/seeds/</code>? Because <code>dbt_project/</code> is gitignored &mdash; if we put the CSVs there, <code>dbt-learn reset</code> would delete them. Keeping them in <code>data/</code> means a reset only nukes <em>your work</em>, not the source data.</p>
+</blockquote>
+
+<h2>What the script does</h2>
+
+<p><code>scripts/ingest_raw.py</code> is short enough to read end-to-end:</p>
+
+<pre><code class="language-python">con = duckdb.connect(&quot;database/dev.duckdb&quot;)
+for csv in [&quot;raw_customers.csv&quot;, &quot;raw_orders.csv&quot;, &quot;raw_payments.csv&quot;]:
+    table = csv[:-4]
+    con.execute(
+        f&quot;CREATE OR REPLACE TABLE {table} AS &quot;
+        f&quot;SELECT * FROM read_csv_auto('data/{csv}')&quot;
+    )
+</code></pre>
+
+<p>Three things to notice:</p>
+<ul>
+  <li><strong><code>CREATE OR REPLACE TABLE</code></strong> &mdash; idempotent. Re-running the script overwrites existing tables; you can re-ingest as many times as you want.</li>
+  <li><strong><code>read_csv_auto</code></strong> &mdash; DuckDB&rsquo;s built-in CSV reader. It auto-detects delimiters, infers types, and can read directly into a table without an intermediate <code>COPY</code>.</li>
+  <li><strong>Tables land in <code>main</code> schema</strong> &mdash; DuckDB&rsquo;s default. Later, when you write dbt models, they&rsquo;ll live in a different schema (something like <code>main_main</code>) and reference these raw tables via <code>{{ source(...) }}</code>.</li>
+</ul>
+
+<h2>Running it</h2>
+
+<p>From the <strong>repo root</strong> (not from inside <code>dbt_project/</code> &mdash; the previous exercise left you there, so <code>cd ..</code> first):</p>
+
+<pre><code class="language-bash">uv run scripts/ingest_raw.py
+</code></pre>
+
+<p><code>uv run</code> picks up the project&rsquo;s virtualenv automatically &mdash; you don&rsquo;t have to remember to <code>source .venv/bin/activate</code> first. If you already have the venv active, <code>python scripts/ingest_raw.py</code> works the same.</p>
+
+<h2>What success looks like</h2>
+
+<p>You should see:</p>
+<pre><code>Ingesting into database/dev.duckdb
+  raw_customers: 100 rows
+  raw_orders: 99 rows
+  raw_payments: 113 rows
+Done.
+</code></pre>
+
+<p>You can verify by opening the file with the DuckDB CLI:</p>
+<pre><code class="language-bash">duckdb database/dev.duckdb -c "SELECT count(*) FROM raw_customers;"
+</code></pre>
+
+<h2>Common pitfalls</h2>
+<ul>
+  <li><strong>Running the script while dbt is also using the warehouse.</strong> &mdash; DuckDB allows only one writer at a time. If <code>dbt run</code> has the file open, the script will hang or error. Close any open dbt processes first.</li>
+  <li><strong>Putting business logic in the ingestion script.</strong> &mdash; Don&rsquo;t. Ingestion just lands raw bytes. Renames, type casts, joins, filters &mdash; all of that happens in dbt models, not in the loader. Keeping ingestion dumb is a feature: it lets you re-derive any business definition by changing dbt code, without re-extracting from sources.</li>
+  <li><strong>Forgetting that <code>raw_*</code> are sources, not seeds.</strong> &mdash; Because <em>we</em> wrote these tables (not <code>dbt seed</code>), dbt doesn&rsquo;t know about them yet. Stage 2 introduces <code>{{ source(...) }}</code> for exactly this case &mdash; a way to tell dbt about external tables it didn&rsquo;t create.</li>
+</ul>
+
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+</html>

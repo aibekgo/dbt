@@ -1,55 +1,49 @@
-# Exercise 14 — Your First Model
+# Exercise — Your first dbt model
 
 ## Goal
 
-Write `models/staging/stg_customers.sql` — a SQL `SELECT` that reads from `raw_customers` and renames a column. Run `dbt run` and verify the resulting table appears in DuckDB.
+Write one tiny SQL file under `dbt_project/models/`, run `dbt run`, and watch dbt turn your `SELECT` into a view in DuckDB.
 
-## What a dbt model is
+That's the whole exercise.
 
-A dbt **model** is a `.sql` file under `models/` containing exactly one `SELECT` statement. dbt wraps it in a `CREATE VIEW` (or `CREATE TABLE`, depending on materialization) and runs it against your warehouse. You never write `CREATE` yourself.
-
-The convention for the first transformation layer is the **staging layer** — one model per source table, doing nothing more than:
-
-- Renaming columns to business-friendly names
-- Casting types
-- Light cleanup (trim whitespace, lowercase emails)
-
-No joins yet. Joins come in marts (Stage 2).
+> **Heads-up:** the lesson covers sources, `{{ source(...) }}`, and the DAG — those are the production way. For your *very first* model we're keeping it minimal: a hardcoded table reference, no source declaration. Stage 2 swaps in proper sources.
 
 ## Steps
 
-**1.** Create the directory:
+**1.** From the repo root, step into the project:
 
 ```bash
-mkdir -p dbt_project/models/staging
+cd dbt_project
 ```
 
-**2.** Create the file `dbt_project/models/staging/stg_customers.sql` with this content:
+**2.** Create the staging folder and the model file:
+
+```bash
+mkdir -p models/staging
+touch models/staging/stg_customers.sql
+```
+
+**3.** Open `dbt_project/models/staging/stg_customers.sql` in your editor and paste:
 
 ```sql
 select
     id          as customer_id,
     first_name,
     last_name
-from {{ ref('raw_customers') }}
+from main.raw_customers
 ```
 
-Two things to notice:
+That's it — no Jinja, no config block, no DDL. Just a `SELECT` from the raw table that ingestion landed in DuckDB's `main` schema.
 
-- **`{{ ref('raw_customers') }}`** — Jinja-templated reference to the seed you loaded last exercise. dbt resolves it to the fully qualified table name (e.g., `dev.main_dbt_<user>.raw_customers`) at compile time. Never hardcode warehouse-specific table names in your SQL.
-- **`as customer_id`** — the source column is `id` (ambiguous and reused everywhere). Renaming it once at the staging layer means every downstream model gets `customer_id` for free.
-
-**3.** Run dbt:
+**4.** Build it:
 
 ```bash
-cd dbt_project
 dbt run --select stg_customers
-cd ..
 ```
 
 You should see one node succeed in green: `1 of 1 START sql view model ... [OK ...]`.
 
-**4.** Press `v` to verify.
+**5.** Press `v` to verify.
 
 ## What the verifier checks
 
@@ -59,11 +53,19 @@ You should see one node succeed in green: `1 of 1 START sql view model ... [OK .
 ## Inspecting the result
 
 ```bash
-duckdb database/dev.duckdb -c "SELECT * FROM stg_customers LIMIT 3;"
+duckdb ../database/dev.duckdb -c "SELECT * FROM stg_customers LIMIT 3;"
 ```
 
-You should see customer rows with the renamed column.
+You should see customer rows with the renamed `customer_id` column.
+
+## Common failure modes
+
+| Symptom | Fix |
+|---|---|
+| `Relation "dev"."main"."raw_customers" does not exist` | You skipped the ingestion step. From the repo root: `python scripts/ingest_raw.py`. |
+| `Could not find profile named 'dbt_project'` | `dbt_project/profiles.yml` is missing or has the wrong top-level key. Go back to the profiles exercise. |
+| `Compilation Error ... Unrecognized macro` | You probably typed `{{ ref('raw_customers') }}` or `{{ source(...) }}`. For this first run, use the plain `from main.raw_customers` shown above. |
 
 ## After you pass
 
-Press `n`. The last exercise of Stage 1 sets a default materialization for everything in `staging/`.
+Press `n`. The last exercise of Stage 1 sets a default materialization for everything in `staging/` — making this view-vs-table choice declarative across the whole folder.
