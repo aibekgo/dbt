@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Splitting one source into many</h1>
+<p>In Stage 1 you declared one source — <code>raw</code> — that owns all three tables: customers, orders, payments. That works, but it&rsquo;s a fiction. In a real warehouse those tables don&rsquo;t come from one place. Customers and orders come out of the application database; payments come from Stripe. They have different owners, different update cadences, different schemas, and different things that go wrong with them.</p>
+<p>This exercise refactors the single <code>raw</code> source into <strong>two sources</strong> that match the real systems: <code>jaffle_shop</code> (the app) and <code>stripe</code> (the payment processor).</p>
+<h2>Why split?</h2>
+<p>A source in dbt is the place where you describe one <em>upstream system</em>. Splitting them gives you four practical wins:</p>
+<table>
+<thead>
+<tr>
+<th>Win</th>
+<th>What it looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lineage that explains itself</strong></td>
+<td>The DAG shows two green source nodes. Anyone reading the docs site can see at a glance that <code>fct_orders</code> depends on the app <em>and</em> on Stripe — not on some opaque &ldquo;raw&rdquo; blob.</td>
+</tr>
+<tr>
+<td><strong>Per-system freshness rules</strong></td>
+<td>Stripe&rsquo;s payments may sync every 15 min; the app&rsquo;s tables sync nightly. <code>dbt source freshness</code> lets you set different <code>warn_after</code> / <code>error_after</code> thresholds per source — impossible if they&rsquo;re all bundled.</td>
+</tr>
+<tr>
+<td><strong>Per-system ownership</strong></td>
+<td>When a column drops out, you know which team to ping (the Stripe integration team vs the app team). Owner metadata can live on the source block.</td>
+</tr>
+<tr>
+<td><strong>Selectors that match the team mental model</strong></td>
+<td><code>dbt run --select source:stripe+</code> rebuilds everything downstream of payments — useful when Stripe schema changes — without touching app-side models.</td>
+</tr>
+</tbody>
+</table>
+<p>The cost is one extra YAML block. Always worth it once you have more than one upstream system.</p>
+<h2>Today&rsquo;s <code>_sources.yml</code> — single source</h2>
+<p>This is what Stage 1 left behind:</p>
+<pre><code class="language-yaml">version: 2
+
+sources:
+  - name: raw
+    description: &quot;Jaffle shop raw tables landed by scripts/ingest_raw.py&quot;
+    schema: main
+    tables:
+      - name: raw_customers
+      - name: raw_orders
+      - name: raw_payments
+</code></pre>
+<p>One source named <code>raw</code>, three tables under it. From SQL you reference them as <code>{{ source('raw', 'raw_customers') }}</code>.</p>
+<h2>After the split</h2>
+<p>You&rsquo;ll change the file to declare two sources:</p>
+<pre><code class="language-yaml">version: 2
+
+sources:
+  - name: jaffle_shop
+    description: &quot;Application data from the Jaffle Shop app database&quot;
+    schema: main
+    tables:
+      - name: raw_customers
+      - name: raw_orders
+
+  - name: stripe
+    description: &quot;Payment data landed from the Stripe payment processor&quot;
+    schema: main
+    tables:
+      - name: raw_payments
+</code></pre>
+<p>Three things change:</p>
+<ol>
+<li><strong>Two top-level entries under <code>sources:</code></strong> instead of one.</li>
+<li><strong><code>raw_customers</code> and <code>raw_orders</code> move under <code>jaffle_shop</code></strong>, since the app emits both.</li>
+<li><strong><code>raw_payments</code> moves under <code>stripe</code></strong> — payments come from a different system entirely.</li>
+</ol>
+<p>The <code>schema: main</code> field stays the same in both because, in this course, <code>scripts/ingest_raw.py</code> happens to land all three CSVs in DuckDB&rsquo;s <code>main</code> schema. In a real warehouse the two sources would usually live in different schemas (e.g. <code>raw.app_db</code> vs <code>raw.stripe</code>), and you&rsquo;d reflect that here.</p>
+<h2>The <code>source()</code> call has to follow</h2>
+<p><code>stg__customers.sql</code> references the old source by name:</p>
+<pre><code class="language-sql">from {{ source('raw', 'raw_customers') }}
+</code></pre>
+<p>Once you delete the <code>raw</code> source declaration, that line stops compiling — the macro can&rsquo;t find a source called <code>raw</code>. Update it to:</p>
+<pre><code class="language-sql">from {{ source('jaffle_shop', 'raw_customers') }}
+</code></pre>
+<p>The first argument always matches the source&rsquo;s <code>name:</code> field. If you forget this edit, <code>dbt run --select stg__customers</code> fails with a <em>&ldquo;Found a source&hellip; but no matching source declaration&rdquo;</em> error — the verifier surfaces this.</p>
+<h2>What you can do once it&rsquo;s done</h2>
+<pre><code class="language-bash">dbt ls --resource-type source
+</code></pre>
+<p>Should now print two groups:</p>
+<pre><code>dbt_project.jaffle_shop.raw_customers
+dbt_project.jaffle_shop.raw_orders
+dbt_project.stripe.raw_payments
+</code></pre>
+<p>And selectors like <code>dbt ls --select source:stripe+</code> will return only the payments-side downstream models — useful in the next exercise when you start building <code>stg__payments</code>.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Forgetting to update the <code>source()</code> call in <code>stg__customers.sql</code>.</strong> The YAML edit alone leaves the model broken — the macro looks up source <code>raw</code>, doesn&rsquo;t find it, and the run fails. Update both files together.</li>
+<li><strong>Putting <code>schema:</code> at the top level instead of per-source.</strong> Each source block needs its own <code>schema:</code> field. They happen to be the same value here (<code>main</code>), but that&rsquo;s a coincidence — usually they&rsquo;d differ.</li>
+<li><strong>Re-using the same source name twice.</strong> YAML lets you, dbt doesn&rsquo;t — you&rsquo;ll get a <em>&ldquo;duplicate source name&rdquo;</em> error on <code>dbt parse</code>. Each <code>name:</code> must be unique within the project.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

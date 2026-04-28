@@ -226,8 +226,10 @@ dbt_project/
 database/*.duckdb
 database/*.duckdb.wal
 
-# Lesson markdown sources (build_lessons.py renders to .html which IS committed)
+# Lesson markdown sources + the renderer (build_lessons.py renders .md → .html
+# which IS committed). The renderer is a dev-only tool, not part of the course.
 lessons/**/*.md
+build_lessons.py
 
 # Local learner progress — per-machine, never committed
 progress.txt

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>dbt docs</code> — your project as a website</h1>
+<p>dbt builds a documentation site directly from your project. Sources, models, columns, lineage, the actual compiled SQL — all browsable, all hyperlinked. The site is regenerated from the manifest each time you ask for it; nothing&rsquo;s hand-maintained.</p>
+<p>This exercise generates the docs and serves them locally.</p>
+<h2>What <code>dbt docs generate</code> does</h2>
+<p>It produces two artifacts under <code>dbt_project/target/</code>:</p>
+<ul>
+<li><strong><code>manifest.json</code></strong> — the parsed graph. Already updated by every <code>dbt run</code> / <code>dbt build</code>; <code>dbt docs generate</code> just makes sure it&rsquo;s fresh.</li>
+<li><strong><code>catalog.json</code></strong> — column-level metadata pulled by querying the warehouse: data types, column descriptions (where given), row counts. This is the new file. Generating it requires the warehouse to be reachable, since dbt actually <code>describes</code> each table.</li>
+</ul>
+<p>The docs UI is a static site (HTML + JavaScript) shipped with dbt. When you launch it, dbt loads <code>manifest.json</code> + <code>catalog.json</code> into the page and renders the lineage graph, column tables, and SQL panes from there.</p>
+<h2>What you&rsquo;ll see</h2>
+<pre><code class="language-bash">cd dbt_project
+dbt docs generate
+</code></pre>
+<p>Output ends with something like:</p>
+<pre><code>Catalog written to target/catalog.json
+</code></pre>
+<p>Then:</p>
+<pre><code class="language-bash">dbt docs serve
+</code></pre>
+<p>Opens a local web server (default <code>http://localhost:8080</code>) and your browser. Three things worth clicking around to:</p>
+<ol>
+<li><strong>Lineage tab (bottom-right circle icon).</strong> All the green source nodes (<code>raw_customers</code>, <code>raw_orders</code>, <code>raw_payments</code>) flowing into blue staging models, into the intermediate, into the fact. Stage 2&rsquo;s whole shape, visualized.</li>
+<li><strong>Source page → freshness columns.</strong> Empty for now (we haven&rsquo;t configured <code>loaded_at_field</code>), but this is where <code>dbt source freshness</code> results would show up.</li>
+<li><strong>A model page → &ldquo;Compiled&rdquo; tab.</strong> The actual SQL dbt sent to DuckDB, with <code>{{ source(...) }}</code> and <code>{{ ref(...) }}</code> already expanded. Useful for sanity-checking what the macros produced.</li>
+</ol>
+<p>Stop the server with <code>Ctrl+C</code> when done.</p>
+<h2>What docs are good for (and what they aren&rsquo;t)</h2>
+<p><strong>Good for:</strong></p>
+<ul>
+<li><strong>Onboarding.</strong> New analyst joins the team, points them at the docs site, they see exactly which staging model feeds which fact.</li>
+<li><strong>Impact analysis.</strong> Click a source, see every downstream model that depends on it. About to drop a column? You can see who breaks.</li>
+<li><strong>Catching surprise dependencies.</strong> The lineage graph occasionally reveals a model joining to something nobody expected — the kind of thing that&rsquo;s invisible in a list view.</li>
+</ul>
+<p><strong>Not good for:</strong></p>
+<ul>
+<li><strong>Living documentation of business logic.</strong> The docs site shows what dbt sees: SQL, schemas, column types. The &ldquo;why&rdquo; behind a complex CASE statement isn&rsquo;t there unless you write a <code>description:</code> block in YAML and a <code>docs</code> block in markdown.</li>
+<li><strong>Wide-audience docs.</strong> The site assumes the reader understands dbt. For broader stakeholders, BI catalogs (Atlan, Castor, etc.) sit on top of dbt&rsquo;s manifest and add the human layer.</li>
+</ul>
+<p>You&rsquo;ll round out descriptions and doc blocks in Stage 3 alongside tests. Stage 2&rsquo;s job is just confirming that <code>dbt docs generate</code> works and the output files land where they should.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong><code>dbt docs serve</code> claims port 8080 is in use.</strong> Pass a different port: <code>dbt docs serve --port 8081</code>.</li>
+<li><strong>The catalog page is empty / &ldquo;no data&rdquo;.</strong> <code>dbt docs generate</code> ran but <code>catalog.json</code> wasn&rsquo;t refreshed. Re-run <code>dbt docs generate</code> after <code>dbt build</code> so the catalog includes column types from the just-built tables.</li>
+<li><strong>Browser doesn&rsquo;t auto-open.</strong> dbt&rsquo;s serve command tries to launch a browser; if it doesn&rsquo;t, just visit <code>http://localhost:8080</code> manually.</li>
+<li><strong>Lineage looks weird (orphan nodes, missing edges).</strong> That&rsquo;s a <code>manifest.json</code> staleness issue. <code>dbt parse</code> or another <code>dbt build</code> will refresh it.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

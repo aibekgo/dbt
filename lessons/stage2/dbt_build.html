@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>dbt build</code> — one command, in the right order</h1>
+<p>Until now you&rsquo;ve used <code>dbt run</code> to materialize models. Most real projects use a different command for the &ldquo;I want everything refreshed and verified&rdquo; workflow: <code>dbt build</code>. It does in one shot what <code>dbt seed &amp;&amp; dbt run &amp;&amp; dbt test &amp;&amp; dbt snapshot</code> does in four — and it does them <strong>in DAG order</strong>, not in command order.</p>
+<p>This exercise replaces a habit (<code>dbt run</code>) with a sturdier one (<code>dbt build</code>).</p>
+<h2>What <code>dbt build</code> actually does</h2>
+<p>A single <code>dbt build</code> invocation, on a project with seeds + models + tests + snapshots, executes resources in dependency order:</p>
+<ol>
+<li><strong>Seeds</strong> that nothing depends on yet → loaded first.</li>
+<li><strong>A staging model</strong> that <code>ref()</code>s a seed → built.</li>
+<li><strong>Tests</strong> attached to that model (e.g. <code>not_null</code> on <code>customer_id</code>) → run.</li>
+<li><strong>A mart</strong> that depends on that staging model → built only if the tests just passed.</li>
+<li>… and so on, layer by layer.</li>
+</ol>
+<p>The key word is <em>interleaved</em>. <code>dbt build</code> doesn&rsquo;t build all models, then run all tests; it builds a node, runs that node&rsquo;s tests, and only proceeds downstream if those tests pass. This is why <code>build</code> is the production-grade default — a broken upstream model can&rsquo;t silently feed a downstream one.</p>
+<h2>Why we&rsquo;re showing it now</h2>
+<p>Stage 2 doesn&rsquo;t have any tests yet — those land in Stage 3. So today, in this project, <code>dbt build</code> is functionally equivalent to <code>dbt run</code>: same nodes, same order, same output. The difference is which command you reach for. Practicing <code>dbt build</code> early means you don&rsquo;t have a <code>dbt run</code> muscle memory to unlearn the moment tests show up.</p>
+<p><code>dbt build</code> accepts the same selectors as <code>dbt run</code>:</p>
+<pre><code class="language-bash">dbt build                       # everything
+dbt build --select fct_orders   # this model only
+dbt build --select +fct_orders  # this model + all upstream
+dbt build --select staging      # everything in the staging folder
+</code></pre>
+<h2>What you&rsquo;ll see</h2>
+<p>Run it from inside <code>dbt_project/</code>:</p>
+<pre><code class="language-bash">dbt build
+</code></pre>
+<p>Today&rsquo;s output, after Stage 2&rsquo;s models are in:</p>
+<pre><code>1 of 5 OK created sql view  model main.stg__customers ...
+2 of 5 OK created sql view  model main.stg__orders ...
+3 of 5 OK created sql view  model main.stg__payments ...
+4 of 5 OK created sql table model main.int_order_payments ...
+5 of 5 OK created sql table model main.fct_orders ...
+6 of 5 OK created sql table model main.dim_customers ...
+
+Done. PASS=6 WARN=0 ERROR=0 SKIP=0 TOTAL=6
+</code></pre>
+<p>Six green nodes (three staging views, two mart tables, one intermediate). No tests in this project yet, so the <code>PASS=6</code> is all model builds.</p>
+<p>After tests are added in Stage 3, the output starts to look very different — interleaved <code>model</code> and <code>test</code> lines, and any failing test stops downstream builds. That&rsquo;s the moment <code>dbt build</code> earns its keep.</p>
+<h2><code>run</code> vs <code>build</code> — when to use which</h2>
+<table>
+<thead>
+<tr>
+<th>You want…</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Just rebuild a model while iterating on its SQL</td>
+<td><code>dbt run --select &lt;model&gt;</code></td>
+</tr>
+<tr>
+<td>Verify the project end-to-end before merging / shipping</td>
+<td><code>dbt build</code></td>
+</tr>
+<tr>
+<td>Rebuild + retest a section of the DAG</td>
+<td><code>dbt build --select +&lt;model&gt;</code></td>
+</tr>
+<tr>
+<td>Production scheduled run</td>
+<td><code>dbt build</code></td>
+</tr>
+</tbody>
+</table>
+<p>The short version: use <code>dbt run</code> for inner-loop iteration, <code>dbt build</code> for any &ldquo;is the project healthy?&rdquo; check.</p>
+<h2>The artifacts <code>dbt build</code> writes</h2>
+<p>Every <code>dbt build</code> (and every <code>dbt run</code>) refreshes a few files under <code>dbt_project/target/</code>. The two that matter:</p>
+<ul>
+<li><strong><code>target/manifest.json</code></strong> — the parsed graph. Every node, every config, every dependency. The verifier reads this to check materializations and source declarations. The docs site is built from this.</li>
+<li><strong><code>target/run_results.json</code></strong> — what just happened. One entry per node with status (<code>success</code>, <code>error</code>, <code>skipped</code>), elapsed time, the actual SQL that executed. Useful for debugging slow models. The verifier reads this to confirm every node succeeded.</li>
+</ul>
+<p>You don&rsquo;t edit these. You don&rsquo;t commit them. They are dbt&rsquo;s working memory of the last run.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Running <code>dbt build</code> from the repo root.</strong> dbt commands need a project — <code>cd dbt_project/</code> first, or set <code>--project-dir</code>.</li>
+<li><strong>Confusing <code>--select</code> and <code>--exclude</code>.</strong> <code>dbt build --exclude fct_orders</code> builds everything <em>except</em> the fact, not the fact alone. Inverted from intuition.</li>
+<li><strong><code>dbt build --full-refresh</code> for unrelated reasons.</strong> That flag forces incremental models to rebuild from scratch. Stage 2 has no incrementals so the flag is harmless here, but it&rsquo;s an expensive accident in production.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

@@ -136,3 +136,123 @@ stages:
             - type: manifest_materialization
               model: dim_customers
               expected: table
+
+  - id: stage_2_sources_and_structure
+    title: "Stage 2 — Sources, Refs & Project Structure"
+    items:
+      - id: naming_conventions
+        type: lesson
+        file: lessons/stage2/naming_conventions.html
+
+      - id: multi_source_split
+        type: exercise
+        lesson:   lessons/stage2/multi_source_split.html
+        exercise: exercises/stage2/multi_source_split.md
+        original: originals/stage2/multi_source_split.md
+        hints:    hints/stage2/multi_source_split.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: manifest_source_declared
+              source: jaffle_shop
+              tables: [raw_customers, raw_orders]
+            - type: manifest_source_declared
+              source: stripe
+              tables: [raw_payments]
+            - type: dbt_run_success
+              select: stg__customers
+
+      - id: more_staging
+        type: exercise
+        lesson:   lessons/stage2/more_staging.html
+        exercise: exercises/stage2/more_staging.md
+        original: originals/stage2/more_staging.md
+        hints:    hints/stage2/more_staging.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: staging
+            - type: duckdb_table_exists
+              table: stg__orders
+            - type: duckdb_table_exists
+              table: stg__payments
+            - type: duckdb_query
+              name: stg__orders columns
+              sql: "select order_id, customer_id, order_date, status from stg__orders limit 1"
+              expected_rows: 1
+            - type: duckdb_query
+              name: stg__payments columns
+              sql: "select payment_id, order_id, payment_method, amount from stg__payments limit 1"
+              expected_rows: 1
+
+      - id: intermediate_model
+        type: exercise
+        lesson:   lessons/stage2/intermediate_model.html
+        exercise: exercises/stage2/intermediate_model.md
+        original: originals/stage2/intermediate_model.md
+        hints:    hints/stage2/intermediate_model.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: int_order_payments
+            - type: duckdb_table_exists
+              table: int_order_payments
+            - type: duckdb_query
+              name: int_order_payments row count
+              sql: "select count(*) from int_order_payments"
+              expected_value: 99
+            - type: duckdb_query
+              name: int_order_payments unique order_id
+              sql: "select count(distinct order_id) from int_order_payments"
+              expected_value: 99
+            - type: duckdb_query
+              name: int_order_payments columns
+              sql: "select order_id, total_amount, payment_count from int_order_payments limit 1"
+              expected_rows: 1
+
+      - id: fact_model
+        type: exercise
+        lesson:   lessons/stage2/fact_model.html
+        exercise: exercises/stage2/fact_model.md
+        original: originals/stage2/fact_model.md
+        hints:    hints/stage2/fact_model.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: +fct_orders
+            - type: duckdb_table_exists
+              table: fct_orders
+            - type: duckdb_query
+              name: fct_orders matches stg__orders count
+              sql: "select case when (select count(*) from fct_orders) = (select count(*) from stg__orders) then 1 else 0 end"
+              expected_value: 1
+            - type: duckdb_query
+              name: fct_orders columns
+              sql: "select order_id, customer_id, first_name, last_name, order_date, status, amount, payment_count from fct_orders limit 1"
+              expected_rows: 1
+
+      - id: dbt_build
+        type: exercise
+        lesson:   lessons/stage2/dbt_build.html
+        exercise: exercises/stage2/dbt_build.md
+        original: originals/stage2/dbt_build.md
+        hints:    hints/stage2/dbt_build.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_build_success
+
+      - id: dbt_docs
+        type: exercise
+        lesson:   lessons/stage2/dbt_docs.html
+        exercise: exercises/stage2/dbt_docs.md
+        original: originals/stage2/dbt_docs.md
+        hints:    hints/stage2/dbt_docs.md
+        verifier: dbt
+        quiz:     quiz/stage2.yaml
+        dbt_checks:
+          rules:
+            - type: dbt_docs_generated

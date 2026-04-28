@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Intermediate models — the layer between staging and marts</h1>
+<p>You&rsquo;ve got three staging models — <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>. Next exercise builds the fact table that joins them: <code>fct_orders</code>. Before that, there&rsquo;s a piece of work that <strong>doesn&rsquo;t fit cleanly in either layer</strong>: rolling payments up to one row per order.</p>
+<p>That work belongs in a third model layer: <strong>intermediate</strong>.</p>
+<h2>What an intermediate model is</h2>
+<p>An intermediate (<code>int_*</code>) model is a transformation that:</p>
+<ul>
+<li><strong>Changes the grain</strong> away from staging (e.g. payments → one row per order). Staging stays 1:1 with sources, so any aggregation already disqualifies it.</li>
+<li><strong>Doesn&rsquo;t yet answer a business question.</strong> A fact or dimension is what an analyst would actually query. An intermediate is a stepping stone that makes the fact easier to build and read.</li>
+<li><strong>Gets reused.</strong> If a piece of logic is used by more than one downstream model, lifting it into an intermediate avoids duplicating it.</li>
+</ul>
+<p>In our case: aggregating <code>stg__payments</code> (113 rows, one per payment) into one row per <code>order_id</code> is exactly that — it&rsquo;s not what an analyst queries, but it&rsquo;s the thing <code>fct_orders</code> joins to. Without an intermediate, you&rsquo;d inline the aggregation as a CTE inside <code>fct_orders.sql</code> — fine for one consumer, painful when a second one shows up.</p>
+<h2>Where it lives</h2>
+<p>Inside <code>models/marts/intermediate/</code>. Two reasons to nest it under marts rather than peer to staging:</p>
+<ol>
+<li>The <code>marts</code> folder config already in <code>dbt_project.yml</code> (<code>+materialized: table</code>) cascades down. Intermediates land as tables, same as facts/dims — quick to query while you debug.</li>
+<li>It signals <strong>scope</strong>: intermediates serve marts, not the other way around. A staging model never depends on an intermediate; intermediates always depend on staging.</li>
+</ol>
+<blockquote>
+<p>The other common convention is <code>models/intermediate/</code> as a peer of <code>models/staging/</code> and <code>models/marts/</code>. Both are valid — pick one and stick to it. We use the nested layout here because Stage 1 already configured the marts folder.</p>
+</blockquote>
+<h2>The model itself</h2>
+<p><code>models/marts/intermediate/int_order_payments.sql</code>:</p>
+<pre><code class="language-sql">select
+    order_id,
+    sum(amount)              as total_amount,
+    count(*)                 as payment_count
+from {{ ref('stg__payments') }}
+group by order_id
+</code></pre>
+<p>What&rsquo;s happening:</p>
+<ul>
+<li><strong><code>{{ ref('stg__payments') }}</code></strong> — depends on the staging model, <em>not</em> the source. Intermediates always sit downstream of staging.</li>
+<li><strong><code>group by order_id</code></strong> — collapses 113 payment rows down to 99 rows, one per order.</li>
+<li><strong><code>sum(amount)</code> + <code>count(*)</code></strong> — two aggregates the fact will want: the dollar total per order, and how many payment events that total represents.</li>
+</ul>
+<p>The result schema: <code>(order_id, total_amount, payment_count)</code>. Three columns, ~99 rows.</p>
+<h2>Why bother — couldn&rsquo;t this be a CTE?</h2>
+<p>It could. <code>fct_orders.sql</code> could include this as a CTE:</p>
+<pre><code class="language-sql">with payments_by_order as (
+    select order_id, sum(amount) as total_amount, count(*) as payment_count
+    from {{ ref('stg__payments') }}
+    group by order_id
+)
+select … from {{ ref('stg__orders') }} o
+left join payments_by_order p on p.order_id = o.order_id
+</code></pre>
+<p>For a single consumer, the CTE is shorter. The case for promoting it to an intermediate model is everything that comes <em>after</em> the first consumer:</p>
+<ul>
+<li><strong>A second consumer shows up.</strong> Maybe <code>fct_customer_lifetime_value</code> also wants total spend per order. With a CTE, you copy-paste; with <code>int_order_payments</code>, you <code>ref()</code> it. Two queries, same definition, no drift.</li>
+<li><strong>Tests.</strong> Generic tests (<code>unique</code>, <code>not_null</code>) attach to a model, not to a CTE. If <code>order_id</code> should be unique in the rolled-up payments, that test belongs on <code>int_order_payments</code>.</li>
+<li><strong>Materialization.</strong> A CTE always re-runs. An intermediate can be materialized as a table once and reused. For a 99-row aggregate it doesn&rsquo;t matter; for a 100M-row aggregate it&rsquo;s the difference between minutes and milliseconds.</li>
+<li><strong>Readability.</strong> When <code>fct_orders.sql</code> is 200 lines, you want it to look like joins, not aggregations. The intermediate gives you a clean noun (&ldquo;payments rolled up by order&rdquo;) that the fact&rsquo;s <code>from</code> block reads naturally.</li>
+</ul>
+<p>The rule of thumb: <strong>promote to an intermediate the second time you&rsquo;d reach for the same CTE</strong>, not the first.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Joining to the source instead of staging.</strong> <code>from {{ source('stripe', 'raw_payments') }}</code> works but skips the cents→dollars cast you put in <code>stg__payments</code>. Always go through staging.</li>
+<li><strong>Forgetting the <code>group by</code>.</strong> Without it the model returns one row per payment with <code>sum()</code> over the whole table — DuckDB will error or produce nonsense depending on the column list.</li>
+<li><strong>Naming it <code>int_payments</code>.</strong> Naming should describe what the model <em>is</em> about, not just where it sits. <code>int_order_payments</code> says &ldquo;payments rolled up to the order grain&rdquo;; <code>int_payments</code> is ambiguous (rolled up by what?).</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

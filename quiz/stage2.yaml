@@ -1,0 +1,113 @@
+topic: stage2
+questions:
+  - id: stage2_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What's the practical difference between `{{ source('jaffle_shop', 'raw_orders') }}` and `{{ ref('stg__orders') }}`?"
+    options:
+      a: "They're aliases — pick whichever reads better"
+      b: "`source()` points to a table dbt did NOT build (declared in `_sources.yml`); `ref()` points to a model dbt built itself"
+      c: "`source()` only works in YAML files, `ref()` only in SQL"
+      d: "`source()` is read-only, `ref()` can be re-materialized"
+    answer: b
+    explanation: |
+      Both compile to a fully-qualified table name. The difference is who owns the upstream object: `source()` says "I trust this table is already here from outside dbt"; `ref()` says "dbt built this — wait for it." Both add the right edge to the DAG so build order is correct.
+    related_item: multi_source_split
+
+  - id: stage2_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Stage 2 split the original single `raw` source into `jaffle_shop` and `stripe`. What problem does that solve?"
+    options:
+      a: "It's faster to build because dbt parallelizes per-source"
+      b: "Per-source freshness rules, lineage that names real systems, owner metadata per source, and selectors like `--select source:stripe+`"
+      c: "It's required — dbt errors if a source has more than two tables"
+      d: "It allows different `schema:` values, which dbt couldn't do otherwise"
+    answer: b
+    explanation: |
+      Splitting sources by upstream system is a *modeling* decision, not a performance one. Each source can have its own freshness thresholds, its own ownership labels, its own DAG node — so the lineage graph reads like the real architecture instead of one opaque "raw" blob. Selectors like `--select source:stripe+` then naturally rebuild only the payment-side downstream models.
+    related_item: multi_source_split
+
+  - id: stage2_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "A staging model (`stg__*`) should NOT do which of these?"
+    options:
+      a: "Rename `id` to `order_id`"
+      b: "Cast `amount / 100.0` from cents to dollars"
+      c: "Join customers and orders into one denormalized table"
+      d: "Drop columns nobody uses"
+    answer: c
+    explanation: |
+      Staging is grain-preserving — one row in, one row out. Renames, type casts, and dropping columns are fine. Joins change or risk changing the grain (and inject business logic about how two tables relate), so they belong in `int_*` or `fct_*`. The discipline pays off the first time someone asks "how many orders are in stg__orders?" — the answer matches the source.
+    related_item: more_staging
+
+  - id: stage2_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Why does `int_order_payments` exist when its SQL could be a CTE inside `fct_orders`?"
+    options:
+      a: "Because dbt requires intermediate models for any aggregation"
+      b: "So the aggregation is reusable, testable, and can be materialized as a table once instead of recomputed in every consumer"
+      c: "It's purely cosmetic — the layer name has no functional effect"
+      d: "Because facts can't have `group by`"
+    answer: b
+    explanation: |
+      The CTE works fine for one consumer. The case for promoting to a model is everything *after* the first consumer: a second model can `ref()` it without copy-paste, generic tests can attach to the model, and a 100M-row aggregate can be materialized once instead of re-computed per query. Rule of thumb: promote the second time you'd reach for the same CTE, not the first.
+    related_item: intermediate_model
+
+  - id: stage2_05
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When building `fct_orders`, why is `stg__orders` the driving table (left side of the joins) rather than `int_order_payments`?"
+    options:
+      a: "DuckDB requires the smaller table on the left"
+      b: "The driving table sets the grain — the fact wants one row per order, so orders drives. Driving from payments would lose any order without a payment."
+      c: "It's faster"
+      d: "It avoids a `left join` syntax error"
+    answer: b
+    explanation: |
+      The grain decision is the most important part of writing a fact. Whichever table you drive from sets the row count of the result. Drive from orders + `left join` payments, and orders without payments survive (with `coalesce(…, 0)`). Drive from payments + `left join` orders, and you'd lose any payment-less order entirely.
+    related_item: fact_model
+
+  - id: stage2_06
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What does `dbt build` do that `dbt run` doesn't?"
+    options:
+      a: "Nothing — they're aliases"
+      b: "It runs models, tests, seeds, and snapshots in DAG order, interleaved — so a failed test on an upstream model stops downstream models from building"
+      c: "It compiles SQL but doesn't execute it"
+      d: "It's the deprecated form of `dbt run`"
+    answer: b
+    explanation: |
+      `dbt build` is the production-grade refresh. It interleaves seeds → models → tests → snapshots in dependency order, so a `not_null` test failing on `stg__customers` will skip every downstream model that depends on it. `dbt run` only builds models. In Stage 2 there are no tests yet, so today `build` is functionally `run` — but the muscle memory matters once Stage 3 adds the test layer.
+    related_item: dbt_build
+
+  - id: stage2_07
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which two artifacts under `target/` does the docs site read from?"
+    options:
+      a: "`compiled/` and `run/`"
+      b: "`manifest.json` (the DAG + configs) and `catalog.json` (column types pulled from the warehouse)"
+      c: "`logs/dbt.log` only"
+      d: "`profiles.yml` and `dbt_project.yml`"
+    answer: b
+    explanation: |
+      `manifest.json` is dbt's parsed view of the project — every node, dependency, and config. It's refreshed by every `dbt run` / `dbt build`. `catalog.json` is column-level metadata pulled from the warehouse via `dbt docs generate` (it actually queries each table's schema). The docs UI is a static site that loads both files into the browser.
+    related_item: dbt_docs
+
+  - id: stage2_08
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What does the `fct_` prefix tell a reader that `mart_` doesn't?"
+    options:
+      a: "Nothing meaningful"
+      b: "That the model represents an *event* (one row per occurrence) — orders, sessions, transactions — as opposed to a *thing* (`dim_`)"
+      c: "That it's materialized as a table"
+      d: "That it has tests attached"
+    answer: b
+    explanation: |
+      The fact/dim distinction tells you the grain at a glance: `fct_orders` is one row per order (an event); `dim_customers` is one row per customer (a thing). When you read `fct_orders join dim_customers`, you immediately know the fact drives. A flat `mart_*` prefix loses that — readers have to inspect each model to know which side is the event grain.
+    related_item: naming_conventions

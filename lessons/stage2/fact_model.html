@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>The fact table — what an analyst actually queries</h1>
+<p>Three staging models, one intermediate. None of them is what someone would open BI on. The fact is the model an analyst runs <code>select * from</code> against and gets answers — joins resolved, columns named for humans, grain set deliberately.</p>
+<p>This exercise builds <code>fct_orders</code>: one row per order, every column the analyst needs to answer &ldquo;who ordered what, when, for how much.&rdquo;</p>
+<h2>Fact vs dimension</h2>
+<p>The data warehouse vocabulary:</p>
+<ul>
+<li><strong>Facts</strong> are <em>events</em> — orders, sessions, transactions, page views. The grain is &ldquo;one event per row.&rdquo; <code>fct_orders</code> has one row per order. <code>fct_payments</code> would have one row per payment. The columns are mostly numeric measures (amounts, counts, durations) with foreign keys out to dimensions.</li>
+<li><strong>Dimensions</strong> are <em>things</em> — customers, products, locations. The grain is &ldquo;one thing per row.&rdquo; <code>dim_customers</code> has one row per customer. The columns are mostly attributes (names, tiers, regions).</li>
+</ul>
+<p>Stage 1 already built one dimension (<code>dim_customers</code>). This exercise adds the corresponding fact, and the two together are what most analyses join.</p>
+<h2>Set the grain first</h2>
+<p>The hardest part of writing a fact isn&rsquo;t the SQL — it&rsquo;s deciding the grain. &ldquo;One row per what?&rdquo; Pick wrong and the row count lies (joins fan out, aggregates double-count, foreign keys aren&rsquo;t actually unique).</p>
+<p>Here, the grain is <strong>one row per order</strong>. That means:</p>
+<ul>
+<li><code>stg__orders</code> is the <strong>driving table</strong> — its row count sets the row count of the fact.</li>
+<li>Everything else gets <code>left join</code>-ed in. Joins must not multiply rows. Customers join 1:1 (a customer per order). Payments join via <code>int_order_payments</code>, which we already collapsed to one-row-per-order — so the join is also 1:1.</li>
+<li>If you joined directly to <code>stg__payments</code> (113 rows), you&rsquo;d get 113 rows out. That&rsquo;s why the intermediate exists.</li>
+</ul>
+<p>A useful sanity check: after building, <code>select count(*) from fct_orders</code> should equal <code>select count(*) from stg__orders</code>. The verifier checks this.</p>
+<h2>What the fact looks like</h2>
+<p><code>models/marts/fct_orders.sql</code>:</p>
+<pre><code class="language-sql">select
+    o.order_id,
+    o.customer_id,
+    c.first_name,
+    c.last_name,
+    o.order_date,
+    o.status,
+    coalesce(p.total_amount, 0)  as amount,
+    coalesce(p.payment_count, 0) as payment_count
+from {{ ref('stg__orders') }} o
+left join {{ ref('stg__customers') }}     c using (customer_id)
+left join {{ ref('int_order_payments') }} p using (order_id)
+</code></pre>
+<p>Reading it top-to-bottom:</p>
+<ul>
+<li><strong><code>{{ ref('stg__orders') }} o</code></strong> is the driving table. Aliased <code>o</code> for readability.</li>
+<li><strong><code>left join … customers using (customer_id)</code></strong> — every order has a customer, so <code>inner join</code> would also work, but <code>left join</code> is safer: if a customer record vanishes upstream, you&rsquo;d rather see the order with nulls than have it disappear from the fact silently.</li>
+<li><strong><code>left join … int_order_payments using (order_id)</code></strong> — orders without payments would land here as nulls. <code>coalesce(…, 0)</code> makes the analyst&rsquo;s life easier: no <code>null</code> dollars in the report.</li>
+<li><strong><code>using (customer_id)</code></strong> — DuckDB syntax for &ldquo;join where columns of the same name are equal.&rdquo; Equivalent to <code>on o.customer_id = c.customer_id</code>. Slightly cleaner when names line up.</li>
+<li><strong>No <code>{{ config(...) }}</code> block.</strong> The model lives under <code>models/marts/</code> and inherits <code>+materialized: table</code> from <code>dbt_project.yml</code> — facts almost always materialize as tables (built once, read many times).</li>
+</ul>
+<h2>Order of joins matters</h2>
+<p>Putting the driving table first and <code>left join</code>-ing dimensions and aggregates is a discipline. The opposite — starting from <code>int_order_payments</code> and joining out to orders — would leave any order <em>without</em> a payment out of the fact entirely. With the orders table first, those rows survive with <code>null</code> payment values that you can <code>coalesce(…, 0)</code>.</p>
+<p>The rule of thumb: <strong>drive from the table whose grain you want.</strong> Everything else is a lookup.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Grain explosion.</strong> Joining <code>stg__payments</code> (the un-aggregated 113-row staging model) instead of <code>int_order_payments</code> blows the row count from 99 to 113. The verifier catches this.</li>
+<li><strong>Inner join instead of left join.</strong> Loses rows silently. If <code>select count(*) from fct_orders</code> is less than <code>select count(*) from stg__orders</code>, you&rsquo;re filtering rows out somewhere — usually an inner join.</li>
+<li><strong>Forgetting <code>coalesce</code>.</strong> Analyst queries <code>sum(amount)</code> and gets <code>null</code> for the few orders without payments. Better to materialize <code>0</code> once than chase the bug downstream.</li>
+<li><strong><code>using (id)</code> ambiguity.</strong> <code>using</code> only works when the join column has the same name on both sides. Mismatched names need explicit <code>on a.x = b.y</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Naming conventions — <code>src_</code>, <code>stg_</code>, <code>int_</code>, <code>fct_</code>, <code>dim_</code></h1>
+<p>A dbt project with no naming convention starts to rot fast. By the time you have 30 models, nobody can answer simple questions: <em>Is <code>customers</code> a fact, a dimension, or a staging view? Does <code>orders_final</code> ship to BI or is it intermediate? Why are there both <code>clean_orders</code> and <code>orders_clean</code>?</em></p>
+<p>The convention below is the dbt community&rsquo;s de-facto standard. Follow it once and the answers come from the model name itself.</p>
+<h2>The five prefixes</h2>
+<table>
+<thead>
+<tr>
+<th>Prefix</th>
+<th>Layer</th>
+<th>What it represents</th>
+<th>Grain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src_</code></td>
+<td>Sources (in YAML)</td>
+<td>A raw table outside dbt — Fivetran landing, application DB replica, scripts/ingest_raw.py</td>
+<td>Whatever the source has</td>
+</tr>
+<tr>
+<td><code>stg_</code></td>
+<td>Staging</td>
+<td>One model per source table; light renames and casts only</td>
+<td>1:1 with the source</td>
+</tr>
+<tr>
+<td><code>int_</code></td>
+<td>Intermediate</td>
+<td>Stepping stones between staging and marts. Aggregations, multi-step calculations, reusable joins</td>
+<td>Often new (regrouped)</td>
+</tr>
+<tr>
+<td><code>fct_</code></td>
+<td>Facts (marts)</td>
+<td>Events the business cares about — orders, sessions, transactions</td>
+<td>One row per event</td>
+</tr>
+<tr>
+<td><code>dim_</code></td>
+<td>Dimensions (marts)</td>
+<td>Things the business cares about — customers, products, locations</td>
+<td>One row per thing</td>
+</tr>
+</tbody>
+</table>
+<p>The prefix tells you three things at once: <strong>layer</strong> (where in the DAG), <strong>role</strong> (event vs thing vs work-in-progress), and <strong>expected grain</strong> (so you can spot when a join blew up). That&rsquo;s a lot of information for three letters.</p>
+<h2>What this project&rsquo;s models look like</h2>
+<p>After Stage 2 you have:</p>
+<pre><code>models/
+├── staging/
+│   ├── _sources.yml           ← src_ entries (jaffle_shop, stripe)
+│   ├── stg__customers.sql
+│   ├── stg__orders.sql
+│   └── stg__payments.sql
+└── marts/
+    ├── intermediate/
+    │   └── int_order_payments.sql
+    ├── dim_customers.sql
+    └── fct_orders.sql
+</code></pre>
+<p>Read top to bottom: two sources land three raw tables, three staging models clean them, one intermediate aggregates payments by order, then a fact and a dimension take the layered output the rest of the way to BI.</p>
+<blockquote>
+<p><strong>About the double underscore.</strong> This project uses <code>stg__customers</code> (two underscores) but <code>dim_customers</code> and <code>fct_orders</code> (one). That&rsquo;s a quirk of how this course was authored, not a community standard. dbt-labs&rsquo; <a href="https://github.com/dbt-labs/jaffle_shop"><code>jaffle_shop</code></a> reference project uses single underscores everywhere. When you read external dbt code you&rsquo;ll see <code>stg_customers</code> — same idea, one underscore.</p>
+</blockquote>
+<h2>The full DAG, in plain English</h2>
+<pre><code>src.jaffle_shop.raw_customers ──► stg__customers ──┐
+src.jaffle_shop.raw_orders   ──► stg__orders   ──┤
+                                                 ├──► fct_orders ──► (BI)
+src.stripe.raw_payments      ──► stg__payments ──► int_order_payments ──┘
+
+                              stg__customers ──► dim_customers ──► (BI)
+</code></pre>
+<p>Every arrow is a <code>source()</code> or <code>ref()</code> call you&rsquo;ve already written. The naming convention is what makes this readable on a whiteboard or in a <code>dbt ls</code> output.</p>
+<h2>Why <code>int_</code> instead of just more <code>stg_</code>?</h2>
+<p>A staging model is <strong>grain-preserving</strong>. The moment you <code>group by</code> something, the grain changed and the model isn&rsquo;t staging anymore — it&rsquo;s intermediate. Promoting it from <code>stg_</code> to <code>int_</code> is a flag to readers: &ldquo;the row count here doesn&rsquo;t match the source.&rdquo;</p>
+<p>A useful test: if you can&rsquo;t write a <code>unique</code> test on the same primary key as the source table, you&rsquo;re past staging.</p>
+<h2>Why <code>fct_</code> and <code>dim_</code> instead of just <code>mart_</code>?</h2>
+<p>Some teams do use a flat <code>mart_*</code> prefix. Two reasons the split is worth keeping:</p>
+<ol>
+<li><strong>Joins read better.</strong> <code>fct_orders join dim_customers</code> is unambiguous: an event joining out to a thing. <code>mart_orders join mart_customers</code> reads like two peers, and senior analysts have to think harder about which side drives.</li>
+<li><strong>Modeling discipline carries forward.</strong> If you start with <code>fct_/dim_</code> early, the questions a fact should answer (per-event aggregates, per-period rollups) and the questions a dimension should answer (per-entity attributes) stay clearer as the project grows.</li>
+</ol>
+<h2>What goes in each layer — quick reference</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Allowed</th>
+<th>Banned</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src_</code></td>
+<td>Source declaration in YAML</td>
+<td>SQL transformations</td>
+</tr>
+<tr>
+<td><code>stg_</code></td>
+<td>Renames, casts, dropping unused columns</td>
+<td>Joins, filters beyond obvious junk, business logic, aggregations</td>
+</tr>
+<tr>
+<td><code>int_</code></td>
+<td>Aggregations, multi-step calculations, reusable joins, type-2 building blocks</td>
+<td>Anything an analyst would query directly</td>
+</tr>
+<tr>
+<td><code>fct_</code></td>
+<td>One-row-per-event tables, foreign keys to dimensions, additive measures</td>
+<td>Wide unrelated joins, dimension attributes denormalized in (lightly OK, heavily not)</td>
+</tr>
+<tr>
+<td><code>dim_</code></td>
+<td>One-row-per-thing tables, descriptive attributes, slowly-changing snapshots</td>
+<td>Event measures, time-series counts</td>
+</tr>
+</tbody>
+</table>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong><code>final_orders</code> / <code>cleaned_orders</code> / <code>orders_v2</code>.</strong> Names that describe their <em>history</em> rather than their <em>layer</em>. Future-you won&rsquo;t remember which one is current.</li>
+<li><strong>Mixing <code>int_</code> and <code>stg_</code> in the same folder.</strong> Folders should match prefixes — staging models in <code>staging/</code>, intermediates in <code>intermediate/</code> (or <code>marts/intermediate/</code>), facts and dims in <code>marts/</code>.</li>
+<li><strong>Overusing <code>int_</code> to dodge naming decisions.</strong> If a model is going to ship to BI, name it <code>fct_</code> or <code>dim_</code> from the start, even if the SQL is short.</li>
+<li><strong>Skipping the staging layer.</strong> Joining <code>source('stripe', 'raw_payments')</code> directly into a fact &ldquo;saves a model&rdquo; but pushes raw-shape concerns (cents, weird types, vendor column names) into business logic. Always go through a <code>stg_</code> first.</li>
+</ul>
+<p>This is the last lesson in Stage 2. Press <code>n</code> for the stage quiz.</p>
+</body>
+
+</html>

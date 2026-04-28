@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Filling out the staging layer</h1>
+<p><code>stg__customers</code> is the only staging model so far. The convention is <strong>one staging model per source table</strong> — 1:1, same grain, just clean enough to be friendly downstream. This exercise adds the missing two: <code>stg__orders</code> and <code>stg__payments</code>.</p>
+<h2>What a staging model is for</h2>
+<p>Staging models do <strong>light</strong> work: rename ambiguous columns, cast types into something normal, alias unhelpful identifiers, and otherwise leave the data alone. They are deliberately boring. The boredom is the point — every downstream model knows it can join to <code>stg__orders</code> without reasoning about whether <code>id</code> means an order id or a user id.</p>
+<p>Things staging models <strong>do</strong>:</p>
+<ul>
+<li>Rename <code>id</code> → <code>order_id</code> / <code>customer_id</code> / <code>payment_id</code>. Otherwise every join condition is a guessing game.</li>
+<li>Cast cents to dollars, epoch to timestamp, strings to enums. Anything that&rsquo;s a &ldquo;fix the raw shape&rdquo; rather than &ldquo;answer a question.&rdquo;</li>
+<li>Drop columns nobody uses. Optional, but shrinks the surface area.</li>
+</ul>
+<p>Things staging models <strong>don&rsquo;t</strong> do:</p>
+<ul>
+<li><strong>No joins.</strong> Staging is grain-preserving — one row in, one row out. If you need to combine tables, that&rsquo;s an intermediate or mart model.</li>
+<li><strong>No business logic.</strong> No &ldquo;active customer&rdquo; rule, no revenue calculations, no de-duplication policies. Those decisions belong upstream of intermediates and downstream of staging.</li>
+<li><strong>No filtering</strong> beyond obviously broken rows (nulls in primary keys, soft-deletes that should be hidden everywhere).</li>
+</ul>
+<p>If you find yourself wanting to do any of those, that&rsquo;s a signal you&rsquo;re already in <code>int_*</code> or <code>fct_*</code> territory.</p>
+<h2>What the new files look like</h2>
+<p><code>models/staging/stg__orders.sql</code>:</p>
+<pre><code class="language-sql">select
+    id          as order_id,
+    user_id     as customer_id,
+    order_date,
+    status
+from {{ source('jaffle_shop', 'raw_orders') }}
+</code></pre>
+<p>Two renames: <code>id → order_id</code> (so it matches up with <code>payment.order_id</code> downstream) and <code>user_id → customer_id</code> (so it matches <code>stg__customers.customer_id</code>). <code>order_date</code> and <code>status</code> are already well-named.</p>
+<p><code>models/staging/stg__payments.sql</code>:</p>
+<pre><code class="language-sql">select
+    id                       as payment_id,
+    order_id,
+    payment_method,
+    amount / 100.0           as amount
+from {{ source('stripe', 'raw_payments') }}
+</code></pre>
+<p>Two changes worth pointing out:</p>
+<ul>
+<li><strong><code>id → payment_id</code></strong> — same reason as <code>stg__orders</code>, disambiguate the <code>id</code> columns at the boundary.</li>
+<li><strong><code>amount / 100.0 as amount</code></strong> — Stripe stores money in cents (e.g. <code>1000</code> for $10.00). Casting once at the staging layer means every downstream query gets dollars, no surprise multiplications. Use <code>100.0</code> (with the decimal) so DuckDB returns a <code>DOUBLE</code> rather than truncated integer division.</li>
+</ul>
+<p>The <code>from</code> lines reference the new sources you just declared in <code>multi_source_split</code> — <code>jaffle_shop</code> for orders, <code>stripe</code> for payments. If you forget to update those, dbt errors out at parse time.</p>
+<h2>Why one model per source table?</h2>
+<p>Two reasons. First, <strong>discoverability</strong> — when someone wants to know &ldquo;what tables are usable downstream?&rdquo; they look in <code>models/staging/</code>. One file per source table makes that map obvious. Second, <strong>isolation of upstream changes</strong> — if Stripe drops the <code>payment_method</code> column, you change exactly one file (<code>stg__payments.sql</code>) and every model downstream that joins to <code>stg__payments</code> breaks loudly during testing instead of silently producing nulls.</p>
+<p>A common anti-pattern is one giant <code>stg__all_orders.sql</code> that joins customers, orders, and payments. That model is useful, but it isn&rsquo;t a staging model — it&rsquo;s a fact (<code>fct_orders</code>), and we&rsquo;ll build one in the next exercise.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Same source, wrong source name.</strong> <code>source('raw', 'raw_orders')</code> won&rsquo;t compile after <code>multi_source_split</code> — the source is now called <code>jaffle_shop</code>. Same for <code>stripe</code>.</li>
+<li><strong>Forgetting the rename on <code>id</code>.</strong> A staging model that emits a column called <code>id</code> is fine for dbt, but it makes every downstream join condition (<code>a.id = b.id</code>) ambiguous. Rename at the source.</li>
+<li><strong>Doing too much.</strong> No joins, no filters beyond the obvious, no business logic. If you&rsquo;re tempted, that work belongs in <code>int_*</code> or <code>fct_*</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>
