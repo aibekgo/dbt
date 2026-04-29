@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>severity: warn</code> and <code>where:</code> — soft tests with row-level filters</h1>
+<p>The <code>accepted_values</code> test on <code>stg__orders.status</code> from Stage 3 is hard-pinned: a value outside <code>[placed, shipped, completed, return_pending, returned]</code> fails the test, fails the run, and blocks downstream models. That&rsquo;s the right behavior most of the time. But not always.</p>
+<p>This exercise covers two test config knobs that let you ship tests with <strong>softer behavior</strong>: <code>severity</code> (downgrade <code>error</code> to <code>warn</code>) and <code>where</code> (scope the test to a row subset).</p>
+<h2>What <code>severity: warn</code> does</h2>
+<p>By default, every test has <code>severity: error</code>. When the test query returns ≥1 bad row, dbt:</p>
+<ol>
+<li>Marks the test as <strong>failed</strong></li>
+<li>Marks the run as <strong>failed</strong> (exits non-zero)</li>
+<li><strong>Skips downstream models</strong> that depend on this test&rsquo;s model in <code>dbt build</code></li>
+</ol>
+<p><code>severity: warn</code> softens that to:</p>
+<ol>
+<li>Marks the test as <strong>warned</strong></li>
+<li>Run <strong>continues</strong>, exits 0 successfully</li>
+<li>Downstream models <strong>still build</strong></li>
+</ol>
+<p>The warning shows up in the dbt logs as <code>[WARN]</code>-tagged output and in <code>target/run_results.json</code> with <code>status: "warn"</code>. CI systems that only check the exit code see green; humans reading the logs see the issue.</p>
+<p>When to reach for it:</p>
+<ul>
+<li><strong>Informational tests.</strong> A <code>expect_column_values_to_be_between</code> on a metric that varies — a warning when last week&rsquo;s value is outside the historical range, but you don&rsquo;t want to block deployment because of natural fluctuation.</li>
+<li><strong>Tests on data you don&rsquo;t fully own.</strong> A <code>not_null</code> on a third-party feed where occasional gaps happen — you want visibility, not a blocked deploy.</li>
+<li><strong>Migration windows.</strong> Temporarily downgrade strict tests during a migration when you know edge cases are coming, then revert.</li>
+</ul>
+<p>When NOT to reach for it:</p>
+<ul>
+<li>Primary key uniqueness — should always hard-fail</li>
+<li>Foreign key integrity — same</li>
+<li>Anything where bad data would silently break business logic downstream</li>
+</ul>
+<h2>What <code>where:</code> does</h2>
+<p><code>where:</code> is a row-level filter applied to the test query. dbt wraps your test SQL in something like:</p>
+<pre><code class="language-sql">select count(*) from (
+    select * from &lt;test_query&gt;
+    where &lt;your where clause&gt;
+) bad_rows
+</code></pre>
+<p>(Conceptually — the actual SQL varies by test type.) The test only counts violations among rows matching the <code>where</code>.</p>
+<pre><code class="language-yaml">- name: status
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+        config:
+          where: &quot;order_date &gt;= '2018-01-01'&quot;
+</code></pre>
+<p>This says: <em>&ldquo;Only check the assertion on orders from 2018 onward.&rdquo;</em> Older orders with legitimately weird statuses (a legacy <code>pending</code> value before the migration) won&rsquo;t trigger the test.</p>
+<p>Use cases:</p>
+<ul>
+<li><strong>Time-bound assertions.</strong> &ldquo;Status enum is enforced <em>only</em> on recent orders&rdquo; — legacy data stays untouched.</li>
+<li><strong>Subset-specific rules.</strong> &ldquo;Email must not be null <em>only</em> for active customers&rdquo; — disabled accounts can have null emails.</li>
+<li><strong>Excluding known issues.</strong> &ldquo;Foreign key integrity <em>except</em> for these 5 rows we&rsquo;ve already triaged&rdquo; — a temporary workaround while you fix the underlying issue.</li>
+</ul>
+<p>The risk: <code>where:</code> is the easiest way to make a failing test pass by filtering away the failures. Always document <em>why</em> the where clause exists in a comment alongside the YAML. Future-you will thank you.</p>
+<h2>Combined: <code>severity: warn</code> + <code>where:</code></h2>
+<p>The two compose naturally. The test in this exercise:</p>
+<pre><code class="language-yaml">- name: status
+  description: &quot;Order lifecycle state.&quot;
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+        config:
+          severity: warn
+          where: &quot;order_date &gt;= '2018-01-01'&quot;
+</code></pre>
+<p>Reads as: <em>&ldquo;Among orders from 2018 onward, warn (don&rsquo;t error) if any row&rsquo;s status isn&rsquo;t in the canonical set.&rdquo;</em> Both knobs at once — soft + scoped.</p>
+<p>For our seed data, every order&rsquo;s status IS in the canonical set, so the test passes with no warnings either way. The exercise demonstrates the <em>syntax</em>; the runtime behavior on this dataset is silent success.</p>
+<h2>How dbt records the config in the manifest</h2>
+<p>After <code>dbt parse</code>, the test&rsquo;s manifest entry includes:</p>
+<pre><code class="language-json">{
+    &quot;test_metadata&quot;: {
+        &quot;name&quot;: &quot;accepted_values&quot;,
+        ...
+    },
+    &quot;config&quot;: {
+        &quot;severity&quot;: &quot;warn&quot;,
+        &quot;where&quot;: &quot;order_date &gt;= '2018-01-01'&quot;,
+        ...
+    }
+}
+</code></pre>
+<p>The verifier doesn&rsquo;t parse the manifest config directly — it just checks the YAML file contains the string <code>severity: warn</code>. That&rsquo;s looser than checking the manifest, but it&rsquo;s simpler and catches the same learner mistakes (forgetting to add the config, putting it under the wrong key).</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Putting <code>severity:</code> outside the <code>config:</code> block.</strong> It must be nested under <code>config:</code>. Loose <code>severity: warn</code> directly under the test name doesn&rsquo;t take effect.</li>
+<li><strong><code>where:</code> clauses with unquoted column names.</strong> dbt wraps your <code>where</code> in SQL, so column names need to be valid identifiers in the warehouse. For DuckDB, lowercase column names work without quotes.</li>
+<li><strong>Testing <code>severity: warn</code> with no actual failures.</strong> It&rsquo;s hard to <em>see</em> the difference between <code>error</code> and <code>warn</code> if the test is passing. To verify the config is working, temporarily change one of the <code>values:</code> entries to break the test — the run should warn instead of erroring. Revert before pressing <code>v</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

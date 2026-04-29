@@ -18,6 +18,8 @@ Currently implemented rule types:
     node in target/run_results.json shows status=success
   - dbt_compile_success: `dbt compile [--select X]` exits 0 and (optional)
     a compiled SQL artifact lands under target/compiled/
+  - dbt_show_success: `dbt show --select <select> --limit <limit>` exits 0
+    (ad-hoc preview, no warehouse changes).
   - dbt_docs_generated: `dbt docs generate` exits 0 and target/manifest.json
     + target/catalog.json were regenerated this run
   - duckdb_table_exists: query dev.duckdb's information_schema for the table
@@ -750,6 +752,28 @@ def _check_dbt_compile_success(rule: dict) -> list[TestResult]:
     return results
 
 
+def _check_dbt_show_success(rule: dict) -> list[TestResult]:
+    """`dbt show --select <select> --limit <limit>` exits 0."""
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_show_success")
+    select = rule.get("select", "")
+    if not select:
+        return [TestResult(
+            name="dbt_show_success",
+            passed=False,
+            message="rule is missing required `select` field",
+        )]
+    limit = rule.get("limit", 5)
+    args = ["show", "--select", select, "--limit", str(limit)]
+    run = _run_dbt(*args)
+    label = f"dbt show --select {select} --limit {limit}"
+    return [TestResult(
+        name=label,
+        passed=run.ok,
+        message="" if run.ok else _tail(run.stdout + run.stderr, lines=20),
+    )]
+
+
 def _check_manifest_macro_exists(rule: dict) -> list[TestResult]:
     """A macro by `name` is registered in target/manifest.json."""
     name = rule.get("name")
@@ -935,6 +959,7 @@ RULE_HANDLERS: dict[str, RuleHandler] = {
     "dbt_snapshot_success":      _check_dbt_snapshot_success,
     "dbt_build_success":         _check_dbt_build_success,
     "dbt_compile_success":       _check_dbt_compile_success,
+    "dbt_show_success":          _check_dbt_show_success,
     "dbt_docs_generated":        _check_dbt_docs_generated,
     "duckdb_table_exists":       _check_duckdb_table_exists,
     "duckdb_query":              _check_duckdb_query,

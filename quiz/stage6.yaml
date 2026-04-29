@@ -1,0 +1,99 @@
+topic: stage6
+questions:
+  - id: stage6_01
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does `severity: warn` change about a test that finds bad rows?"
+    options:
+      a: "The test is silently skipped"
+      b: "The test still runs and reports the bad rows, but the run exits 0 and downstream models continue building"
+      c: "The test fails and blocks downstream models, same as default"
+      d: "The test is converted to a singular test"
+    answer: b
+    explanation: |
+      `severity: warn` downgrades a test from blocking (`error`) to informational. The test still runs, the bad rows still appear in `target/run_results.json` with `status: warn`, but the run exits 0 and `dbt build` continues to downstream nodes. Useful for tests that flag concerns but shouldn't gate deployment — primary key uniqueness should still be `error`.
+    related_item: severity_warn
+
+  - id: stage6_02
+    difficulty: easy
+    type: multiple_choice
+    prompt: "Where do custom generic test definitions live?"
+    options:
+      a: "`tests/`"
+      b: "`tests/generic/`"
+      c: "`macros/`"
+      d: "`models/`"
+    answer: b
+    explanation: |
+      `tests/generic/` is the conventional folder for `{% test name(model, column_name) %}` blocks. Singular tests (a `select` returning bad rows, no parameters) live directly in `tests/`. Custom generic tests in `tests/generic/` get registered as named tests you can apply via YAML — like `- positive` or `- non_negative` — to any column.
+    related_item: custom_generic_test
+
+  - id: stage6_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When would you reach for `dbt_expectations` over `dbt_utils` for testing?"
+    options:
+      a: "Always — `dbt_expectations` is faster"
+      b: "When you need statistical / distribution-aware assertions like `expect_column_mean_to_be_between` or `expect_column_values_to_be_within_n_moving_stdevs`"
+      c: "Only on Snowflake"
+      d: "When the data has fewer than 1000 rows"
+    answer: b
+    explanation: |
+      `dbt_utils` covers row-level shape (uniqueness, expression assertions, surrogate keys). `dbt_expectations` adds richer **statistical** primitives — means, medians, distributions, regex pattern lists. For "this metric should fall in a historical range" or "95% of rows should match this regex," `dbt_expectations` is the right tool. For surrogate keys and column-equality assertions, `dbt_utils` is enough.
+    related_item: dbt_expectations_install
+
+  - id: stage6_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does `dbt show --select fct_orders --limit 5` do?"
+    options:
+      a: "Rebuilds `fct_orders` and shows the first 5 rows"
+      b: "Runs `fct_orders`'s compiled SQL as a query and prints the first 5 rows — no warehouse changes"
+      c: "Truncates `fct_orders` to 5 rows"
+      d: "Lists 5 dependencies of `fct_orders`"
+    answer: b
+    explanation: |
+      `dbt show` is read-only. It compiles the model's SQL with full Jinja resolution, runs it as a query, returns N rows, and prints them as a formatted table. Nothing in the warehouse changes — no `create or replace`, no `insert`. Different from `dbt run` (which materializes) and from `select * from fct_orders limit 5` (which queries the *existing* table, not the *current* SQL).
+    related_item: dbt_show_command
+
+  - id: stage6_05
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which file under `target/` has the SQL dbt actually issued to the warehouse, including the `create or replace table` wrapper?"
+    options:
+      a: "`compiled/<model>.sql`"
+      b: "`run/<model>.sql`"
+      c: "`manifest.json`"
+      d: "`run_results.json`"
+    answer: b
+    explanation: |
+      `compiled/` has the rendered Jinja — the inner `select` ready to read. `run/` has the inner select **plus** the materialization wrapper (`create or replace table ... as (...)` or `merge into ...` for incremental). When debugging "why didn't my model update?", `run/` is what you read. For "why is my Jinja wrong?", `compiled/`.
+    related_item: target_directory_tour
+
+  - id: stage6_06
+    difficulty: easy
+    type: multiple_choice
+    prompt: "After a failed `dbt build`, which command resumes from the failure point and skips the nodes that already succeeded?"
+    options:
+      a: "`dbt run --resume`"
+      b: "`dbt retry`"
+      c: "`dbt build --continue`"
+      d: "`dbt clean && dbt build`"
+    answer: b
+    explanation: |
+      `dbt retry` reads `target/run_results.json` from the previous run, identifies the failed nodes, and re-runs only those + their downstream. The nodes that already succeeded are skipped. Saves real time on big projects when CI catches a failure 50 nodes in. The other options either don't exist (`--resume`, `--continue`) or rebuild from scratch (`dbt clean && dbt build`).
+    related_item: commands_tour
+
+  - id: stage6_07
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Why is `manifest.json` regenerated by every dbt command (run, build, test, parse, compile)?"
+    options:
+      a: "It's a cache file that gets invalidated"
+      b: "It captures the parsed project state — every node, dependency, and config — and dbt re-parses on each command in case the project files changed"
+      c: "It's only regenerated by `dbt docs generate`"
+      d: "It's not regenerated automatically; you have to run `dbt parse` explicitly"
+    answer: b
+    explanation: |
+      Every dbt command starts by parsing the project files into a manifest — there's no "change detection" that skips re-parsing. The manifest is the source of truth for what dbt thinks the project looks like (every model, source, test, macro, exposure, with config and lineage). It's reused by `dbt docs generate`, by orchestration tools, and by every verifier rule that needs to introspect the project structure.
+    related_item: target_directory_tour

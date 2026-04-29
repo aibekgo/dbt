@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>dbt_expectations</code> — statistical assertions for richer data quality</h1>
+<p><code>dbt_utils</code> (Stage 5) gives you DRY building blocks like <code>generate_surrogate_key</code> and <code>expression_is_true</code>. Useful, but those tests are still mostly about row-level shape: <em>&ldquo;this column is unique&rdquo;</em>, <em>&ldquo;this expression evaluates true&rdquo;</em>.</p>
+<p>Real data quality often needs assertions about <strong>distributions</strong>: <em>&ldquo;the average order amount this week should be between $10 and $200&rdquo;</em>, <em>&ldquo;95% of rows should have a non-null email&rdquo;</em>, <em>&ldquo;this column&rsquo;s values should fall within ±2 standard deviations of the historical mean&rdquo;</em>. Those need a test framework with statistical primitives.</p>
+<p>That&rsquo;s <code>dbt_expectations</code>. It&rsquo;s a port of the popular <a href="https://greatexpectations.io/">Great Expectations</a> Python library to dbt — same idea, dbt-native.</p>
+<h2>What&rsquo;s in the package</h2>
+<p><code>dbt_expectations</code> ships ~50 generic tests, organized into a few families:</p>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Value-range tests</strong></td>
+<td><code>expect_column_values_to_be_between</code>, <code>expect_column_values_to_match_regex</code>, <code>expect_column_values_to_be_in_set</code></td>
+</tr>
+<tr>
+<td><strong>Aggregate tests</strong></td>
+<td><code>expect_column_mean_to_be_between</code>, <code>expect_column_median_to_be_between</code>, <code>expect_column_max_to_be_between</code></td>
+</tr>
+<tr>
+<td><strong>Distribution tests</strong></td>
+<td><code>expect_column_values_to_be_within_n_moving_stdevs</code>, <code>expect_column_quantile_values_to_be_between</code></td>
+</tr>
+<tr>
+<td><strong>Row-shape tests</strong></td>
+<td><code>expect_table_row_count_to_be_between</code>, <code>expect_compound_columns_to_be_unique</code></td>
+</tr>
+<tr>
+<td><strong>Cross-column tests</strong></td>
+<td><code>expect_column_pair_values_A_to_be_greater_than_B</code></td>
+</tr>
+<tr>
+<td><strong>Pattern tests</strong></td>
+<td><code>expect_column_values_to_match_regex_list</code>, <code>expect_column_values_to_be_increasing</code></td>
+</tr>
+</tbody>
+</table>
+<p>The full list is on the package&rsquo;s <a href="https://github.com/calogica/dbt-expectations">GitHub README</a> — much richer than what fits in a lesson.</p>
+<h2>How to install</h2>
+<p>Same pattern as <code>dbt_utils</code>:</p>
+<ol>
+<li>Add the package to <code>packages.yml</code>.</li>
+<li>Run <code>dbt deps</code> to clone it into <code>dbt_packages/dbt_expectations/</code>.</li>
+<li>Reference its tests with the <code>dbt_expectations.</code> prefix.</li>
+</ol>
+<pre><code class="language-yaml"># dbt_project/packages.yml
+packages:
+  - package: dbt-labs/dbt_utils
+    version: [&quot;&gt;=1.1.0&quot;, &quot;&lt;2.0.0&quot;]
+  - package: calogica/dbt_expectations
+    version: [&quot;&gt;=0.10.0&quot;, &quot;&lt;0.11.0&quot;]
+</code></pre>
+<p>The version range tracks the package&rsquo;s semver. <code>0.10.x</code> is current as of this course; check the GitHub releases page if you want to bump.</p>
+<h2>What <code>expect_column_values_to_be_between</code> does</h2>
+<p>The Stage 6 exercise uses this one specifically. It asserts that every value in a column falls within a <code>[min_value, max_value]</code> range:</p>
+<pre><code class="language-yaml">- name: amount
+  tests:
+    - dbt_expectations.expect_column_values_to_be_between:
+        min_value: 0
+        max_value: 100
+</code></pre>
+<p>Compiles to roughly:</p>
+<pre><code class="language-sql">select *
+from &quot;main&quot;.&quot;fct_orders&quot;
+where amount &lt; 0 or amount &gt; 100
+</code></pre>
+<p>Returns 0 rows when every <code>amount</code> is in <code>[0, 100]</code>. Returns the violators otherwise.</p>
+<p>Optional knobs:</p>
+<ul>
+<li><strong><code>row_condition</code></strong> — filter to a subset of rows (similar to <code>where:</code> for built-in tests)</li>
+<li><strong><code>strictly</code></strong> — <code>true</code> for <code>&lt;</code> / <code>&gt;</code> (strict bounds), <code>false</code> for <code>&lt;=</code> / <code>&gt;=</code> (default — inclusive)</li>
+<li><strong><code>group_by</code></strong> — apply the assertion per group (e.g., per <code>customer_id</code>)</li>
+</ul>
+<h2>When to reach for it vs <code>dbt_utils.expression_is_true</code></h2>
+<p><code>dbt_utils.expression_is_true</code> is the catch-all: any boolean SQL expression you can write. It works for ranges:</p>
+<pre><code class="language-yaml">tests:
+  - dbt_utils.expression_is_true:
+      expression: &quot;amount &gt;= 0 and amount &lt;= 100&quot;
+</code></pre>
+<p>That&rsquo;s equivalent to <code>expect_column_values_to_be_between</code>. Same result, different syntax.</p>
+<p>When to pick which:</p>
+<ul>
+<li><strong><code>dbt_expectations</code></strong> when there&rsquo;s a named test for your assertion. The name is self-documenting (<code>expect_column_mean_to_be_between</code> reads better than <code>expression_is_true(expression='avg(amount) between 1 and 500')</code>).</li>
+<li><strong><code>dbt_utils.expression_is_true</code></strong> when the assertion doesn&rsquo;t have a named test, or when the SQL is simple enough that naming is overkill.</li>
+</ul>
+<p>For <em>most</em> real projects, <code>dbt_expectations</code> is the better default for non-trivial assertions because the named tests are clearer in PRs and in the docs site.</p>
+<h2>Where Stage 6&rsquo;s exercise applies it</h2>
+<p>We add <code>expect_column_values_to_be_between</code> on <code>fct_orders.amount</code> with <code>min_value: 0, max_value: 100</code>. Why those bounds?</p>
+<ul>
+<li>The seed converts cents to dollars in <code>stg__payments</code>, so amounts are dollar values.</li>
+<li>The seed has zero negatives (refunds aside, none in raw data).</li>
+<li>The largest <code>total_amount</code> per order is well under $100.</li>
+</ul>
+<p>So the test passes on the seed. In a real project, the bounds would come from business knowledge: <em>&ldquo;a single order should never exceed $1000&rdquo;</em> or <em>&ldquo;a payment under $0.50 is suspicious&rdquo;</em>.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Wrong package name in <code>packages.yml</code>.</strong> It&rsquo;s <code>calogica/dbt_expectations</code> (the org is <code>calogica</code>). Old references to <code>dbt-labs/dbt_expectations</code> are wrong — dbt Labs doesn&rsquo;t maintain it.</li>
+<li><strong>Forgetting <code>dbt deps</code> after editing <code>packages.yml</code>.</strong> Same as Stage 5: editing the YAML alone doesn&rsquo;t install. Always run <code>dbt deps</code>.</li>
+<li><strong>Calling without the prefix.</strong> <code>{{ expect_column_values_to_be_between }}</code> (no prefix) silently looks up a <em>local</em> macro and fails. Always <code>dbt_expectations.expect_column_values_to_be_between</code>.</li>
+<li><strong>Bounds that are actually wrong for your data.</strong> <code>expect_column_values_to_be_between(min_value: 0, max_value: 1)</code> on a column with values up to 100 will fail the test — but the test isn&rsquo;t <em>wrong</em>; your bounds are. Check the data first; pick bounds that match your business expectations.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

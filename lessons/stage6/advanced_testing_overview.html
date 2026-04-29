@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Advanced testing — beyond the four built-ins</h1>
+<p>Stage 3 introduced <code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code> and singular tests. That gets you to <strong>L2-L3 testing maturity</strong> in a model: every primary key tested, every status column constrained, a singular test or two for the weird edge cases.</p>
+<p>Stage 6 is about the next two levels: turning tests into a <strong>production-grade</strong> quality system with config knobs that let you ship tests safely, custom tests that codify your project&rsquo;s conventions, and packages that bring in pre-built assertions.</p>
+<h2>The 5 levels of testing maturity</h2>
+<p>A useful mental model from the dbt community:</p>
+<table>
+<thead>
+<tr>
+<th>Level</th>
+<th>What it looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1 Infancy</strong></td>
+<td>No tests. Every change is a guess.</td>
+</tr>
+<tr>
+<td><strong>L2 Toddlerhood</strong></td>
+<td>PK tests on final models (<code>unique</code> + <code>not_null</code> on <code>dim_customers.customer_id</code>).</td>
+</tr>
+<tr>
+<td><strong>L3 Childhood</strong></td>
+<td>~5 tests per model. Coverage on FKs and enums (your Stage 3 exit state).</td>
+</tr>
+<tr>
+<td><strong>L4 Adolescence</strong></td>
+<td>Package tests for richer assertions (<code>dbt_expectations</code>), custom generic tests for project conventions.</td>
+</tr>
+<tr>
+<td><strong>L5 Adulthood</strong></td>
+<td>High coverage + advanced strategies — <code>severity</code> tuning, <code>--store-failures</code> for CI debugging, source freshness, <code>audit_helper</code> for refactors.</td>
+</tr>
+</tbody>
+</table>
+<p>Stage 6 takes you from L3 to L4.</p>
+<h2>The test config matrix</h2>
+<p>Every generic test accepts a <code>config:</code> block. The five most useful keys:</p>
+<table>
+<thead>
+<tr>
+<th>Config key</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>severity</code></td>
+<td><code>error</code> (default — fails the run) or <code>warn</code> (continues). Useful for tests that flag issues but shouldn&rsquo;t block deployment.</td>
+</tr>
+<tr>
+<td><code>where</code></td>
+<td>Row-level filter applied to the test query. Lets you scope an assertion to recent data, non-deleted rows, etc.</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td>Caps the number of <em>bad</em> rows returned. Useful for tests that might find thousands of failures — limit to 100 to keep CI logs readable.</td>
+</tr>
+<tr>
+<td><code>error_if</code> / <code>warn_if</code></td>
+<td>Threshold-based severity. <em>&ldquo;Warn if more than 10 bad rows; error if more than 30.&rdquo;</em> Lets a test be lenient at low volume but strict at high.</td>
+</tr>
+<tr>
+<td><code>store_failures</code></td>
+<td>Materializes the test&rsquo;s bad rows into a real warehouse table (in <code>dbt_test__audit</code> schema by default) so you can query them after the run.</td>
+</tr>
+</tbody>
+</table>
+<p>Example combining several:</p>
+<pre><code class="language-yaml">- name: status
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+        config:
+          severity: warn
+          where: &quot;order_date &gt;= '2018-01-01'&quot;
+          store_failures: true
+</code></pre>
+<p>This says: <em>&ldquo;Check status against the allowed values, but only for orders since 2018, and just warn instead of erroring. Keep the bad rows in a queryable table so I can debug them later.&rdquo;</em></p>
+<h2>Where these configs live</h2>
+<p>Three places, in increasing precedence:</p>
+<ol>
+<li><strong><code>dbt_project.yml</code></strong> — project-wide defaults: <code>tests: +severity: warn</code> makes every test in the project warn-only.</li>
+<li><strong>YAML test config block</strong> — per-test config (the example above).</li>
+<li><strong>Inline config block in singular test SQL</strong> — <code>{{ config(severity='warn') }}</code> at the top of a <code>tests/*.sql</code> file.</li>
+</ol>
+<p>The pattern matches everything else in dbt: project-wide → folder/file-wide → node-specific. The most-specific setting wins.</p>
+<h2>Where do package tests fit?</h2>
+<p>Built-in tests cover the basics. The dbt community has built two huge test packages that fill the gaps:</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>What it adds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt_utils</code></td>
+<td>Variants on the built-ins: <code>dbt_utils.expression_is_true</code>, <code>dbt_utils.unique_combination_of_columns</code>, <code>dbt_utils.not_null_proportion</code>. The first three you typically reach for.</td>
+</tr>
+<tr>
+<td><code>dbt_expectations</code></td>
+<td>Inspired by Great Expectations. Statistical tests like <code>expect_column_values_to_be_between</code>, <code>expect_column_mean_to_be_between</code>, <code>expect_row_values_to_have_data_for_every_n_datepart</code>. Way richer than what&rsquo;s in the box.</td>
+</tr>
+<tr>
+<td><code>audit_helper</code></td>
+<td>Refactoring-only: compare a new model against a legacy version row-by-row. Not really a &ldquo;test&rdquo;; more an audit tool.</td>
+</tr>
+</tbody>
+</table>
+<p>Stage 5 already installed <code>dbt_utils</code>. Stage 6&rsquo;s <code>dbt_expectations_install</code> exercise adds the second package and uses one of its assertions.</p>
+<h2>Custom generic tests — when packages aren&rsquo;t enough</h2>
+<p>Some assertions are project-specific: <em>&ldquo;every order amount in this codebase should always be positive&rdquo;</em>, <em>&ldquo;every metric column should always be non-null on weekdays&rdquo;</em>. No package macro covers exactly that pattern, but you also don&rsquo;t want to write a singular test for every model that has the assertion.</p>
+<p>That&rsquo;s where <strong>custom generic tests</strong> come in. You write a Jinja test block once:</p>
+<pre><code class="language-jinja">{% test positive(model, column_name) %}
+select * from {{ model }} where {{ column_name }} &lt;= 0
+{% endtest %}
+</code></pre>
+<p>…and then you can apply it to any model&rsquo;s any column:</p>
+<pre><code class="language-yaml">columns:
+  - name: total_amount
+    tests:
+      - positive
+  - name: payment_count
+    tests:
+      - positive
+</code></pre>
+<p>A custom generic test is the bridge between &ldquo;one-off SQL&rdquo; (singular) and &ldquo;project convention&rdquo; (built-in). You codify a rule once, reuse it everywhere.</p>
+<h2>What Stage 6&rsquo;s exercises do</h2>
+<p>The exercises walk through L4 testing concretely:</p>
+<ul>
+<li><strong><code>severity_warn</code></strong> — extend the Stage 3 <code>accepted_values</code> test with <code>severity: warn</code> + <code>where:</code>. Demonstrates the config block.</li>
+<li><strong><code>custom_generic_test</code></strong> — write a <code>positive</code> generic test, attach it to numeric columns in <code>int_order_payments</code>. Demonstrates the custom-test mechanism.</li>
+<li><strong><code>dbt_expectations_install</code></strong> — install the package, add <code>expect_column_values_to_be_between</code> on <code>fct_orders.amount</code>. Demonstrates package tests.</li>
+</ul>
+<p>The remaining Stage 6 items (<code>dbt_show_command</code>, <code>commands_tour</code>, <code>target_directory_tour</code>) are the dbt CLI tour — how senior practitioners actually navigate a dbt project day to day.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Setting <code>severity: warn</code> on tests that should hard-fail.</strong> The point of testing is to catch bad data; downgrading every test to warn is a way to make tests cosmetic. Reserve <code>warn</code> for tests that are <em>informational</em> (a metric that drifted, a count that&rsquo;s higher than usual) — not for primary-key uniqueness.</li>
+<li><strong><code>where:</code> filters that hide real problems.</strong> A <code>where: "is_active = true"</code> clause makes the test pass on inactive rows by ignoring them. That&rsquo;s fine if inactive rows genuinely don&rsquo;t have the same constraint; risky if you&rsquo;re using <code>where:</code> to silence test failures you should fix.</li>
+<li><strong>Forgetting <code>store_failures</code> is one-shot.</strong> The audit table holds <em>only the most recent run&rsquo;s</em> failures — there&rsquo;s no built-in history. If you need failure trends over time, you need a separate process (or <code>dbt_dataquality</code> package).</li>
+</ul>
+<p>Press <code>n</code> to start the first Stage 6 exercise.</p>
+</body>
+
+</html>

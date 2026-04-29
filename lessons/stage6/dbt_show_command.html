@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>dbt show</code> — preview model output without rebuilding</h1>
+<p>You&rsquo;ll write hundreds of dbt models over your career. Most of them you want to <em>test</em> before you commit:</p>
+<ul>
+<li><em>&ldquo;Did my new column come out right?&rdquo;</em></li>
+<li><em>&ldquo;How does this <code>group by</code> change the row count?&rdquo;</em></li>
+<li><em>&ldquo;What&rsquo;s the actual data look like for that one customer who&rsquo;s been weird?&rdquo;</em></li>
+</ul>
+<p>The naive workflow: <code>dbt run --select my_model</code>, then <code>duckdb dev.duckdb -c "select * from my_model limit 5"</code>. Two commands, one swaps tools mid-flow. <strong><code>dbt show</code></strong> does it in one — and does it without re-materializing.</p>
+<h2>What <code>dbt show</code> actually does</h2>
+<p><code>dbt show --select &lt;model&gt;</code> runs the model&rsquo;s compiled SQL <strong>as a query</strong>, returns the first N rows, and prints them in a nicely formatted table. <strong>It does not</strong> create or update a warehouse object — no <code>create table</code>, no <code>insert</code>, no <code>merge</code>. Pure read.</p>
+<pre><code class="language-bash">dbt show --select fct_orders --limit 5
+</code></pre>
+<p>Output (truncated):</p>
+<pre><code>Previewing node 'fct_orders':
+| order_id | customer_id | first_name | last_name | order_date | status    | amount | payment_count |
+| -------- | ----------- | ---------- | --------- | ---------- | --------- | ------ | ------------- |
+|     1    |     1       | Michael    | Perkins   | 2018-01-01 | returned  |  10.00 |       1       |
+|     2    |     3       | Shawn      | Mccoy     | 2018-01-02 | completed |  20.00 |       2       |
+|     ...  |     ...     |     ...    |     ...   |     ...    |    ...    |   ...  |      ...      |
+</code></pre>
+<p>The <code>--limit</code> defaults to 5; bump it for more rows. dbt&rsquo;s table renderer handles wide schemas reasonably well, though for very wide output you&rsquo;ll want to scope columns with a custom inline query (see below).</p>
+<h2>Two modes</h2>
+<p><code>dbt show</code> has two invocation patterns:</p>
+<h3>1. Preview an existing model</h3>
+<p>The most common use:</p>
+<pre><code class="language-bash">dbt show --select fct_orders --limit 10
+</code></pre>
+<p>dbt looks up <code>fct_orders</code> in the manifest, compiles its SQL with all the <code>ref()</code> and macro substitutions, runs it, returns rows. The model in the warehouse may or may not be up to date — <code>show</code> doesn&rsquo;t care. It runs the <em>current</em> compiled SQL fresh.</p>
+<h3>2. Preview an inline SQL query</h3>
+<p>Less common but useful for ad-hoc checks:</p>
+<pre><code class="language-bash">dbt show --inline &quot;select status, count(*) from {{ ref('fct_orders') }} group by 1&quot;
+</code></pre>
+<p>The <code>--inline</code> flag tells dbt to compile and run the given Jinja-SQL expression directly, with full access to <code>ref()</code>, <code>source()</code>, macros, etc. It&rsquo;s like a <em>one-off</em> analysis without writing a file. Especially useful for &ldquo;what does this aggregation look like&rdquo; type checks during development.</p>
+<h2>Why this beats <code>select * from foo</code> in a SQL client</h2>
+<p>You could fire up <code>duckdb dev.duckdb</code> and <code>select * from fct_orders limit 5</code>. That works, but it has three weaknesses compared to <code>dbt show</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Weakness of raw SQL</th>
+<th>What <code>dbt show</code> fixes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tied to whatever&rsquo;s currently in the warehouse — even if the model file changed since the last <code>dbt run</code>, the SQL client sees the stale table</td>
+<td>Compiles the <em>current</em> model file, so you see what the next <code>dbt run</code> would produce</td>
+</tr>
+<tr>
+<td>Doesn&rsquo;t resolve <code>ref()</code> / <code>source()</code> / macros — you have to type fully-qualified table names</td>
+<td>Full Jinja resolution, just like <code>dbt run</code></td>
+</tr>
+<tr>
+<td>Lives outside the dbt log stream, so it&rsquo;s not captured in <code>target/run_results.json</code></td>
+<td>Output is part of the standard dbt log</td>
+</tr>
+</tbody>
+</table>
+<p>For ephemeral models (Stage 4), <code>dbt show</code> is the <em>only</em> way to preview the data — there&rsquo;s no warehouse object to query directly. dbt compiles the model&rsquo;s CTE chain and runs it inline.</p>
+<h2>When NOT to use <code>dbt show</code></h2>
+<ul>
+<li><strong>For data you intend to materialize anyway.</strong> Just run the model. <code>dbt show</code> reads-only; <code>dbt run</code> reads + writes. If you&rsquo;re going to ship the change, run it.</li>
+<li><strong>For pipelines that need warehouse persistence.</strong> <code>dbt show</code> doesn&rsquo;t change the warehouse; the table you might be testing against in BI doesn&rsquo;t exist after <code>dbt show</code>.</li>
+<li><strong>For massive models.</strong> <code>dbt show</code> runs the full SQL; <code>--limit</code> only caps the output. A model that aggregates 100M rows will still take a minute to run, even if you only want 5 rows back. For exploration on big data, materialize as a view first, then preview.</li>
+</ul>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Forgetting <code>--limit</code>.</strong> Default is 5, but if you accidentally pass <code>--limit 100000</code> on a wide table, the output drowns the terminal. <code>--limit 20</code> is a reasonable interactive default.</li>
+<li><strong>Treating <code>show</code> like <code>run</code>.</strong> <code>dbt show</code> doesn&rsquo;t update the warehouse. If you inspect a model with <code>dbt show</code>, see good output, then expect the BI tool to reflect it — you&rsquo;ll be confused. Run the model after.</li>
+<li><strong>Using <code>dbt show</code> for tests.</strong> It just prints rows; it doesn&rsquo;t validate them. Use <code>dbt test</code> for assertions.</li>
+</ul>
+<p>The exercise: run <code>dbt show --select fct_orders --limit 5</code>, see the output, press <code>v</code>. Tiny exercise; the value is the muscle memory.</p>
+<p>Press <code>n</code> to start.</p>
+</body>
+
+</html>

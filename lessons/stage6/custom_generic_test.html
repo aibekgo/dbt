@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Custom generic tests — codify a project convention as a reusable test</h1>
+<p>You&rsquo;ve used three flavors of test so far:</p>
+<ul>
+<li><strong>Built-in generic tests</strong> — <code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code> (Stage 3). Predefined, reused everywhere.</li>
+<li><strong>Singular tests</strong> — handwritten SQL files in <code>tests/</code>. One model, one assertion, no parameters (Stage 3).</li>
+<li><strong>Package tests</strong> — <code>dbt_utils.expression_is_true</code>, soon <code>dbt_expectations.expect_column_values_to_be_between</code> (Stage 5/6). Defined elsewhere, called by name.</li>
+</ul>
+<p>There&rsquo;s a fourth: <strong>custom generic tests</strong>. You write the test logic once, parameterize it on <code>model</code> and <code>column_name</code>, and apply it to as many model+column pairs as you like. They sit halfway between singular tests (project-specific) and built-ins (reusable).</p>
+<h2>What a custom generic test looks like</h2>
+<p>A custom generic test lives in <code>dbt_project/tests/generic/&lt;name&gt;.sql</code>. The shape:</p>
+<pre><code class="language-jinja">{% test non_negative(model, column_name) %}
+
+select *
+from {{ model }}
+where {{ column_name }} &lt; 0
+
+{% endtest %}
+</code></pre>
+<p>Three things to flag:</p>
+<ul>
+<li><strong><code>{% test name(args) %}</code></strong> — same shape as <code>{% macro %}</code>, just a different keyword. The first two args are <em>always</em> <code>model</code> (the parent dbt relation) and <code>column_name</code> (the column being tested). You can add more args for parameterized tests.</li>
+<li><strong>The body is a <code>select</code> returning the bad rows</strong> — same contract as a singular test. 0 rows → pass; ≥1 rows → fail.</li>
+<li><strong><code>{{ model }}</code> and <code>{{ column_name }}</code></strong> — Jinja substitutes these at parse time with the actual model relation and column name from the YAML call site.</li>
+</ul>
+<h2>How to apply it</h2>
+<p>In any schema YAML, list the test under a column&rsquo;s <code>tests:</code> block — <em>without</em> the <code>dbt_utils.</code> or <code>dbt_expectations.</code> prefix, because it&rsquo;s a <em>project-local</em> test:</p>
+<pre><code class="language-yaml">columns:
+  - name: total_amount
+    tests:
+      - non_negative
+  - name: payment_count
+    tests:
+      - non_negative
+</code></pre>
+<p>Two columns, one test, both pass through the same <code>non_negative</code> macro. dbt expands each into its own test node in the manifest:</p>
+<ul>
+<li><code>test.dbt_project.non_negative_int_order_payments_total_amount</code></li>
+<li><code>test.dbt_project.non_negative_int_order_payments_payment_count</code></li>
+</ul>
+<p>The naming pattern is <code>&lt;test_name&gt;_&lt;model&gt;_&lt;column&gt;</code> — same as the built-ins (<code>unique_stg__customers_customer_id</code>, etc.).</p>
+<h2>When to write one</h2>
+<p>Use this decision tree:</p>
+<ol>
+<li><strong>Does a built-in cover the assertion?</strong> Use the built-in.</li>
+<li><strong>Does <code>dbt_utils</code> or <code>dbt_expectations</code> cover it?</strong> Use the package.</li>
+<li><strong>Is the assertion specific to one model only?</strong> Write a singular test in <code>tests/</code>.</li>
+<li><strong>Is the assertion a project-wide convention</strong> (e.g., <em>&ldquo;every revenue column should be non-negative&rdquo;</em>) <strong>applied across multiple models?</strong> Write a custom generic test.</li>
+</ol>
+<p>The Stage 3 singular test (<code>assert_no_negative_payment_totals.sql</code>) was a one-shot — only <code>int_order_payments.total_amount</code> got that check. Promoting it to a custom generic test (<code>non_negative</code>) lets you apply the same check to <em>any</em> numeric column without copy-pasting the SQL.</p>
+<h2>Where the file lives — <code>tests/generic/</code> vs <code>tests/</code></h2>
+<table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>What lives there</th>
+<th>How dbt finds it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/</code></td>
+<td>Singular test SQL files (a <code>select</code> returning bad rows).</td>
+<td>dbt scans every <code>.sql</code> under <code>tests/</code> and treats each file as a test node. Files in subfolders work too — but conventionally, only the root level holds singular tests.</td>
+</tr>
+<tr>
+<td><code>tests/generic/</code></td>
+<td>Custom generic test definitions (<code>{% test name(...) %}</code> blocks).</td>
+<td>dbt scans <code>tests/generic/</code> for files containing test blocks and registers each one as a callable generic test.</td>
+</tr>
+</tbody>
+</table>
+<p>The default <code>dbt init</code> scaffold doesn&rsquo;t create <code>tests/generic/</code> — you&rsquo;ll create it for this exercise.</p>
+<h2>Why &ldquo;generic&rdquo;?</h2>
+<p>The test is <strong>generic</strong> because it can be called against any column. The built-ins (<code>unique</code>, <code>not_null</code>) are generic by default — they take a column and check a property. Yours follows the same pattern.</p>
+<p>The alternative — singular — is &ldquo;specific&rdquo; to one place. Less reusable, but quicker to write for one-off assertions.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Putting the file at <code>tests/non_negative.sql</code> instead of <code>tests/generic/non_negative.sql</code>.</strong> dbt would scan it as a <em>singular</em> test (which expects raw <code>select</code> SQL, not a <code>{% test %}</code> block) and error out. The folder structure matters.</li>
+<li><strong>Forgetting <code>{% endtest %}</code>.</strong> Like <code>{% macro %}</code> ↔ <code>{% endmacro %}</code>, you need an explicit closer.</li>
+<li><strong>Naming collisions with built-ins.</strong> <code>{% test unique(model, column_name) %}</code> would <em>override</em> dbt&rsquo;s built-in <code>unique</code> test across the whole project. Sometimes that&rsquo;s intentional (a custom variant); usually it&rsquo;s a bug. Pick names that don&rsquo;t shadow built-ins unless you mean to.</li>
+<li><strong>Hard-coding the column.</strong> <code>{% test non_negative(model) %}</code> (no column_name parameter) makes the test apply to a &ldquo;model-level&rdquo; check. That&rsquo;s valid for some tests but limits reuse — best to keep <code>column_name</code> as a parameter.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

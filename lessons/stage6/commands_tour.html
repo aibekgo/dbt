@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>The dbt CLI tour — beyond <code>run</code>, <code>build</code>, and <code>test</code></h1>
+<p>You&rsquo;ve used <code>dbt run</code>, <code>dbt build</code>, <code>dbt test</code>, <code>dbt seed</code>, <code>dbt snapshot</code>, <code>dbt deps</code>, <code>dbt docs generate</code>, <code>dbt show</code>, and <code>dbt debug</code> across Stages 1–6. That&rsquo;s most of the workhorse commands. This lesson covers the rest — the ones you&rsquo;ll reach for less often but should know exist.</p>
+<h2>The three you already know</h2>
+<p>The most-used commands. For reference:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt run</code></td>
+<td>Runs models — issues <code>create or replace</code> SQL against the warehouse.</td>
+</tr>
+<tr>
+<td><code>dbt test</code></td>
+<td>Runs tests against materialized models.</td>
+</tr>
+<tr>
+<td><code>dbt build</code></td>
+<td>Combines <code>seed</code> + <code>run</code> + <code>snapshot</code> + <code>test</code> in DAG order. The production-grade refresh.</td>
+</tr>
+</tbody>
+</table>
+<p>You&rsquo;ll use <code>build</code> 90% of the time once tests are wired up. <code>run</code> and <code>test</code> separately are useful during development for tighter feedback loops.</p>
+<h2>Inspection commands</h2>
+<p>These don&rsquo;t change the warehouse — they just inspect the project:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt parse</code></td>
+<td>Parses every model/test/macro/snapshot/exposure file and produces <code>target/manifest.json</code>. Doesn&rsquo;t run anything against the warehouse. Use for fast YAML/Jinja syntax checks before a full build.</td>
+</tr>
+<tr>
+<td><code>dbt ls</code></td>
+<td>Lists nodes in the project. <code>dbt ls --resource-type model</code> for just models, <code>--select staging</code> to scope, etc. Quickest way to confirm what&rsquo;s in the project after a structural change.</td>
+</tr>
+<tr>
+<td><code>dbt show --select &lt;model&gt; --limit N</code></td>
+<td>Run a model&rsquo;s compiled SQL as a query, return N rows, print as a table. Stage 6&rsquo;s exercise just covered this.</td>
+</tr>
+<tr>
+<td><code>dbt compile --select &lt;name&gt;</code></td>
+<td>Render Jinja for a model/analysis/test, write the resulting SQL to <code>target/compiled/&lt;...&gt;.sql</code>. Doesn&rsquo;t execute. (Stage 3&rsquo;s <code>analyses_intro</code> used this.)</td>
+</tr>
+<tr>
+<td><code>dbt debug</code></td>
+<td>Tests the warehouse connection and prints the dbt + adapter versions. First thing to run when &ldquo;something&rsquo;s wrong with my setup.&rdquo; (Stage 1&rsquo;s <code>profiles_yml</code> used this.)</td>
+</tr>
+</tbody>
+</table>
+<h2>Recovery / cleanup commands</h2>
+<p>For when things go wrong or you want a fresh start:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt clean</code></td>
+<td>Removes <code>target/</code> and <code>dbt_packages/</code>. Like a hard reset of dbt state. After running it, you need <code>dbt deps</code> to reinstall packages and any subsequent command to rebuild <code>target/</code>.</td>
+</tr>
+<tr>
+<td><code>dbt retry</code></td>
+<td>Resumes the most recent <code>dbt build</code> from the point where it failed. dbt reads <code>target/run_results.json</code> for the previous run, finds the failed nodes, and re-runs those + their downstream. Skips the nodes that already succeeded. Saves real time on big projects when CI catches a failure 50 nodes in.</td>
+</tr>
+<tr>
+<td><code>dbt run --full-refresh</code></td>
+<td>Forces incremental models to rebuild from scratch (drop + recreate). Useful after schema changes that incremental&rsquo;s append/merge logic can&rsquo;t handle.</td>
+</tr>
+</tbody>
+</table>
+<h2>Source freshness</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt source freshness</code></td>
+<td>For each source declared with a <code>loaded_at_field</code> and <code>freshness:</code> thresholds, runs <code>select max(loaded_at_field) from &lt;source_table&gt;</code> and compares to the thresholds. If beyond <code>error_after</code>, the source is &ldquo;stale&rdquo; and dbt errors out. Run this <em>first</em> in a CI job to fail fast on bad upstream data.</td>
+</tr>
+</tbody>
+</table>
+<p>The seed CSVs in this project don&rsquo;t have a useful timestamp column, so we don&rsquo;t have a freshness exercise. In production, every source you genuinely care about should declare freshness.</p>
+<h2>Macro execution</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt run-operation &lt;macro_name&gt;</code></td>
+<td>Calls a macro outside the context of a model run. Useful for one-off operations: <code>dbt run-operation grant_select --args '{role: bi_user, schema: marts}'</code> to issue a <code>grant select</code> SQL statement, or <code>dbt run-operation create_external_table</code> to provision warehouse infrastructure.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>run-operation</code> mechanism is how you go beyond &ldquo;dbt as a transformation tool&rdquo; toward &ldquo;dbt as a deployment / DDL tool.&rdquo;</p>
+<h2>Project initialization</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt init &lt;project_name&gt;</code></td>
+<td>Scaffolds a new dbt project — creates <code>dbt_project.yml</code>, <code>models/</code>, <code>seeds/</code>, etc. (Stage 1&rsquo;s <code>dbt_init</code> exercise.) Idempotent: re-running on an existing project just confirms the structure.</td>
+</tr>
+</tbody>
+</table>
+<p>You&rsquo;ll run this once per project, then never again.</p>
+<h2>Documentation</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt docs generate</code></td>
+<td>Builds <code>target/manifest.json</code> + <code>target/catalog.json</code>. (Stage 2&rsquo;s <code>dbt_docs</code> exercise.)</td>
+</tr>
+<tr>
+<td><code>dbt docs serve</code></td>
+<td>Starts a local web server that renders the docs site. Open in browser to see the lineage graph + descriptions. The site reads <code>manifest.json</code> and <code>catalog.json</code> directly.</td>
+</tr>
+</tbody>
+</table>
+<h2>The full hierarchy of commands you reach for</h2>
+<p>A pragmatic cheat sheet of what to run when:</p>
+<pre><code>First-time setup           →  dbt init, dbt deps, dbt debug
+Daily dev cycle             →  dbt build  (or dbt run + dbt test as separate)
+Iterating on one model      →  dbt run --select &lt;model&gt;, then dbt show
+Confirming structure        →  dbt ls
+Fast syntax check           →  dbt parse
+Updating dependencies       →  dbt deps
+After a failed build        →  dbt retry  (skip the work that already succeeded)
+Full reset                  →  dbt clean &amp;&amp; dbt deps &amp;&amp; dbt build
+Production deploy           →  dbt source freshness &amp;&amp; dbt build --select state:modified+ --state ./prev_target
+Documentation refresh       →  dbt docs generate (then deploy the target/ dir to a static site)
+Custom DDL / grants         →  dbt run-operation &lt;macro&gt;
+</code></pre>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Running <code>dbt clean</code> and forgetting <code>dbt deps</code> afterward.</strong> <code>clean</code> wipes <code>dbt_packages/</code>. The next command that needs a package macro will fail until you re-install.</li>
+<li><strong>Using <code>dbt build</code> when a tighter scope would be faster.</strong> A 500-model project takes minutes for full <code>dbt build</code>. If you only changed one model, <code>dbt build --select &lt;model&gt;+</code> is much faster (and matches what production CI does).</li>
+<li><strong>Forgetting <code>dbt parse</code> exists.</strong> It&rsquo;s the fastest sanity check after a YAML edit. <code>dbt run</code> parses + runs — slower than necessary if you just want to check the YAML compiles.</li>
+<li><strong>Conflating <code>dbt show</code> and <code>dbt compile</code>.</strong> <code>compile</code> writes the rendered SQL to a file; <code>show</code> runs it and prints rows. Different tools for different needs.</li>
+</ul>
+<p>The exercise for this lesson — <code>target_directory_tour</code> — has you inspect the artifacts dbt produces under <code>target/</code> so you know what to look at when these commands behave unexpectedly.</p>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>
