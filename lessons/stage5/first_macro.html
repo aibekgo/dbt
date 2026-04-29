@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>first_macro</code> — write <code>cents_to_dollars</code> and refactor <code>stg__payments</code></h1>
+<p><code>stg__payments.sql</code> currently has the cents→dollars conversion inline:</p>
+<pre><code class="language-sql">select
+    id              as payment_id,
+    order_id,
+    payment_method,
+    amount / 100.0  as amount
+from {{ source('stripe', 'raw_payments') }}
+</code></pre>
+<p>That&rsquo;s fine for one model. The problem starts when <em>another</em> model — say a future <code>stg__refunds</code> or <code>stg__chargebacks</code> — needs the same conversion. Copy-paste means three places to update if the rounding policy ever changes. <strong>A macro centralizes the logic so it&rsquo;s defined once and called everywhere.</strong></p>
+<h2>The macro file</h2>
+<p>Create <code>dbt_project/macros/cents_to_dollars.sql</code>:</p>
+<pre><code class="language-jinja">{% macro cents_to_dollars(column_name, decimal_places=2) -%}
+round( 1.0 * {{ column_name }} / 100, {{ decimal_places }} )
+{%- endmacro %}
+</code></pre>
+<p>Three things to flag:</p>
+<ul>
+<li><strong><code>{% macro cents_to_dollars(column_name, decimal_places=2) %}</code></strong> — declares the macro with two parameters. <code>decimal_places</code> has a default value; the second positional argument can be omitted at the call site.</li>
+<li><strong>The body is just SQL with <code>{{ column_name }}</code> and <code>{{ decimal_places }}</code> interpolated</strong> — Jinja substitutes those at parse time.</li>
+<li><strong>The <code>-%}</code> on the opening tag and <code>{%-</code> on the closing tag</strong> strip surrounding whitespace so the macro expands as a clean inline expression rather than a multi-line block.</li>
+</ul>
+<h2>The refactored call site</h2>
+<p><code>dbt_project/models/staging/stg__payments.sql</code>:</p>
+<pre><code class="language-sql">select
+    id                                  as payment_id,
+    order_id,
+    payment_method,
+    {{ cents_to_dollars('amount') }}    as amount
+from {{ source('stripe', 'raw_payments') }}
+</code></pre>
+<p>Note that <code>'amount'</code> is passed as a <strong>string</strong> — it&rsquo;s the <em>name of the column</em> the macro should operate on, which the macro then drops verbatim into the rendered SQL. After dbt compiles, the line reads:</p>
+<pre><code class="language-sql">round( 1.0 * amount / 100, 2 )    as amount
+</code></pre>
+<p>Same numerical result as <code>amount / 100.0</code>. The 1.0 coefficient forces float math, and <code>round(..., 2)</code> constrains decimal places. Slightly more polished than the original; functionally equivalent for the seed data.</p>
+<h2>What dbt does at parse time</h2>
+<p>When you run <code>dbt parse</code> (or any command that triggers parsing), dbt:</p>
+<ol>
+<li>Scans <code>macros/</code> and finds <code>cents_to_dollars</code> in <code>cents_to_dollars.sql</code>.</li>
+<li>Registers it in <code>target/manifest.json</code> under <code>macros.macro.dbt_project.cents_to_dollars</code>.</li>
+<li>Walks every model file. When it finds <code>{{ cents_to_dollars('amount') }}</code> in <code>stg__payments.sql</code>, it substitutes the macro&rsquo;s body with <code>column_name='amount'</code> and <code>decimal_places=2</code>.</li>
+<li>Writes the rendered SQL to <code>target/compiled/dbt_project/models/staging/stg__payments.sql</code>.</li>
+</ol>
+<p>That compiled file is what the warehouse actually sees — <code>{{ cents_to_dollars('amount') }}</code> is gone, replaced by <code>round( 1.0 * amount / 100, 2 )</code>. The Jinja layer is purely a preprocessor.</p>
+<h2>How to verify the refactor is faithful</h2>
+<p>The macro should produce the same dollar values as the original <code>amount / 100.0</code>. The verifier checks this indirectly:</p>
+<ul>
+<li>The model still compiles and runs.</li>
+<li>113 payment rows still have <code>amount &gt; 0</code> and <code>amount &lt; 100</code> — meaning the conversion happened (cents like <code>2600</code> would be <code>&gt; 100</code>, dollars like <code>26.00</code> are <code>&lt; 100</code>).</li>
+</ul>
+<p>The downstream <code>int_order_payments</code> and <code>fct_orders</code> use <code>sum(amount)</code> and <code>coalesce(p.total_amount, 0) as amount</code> respectively, so the <em>aggregate</em> dollar amounts in those models also stay constant if the refactor is correct.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Calling the macro without quotes around the column name.</strong> <code>{{ cents_to_dollars(amount) }}</code> (no quotes) would try to look up a Python variable <code>amount</code>, fail, and error at parse time. Use <code>{{ cents_to_dollars('amount') }}</code> — pass the column name as a string.</li>
+<li><strong>Putting the macro inside the model file.</strong> <code>{% macro %}</code> blocks technically work inline, but dbt only registers them as project macros if they live under <code>macros/</code>. Keep one file per macro under <code>macros/</code>.</li>
+<li><strong>Forgetting the whitespace-control dashes.</strong> Without <code>-%}</code> and <code>{%-</code>, the macro expands across multiple lines and the compiled SQL has awkward gaps. Inline expressions like this one read better with whitespace stripped.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

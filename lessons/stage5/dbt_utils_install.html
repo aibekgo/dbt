@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>dbt_utils</code> — packages and pre-built macros</h1>
+<p>You wrote your first macro (<code>cents_to_dollars</code>) earlier in Stage 5. The dbt community has been writing useful macros for years; the most-used collection is <strong><code>dbt_utils</code></strong>, maintained by dbt Labs. It ships dozens of macros for common dbt patterns: surrogate keys, date spines, pivots, custom tests, and more.</p>
+<p>This is the closing exercise of Stage 5 — a quick tour of how to install a package and use one of its macros.</p>
+<h2>How packages work</h2>
+<p>dbt&rsquo;s package system is conceptually simple: a <code>packages.yml</code> file at the root of your dbt project lists the packages you want, and <code>dbt deps</code> clones them into <code>dbt_packages/</code> (peer of <code>models/</code>, <code>macros/</code>, etc.).</p>
+<pre><code class="language-yaml"># dbt_project/packages.yml
+packages:
+  - package: dbt-labs/dbt_utils
+    version: [&quot;&gt;=1.1.0&quot;, &quot;&lt;2.0.0&quot;]
+</code></pre>
+<p>Three forms of <code>version:</code>:</p>
+<ul>
+<li><strong>Pinned:</strong> <code>version: 1.1.0</code> — exactly that version</li>
+<li><strong>Range:</strong> <code>version: ["&gt;=1.1.0", "&lt;2.0.0"]</code> — most common; pins to a major</li>
+<li><strong>Latest:</strong> omit <code>version:</code> — risky, breaks reproducibility</li>
+</ul>
+<p>After editing <code>packages.yml</code>, you run <code>dbt deps</code>:</p>
+<pre><code class="language-bash">dbt deps
+</code></pre>
+<p>dbt clones the package into <code>dbt_packages/dbt_utils/</code>. Every macro inside that directory becomes callable from any model, prefixed by the package name.</p>
+<h2>Calling a packaged macro</h2>
+<p>Once installed, <code>dbt_utils.generate_surrogate_key(...)</code> is callable from any model file:</p>
+<pre><code class="language-sql">select
+    {{ dbt_utils.generate_surrogate_key(['order_id', 'customer_id']) }} as order_key,
+    ...
+</code></pre>
+<p>The dot-separated form (<code>&lt;package&gt;.&lt;macro&gt;</code>) disambiguates from same-named macros in your own project. Without it, dbt couldn&rsquo;t tell whether <code>generate_surrogate_key</code> was yours or a package&rsquo;s.</p>
+<h2>What <code>generate_surrogate_key</code> does</h2>
+<p>It takes a list of column names and returns a deterministic hash that&rsquo;s:</p>
+<ul>
+<li><strong>Unique per combination</strong> — different column values → different hash</li>
+<li><strong>Stable across runs</strong> — same input → same hash forever</li>
+<li><strong>Warehouse-portable</strong> — uses MD5 by default; works on Snowflake, BigQuery, DuckDB, Postgres</li>
+</ul>
+<p>It compiles to something like:</p>
+<pre><code class="language-sql">md5(cast(coalesce(cast(order_id as text), '') || '-' || coalesce(cast(customer_id as text), '') as text)) as order_key
+</code></pre>
+<p>The <code>coalesce(..., '')</code> and <code>'-'</code> separator handle nulls and prevent collisions like <code>('1', '23')</code> and <code>('12', '3')</code> mapping to the same hash.</p>
+<h2>When you&rsquo;d actually need it</h2>
+<p>Real use case: a fact table whose natural primary key is a <em>combination</em> of columns rather than a single one. Examples:</p>
+<ul>
+<li><code>fct_session_events</code>: PK is <code>(session_id, event_sequence)</code> — combine into a <code>session_event_key</code></li>
+<li><code>fct_invoice_lines</code>: PK is <code>(invoice_id, line_number)</code> — combine into a <code>line_key</code></li>
+<li><code>dim_employee_assignments</code>: PK is <code>(employee_id, role_id, effective_date)</code></li>
+</ul>
+<p>For our <code>fct_orders</code>, <code>order_id</code> is already a single-column PK, so a surrogate key is structurally redundant — but the <em>exercise</em> still demonstrates the install + call flow.</p>
+<h2>What <code>dbt_packages/</code> looks like after install</h2>
+<pre><code>dbt_project/
+├── dbt_packages/
+│   └── dbt_utils/
+│       ├── dbt_project.yml
+│       ├── macros/
+│       │   ├── cross_db_utils/
+│       │   ├── generic_tests/
+│       │   ├── sql/
+│       │   └── ...
+│       └── models/
+│           └── ...
+├── packages.yml
+├── ...
+</code></pre>
+<p><code>dbt_packages/</code> is gitignored in this project (and dbt-Labs&rsquo;s own <code>dbt_project.yml</code> adds it to <code>clean-targets</code>). You commit <code>packages.yml</code>; CI runs <code>dbt deps</code> to materialize the install.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Forgetting <code>dbt deps</code> after editing <code>packages.yml</code>.</strong> Just adding the package to YAML doesn&rsquo;t install anything. Run <code>dbt deps</code> after every edit.</li>
+<li><strong>Calling a macro without the package prefix.</strong> <code>{{ generate_surrogate_key(...) }}</code> (no prefix) only works if you&rsquo;ve defined a <em>local</em> macro by that name. Package macros need <code>{{ dbt_utils.generate_surrogate_key(...) }}</code>.</li>
+<li><strong>Pinning to a too-old version.</strong> <code>dbt_utils</code> got renamed (a long time ago) — <code>dbt-labs/dbt_utils</code> is the modern path. Old <code>fishtown-analytics/dbt_utils</code> references break.</li>
+<li><strong>Committing <code>dbt_packages/</code> to git.</strong> Big and reproducible from <code>packages.yml</code>, so it&rsquo;s wasted bytes. Confirm <code>.gitignore</code> includes <code>dbt_packages/</code> (in this project, <code>dbt_project/</code> itself is ignored, so it&rsquo;s covered).</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

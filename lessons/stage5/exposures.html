@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exposures — extending lineage past the warehouse</h1>
+<p>The dbt DAG you&rsquo;ve built so far ends at the marts layer: <code>fct_orders</code> and <code>dim_customers</code>. From dbt&rsquo;s perspective, those are the leaves of the tree. But in reality, <em>something downstream</em> uses those models — a Tableau dashboard, a Looker explore, a Python notebook, a customer-facing API. dbt itself doesn&rsquo;t know about that downstream usage.</p>
+<p><strong>Exposures</strong> are the YAML construct that tells dbt about it.</p>
+<h2>What an exposure is</h2>
+<p>An exposure is a node in the dbt project that represents a <strong>downstream consumer of your data</strong>. It&rsquo;s metadata-only: no SQL, no warehouse object. Its job is to:</p>
+<ol>
+<li><strong>Show up in <code>dbt docs</code></strong> so anyone reading the lineage page can see <em>&ldquo;this dashboard depends on <code>fct_orders</code>.&rdquo;</em></li>
+<li><strong>Carry ownership info</strong> (<code>owner.name</code>, <code>owner.email</code>) so when a model breaks, you know who to ping.</li>
+<li><strong>Enable selectors</strong> like <code>dbt run --select +exposure:orders_dashboard</code> — <em>&ldquo;rebuild everything <code>orders_dashboard</code> depends on.&rdquo;</em></li>
+<li><strong>Audit the impact of model changes</strong> — which dashboards / notebooks would break if I rename this column?</li>
+</ol>
+<h2>The YAML shape</h2>
+<p>Exposures live in any <code>.yml</code> file under <code>models/</code> (typically a dedicated <code>_exposures.yml</code>):</p>
+<pre><code class="language-yaml">version: 2
+
+exposures:
+  - name: orders_dashboard
+    label: &quot;Orders Operational Dashboard&quot;
+    type: dashboard
+    maturity: high
+    url: https://example.com/dashboards/orders
+    description: &quot;Daily order volume, revenue, and status breakdown.&quot;
+    depends_on:
+      - ref('fct_orders')
+      - ref('dim_customers')
+    owner:
+      name: Data Team
+      email: data@example.com
+</code></pre>
+<p>The required fields are <code>name</code> and <code>owner.name</code>. Everything else is optional but conventionally always set:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>label</code></td>
+<td>A human-friendly display name for the docs site.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>One of <code>dashboard</code>, <code>notebook</code>, <code>analysis</code>, <code>ml</code>, <code>application</code>. Determines the icon in the lineage view.</td>
+</tr>
+<tr>
+<td><code>maturity</code></td>
+<td>One of <code>high</code>, <code>medium</code>, <code>low</code>. Signals to viewers how reliable / production-grade this consumer is.</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td>Direct link to the BI tool / notebook. The docs site renders this as a clickable link.</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>What this consumer does, business-side. Same role as a model&rsquo;s description.</td>
+</tr>
+<tr>
+<td><code>depends_on</code></td>
+<td>List of <code>ref()</code> calls or <code>source()</code> calls to upstream nodes. Establishes the lineage edge.</td>
+</tr>
+<tr>
+<td><code>owner</code></td>
+<td>At minimum a <code>name</code>. Adding <code>email</code> (or other meta fields) is standard.</td>
+</tr>
+</tbody>
+</table>
+<h2>How dbt parses an exposure</h2>
+<p>When <code>dbt parse</code> runs:</p>
+<ol>
+<li>dbt scans every <code>.yml</code> under <code>model-paths:</code>.</li>
+<li>Finds the <code>exposures:</code> block and registers each entry as a node in <code>target/manifest.json</code> under <code>exposures.&lt;unique_id&gt;</code>.</li>
+<li>Walks the <code>depends_on:</code> entries — for each <code>ref('foo')</code>, dbt records an edge from <code>foo</code> to the exposure.</li>
+<li>The exposure shows up in <code>dbt ls --resource-type exposure</code> and in the docs site&rsquo;s lineage graph as a downstream node.</li>
+</ol>
+<p>After <code>dbt docs generate</code>, the docs UI shows a new node colored differently from models (typically with the icon matching <code>type:</code>). Clicking it shows the description, owner, URL, and the upstream models it depends on.</p>
+<h2>Why this is different from a model</h2>
+<ul>
+<li><strong>No SQL.</strong> Exposures don&rsquo;t compute anything; they describe consumers that compute things <em>outside</em> dbt.</li>
+<li><strong>No materialization.</strong> Nothing lands in the warehouse.</li>
+<li><strong>Selectors work both ways.</strong> <code>dbt run --select +exposure:orders_dashboard</code> rebuilds everything <em>upstream</em> of the exposure. <code>dbt run --select +fct_orders+</code> (with two <code>+</code> signs) shows downstream impact, including the exposure node.</li>
+</ul>
+<h2>When to add one</h2>
+<p>The pragmatic rule: <strong>add an exposure for every BI dashboard, notebook, or downstream system that a stakeholder cares about.</strong> If a column rename in <code>fct_orders</code> would break a Tableau dashboard, that dashboard deserves an exposure entry. The cost is one YAML block; the payoff is that anyone running <code>dbt run --select +fct_orders+</code> immediately sees the dashboard would be affected.</p>
+<p>In real projects, exposures get out of sync with reality — dashboards get retired, ownership rotates. The <code>maturity</code> field is partly a confession of that: a <code>low</code> maturity exposure is &ldquo;we know about this, no commitment to the contract.&rdquo;</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>String literals where <code>ref()</code> should go.</strong> <code>depends_on: ['fct_orders']</code> (a string list) doesn&rsquo;t establish a lineage edge — it&rsquo;s just metadata. Use <code>depends_on: [ref('fct_orders')]</code> so dbt registers the dependency.</li>
+<li><strong>Forgetting <code>version: 2</code></strong> at the top of the YAML file. dbt rejects schema YAML without it.</li>
+<li><strong>Putting the file outside <code>model-paths:</code>.</strong> Exposures only get picked up if the file lives under a directory listed in <code>model-paths:</code> (default <code>models</code>). A file at the project root is invisible.</li>
+<li><strong>Bad <code>type:</code> values.</strong> <code>dashboard</code>, <code>notebook</code>, <code>analysis</code>, <code>ml</code>, <code>application</code> are the only accepted values. Typos like <code>dashboards</code> (plural) error at parse time.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

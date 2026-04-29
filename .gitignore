@@ -233,3 +233,6 @@ build_lessons.py
 
 # Local learner progress — per-machine, never committed
 progress.txt
+
+# Stage 5 state-selection snapshot (created during the state_selection exercise)
+state_initial/

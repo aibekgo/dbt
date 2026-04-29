@@ -29,9 +29,15 @@ Currently implemented rule types:
     block named `<source>` declares each table in `<tables>`.
   - manifest_test_count: parse target/manifest.json, assert at least N
     tests are attached to a model (optionally check named test types).
+  - manifest_macro_exists: parse target/manifest.json, assert a macro
+    by `name` is registered.
+  - manifest_exposure_exists: parse target/manifest.json, assert an
+    exposure by `name` is registered (optionally check `depends_on`).
+  - path_exists: assert a filesystem path resolves (relative to repo root).
+  - file_contains: assert a file contains a given substring.
 
 Planned (added per-stage as needed):
-  - manifest_node_exists, manifest_exposure_exists
+  - manifest_node_exists
   - run_results_node_status, incremental_row_growth
 """
 
@@ -180,9 +186,14 @@ def _check_dbt_run_success(rule: dict) -> list[TestResult]:
             passed=False,
             message="rule is missing required `select` field",
         )]
-    run = _run_dbt("run", "--select", select)
+    args = ["run", "--select", select]
+    state = rule.get("state")
+    if state:
+        args += ["--state", state]
+    run = _run_dbt(*args)
+    label = f"dbt run --select {select}" + (f" --state {state}" if state else "")
     return [TestResult(
-        name=f"dbt run --select {select}",
+        name=label,
         passed=run.ok,
         message="" if run.ok else _tail(run.stdout + run.stderr, lines=20),
     )]
@@ -739,6 +750,166 @@ def _check_dbt_compile_success(rule: dict) -> list[TestResult]:
     return results
 
 
+def _check_manifest_macro_exists(rule: dict) -> list[TestResult]:
+    """A macro by `name` is registered in target/manifest.json."""
+    name = rule.get("name")
+    if not name:
+        return [TestResult(
+            name="manifest_macro_exists",
+            passed=False,
+            message="rule is missing required `name` field",
+        )]
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("manifest_macro_exists")
+    parse = _run_dbt("parse")
+    if not parse.ok:
+        return [TestResult(
+            name="dbt parse",
+            passed=False,
+            message=_tail(parse.stdout + parse.stderr, lines=20),
+        )]
+    if not MANIFEST_PATH.exists():
+        return [TestResult(
+            name=f"manifest_macro_exists:{name}",
+            passed=False,
+            message=f"manifest.json not found at {MANIFEST_PATH.relative_to(ROOT)}",
+        )]
+    manifest = json.loads(MANIFEST_PATH.read_text())
+    for macro in manifest.get("macros", {}).values():
+        if macro.get("name") == name:
+            pkg = macro.get("package_name", "?")
+            return [TestResult(
+                name=f"manifest_macro_exists:{name}",
+                passed=True,
+                message=f"found in package `{pkg}`",
+            )]
+    return [TestResult(
+        name=f"manifest_macro_exists:{name}",
+        passed=False,
+        message=(
+            f"Macro `{name}` not found in target/manifest.json — "
+            f"did you create `macros/{name}.sql` with a `{{% macro {name}(...) %}}` block?"
+        ),
+    )]
+
+
+def _check_manifest_exposure_exists(rule: dict) -> list[TestResult]:
+    """An exposure by `name` is registered, optionally with required dependencies."""
+    name = rule.get("name")
+    if not name:
+        return [TestResult(
+            name="manifest_exposure_exists",
+            passed=False,
+            message="rule is missing required `name` field",
+        )]
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("manifest_exposure_exists")
+    parse = _run_dbt("parse")
+    if not parse.ok:
+        return [TestResult(
+            name="dbt parse",
+            passed=False,
+            message=_tail(parse.stdout + parse.stderr, lines=20),
+        )]
+    if not MANIFEST_PATH.exists():
+        return [TestResult(
+            name=f"manifest_exposure_exists:{name}",
+            passed=False,
+            message=f"manifest.json not found at {MANIFEST_PATH.relative_to(ROOT)}",
+        )]
+    manifest = json.loads(MANIFEST_PATH.read_text())
+    matching = None
+    for exposure in manifest.get("exposures", {}).values():
+        if exposure.get("name") == name:
+            matching = exposure
+            break
+    if matching is None:
+        return [TestResult(
+            name=f"manifest_exposure_exists:{name}",
+            passed=False,
+            message=(
+                f"Exposure `{name}` not found in target/manifest.json — "
+                f"check the `name:` field in `models/_exposures.yml`."
+            ),
+        )]
+    results: list[TestResult] = [TestResult(
+        name=f"manifest_exposure_exists:{name}",
+        passed=True,
+        message=f"type={matching.get('type', '?')}, owner={matching.get('owner', {}).get('name', '?')}",
+    )]
+    expected_deps = rule.get("depends_on") or []
+    if expected_deps:
+        depends_on_nodes = matching.get("depends_on", {}).get("nodes", [])
+        # depends_on.nodes contain unique_ids like "model.dbt_project.fct_orders"
+        # We just check the model name appears as a suffix.
+        for dep in expected_deps:
+            found = any(uid.endswith(f".{dep}") for uid in depends_on_nodes)
+            results.append(TestResult(
+                name=f"exposure depends_on:{dep}",
+                passed=found,
+                message="" if found else (
+                    f"Exposure `{name}` does not depend on model `{dep}`. "
+                    f"Add `- ref('{dep}')` under `depends_on:`."
+                ),
+            ))
+    return results
+
+
+def _check_path_exists(rule: dict) -> list[TestResult]:
+    """Assert a path (file or directory) exists. Path is relative to the repo root."""
+    path = rule.get("path")
+    if not path:
+        return [TestResult(
+            name="path_exists",
+            passed=False,
+            message="rule is missing required `path` field",
+        )]
+    target = (ROOT / path).resolve()
+    if target.exists():
+        kind = "dir" if target.is_dir() else "file"
+        return [TestResult(
+            name=f"path_exists:{path}",
+            passed=True,
+            message=f"{kind} present",
+        )]
+    return [TestResult(
+        name=f"path_exists:{path}",
+        passed=False,
+        message=f"path `{path}` does not exist",
+    )]
+
+
+def _check_file_contains(rule: dict) -> list[TestResult]:
+    """Assert a file contains a given substring."""
+    path = rule.get("path")
+    needle = rule.get("contains")
+    if not path or needle is None:
+        return [TestResult(
+            name="file_contains",
+            passed=False,
+            message="rule needs both `path` (str) and `contains` (str) fields",
+        )]
+    target = (ROOT / path).resolve()
+    if not target.exists():
+        return [TestResult(
+            name=f"file_contains:{path}",
+            passed=False,
+            message=f"file `{path}` does not exist",
+        )]
+    text = target.read_text(errors="ignore")
+    if needle in text:
+        return [TestResult(
+            name=f"file_contains:{path}",
+            passed=True,
+            message=f"contains `{needle}`",
+        )]
+    return [TestResult(
+        name=f"file_contains:{path}",
+        passed=False,
+        message=f"file `{path}` does not contain `{needle}`",
+    )]
+
+
 def _short_sql(sql: str, limit: int = 40) -> str:
     one_line = " ".join(sql.split())
     return one_line if len(one_line) <= limit else one_line[: limit - 1] + "…"
@@ -770,6 +941,10 @@ RULE_HANDLERS: dict[str, RuleHandler] = {
     "manifest_materialization":  _check_manifest_materialization,
     "manifest_source_declared":  _check_manifest_source_declared,
     "manifest_test_count":       _check_manifest_test_count,
+    "manifest_macro_exists":     _check_manifest_macro_exists,
+    "manifest_exposure_exists":  _check_manifest_exposure_exists,
+    "path_exists":               _check_path_exists,
+    "file_contains":             _check_file_contains,
 }
 
 

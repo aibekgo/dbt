@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>State selection — rebuild only what changed</h1>
+<p>Every <code>dbt build</code> you&rsquo;ve run so far has rebuilt the entire project. For 7 models that&rsquo;s instant. For a real project with 500+ models, rebuilding everything every time you change one is wasteful — most CI systems take 10–30 minutes per dbt run on real-world projects, almost all of which is touching models that didn&rsquo;t change.</p>
+<p><code>state:modified+</code> is dbt&rsquo;s solution. It compares the <strong>current</strong> project state against a <strong>previous</strong> state (a manifest from an earlier run) and selects only the models that differ — plus their downstream dependencies (<code>+</code>).</p>
+<h2>Why dbt is &ldquo;stateless&rdquo;… mostly</h2>
+<p>dbt is <strong>idempotent</strong> and <strong>stateless</strong> by design: running <code>dbt build</code> ten times in a row on the same project produces the same warehouse state every time. There&rsquo;s no in-process memory of &ldquo;what I did last time.&rdquo;</p>
+<p>But dbt does write <strong>artifacts</strong> — files in <code>target/</code> that capture point-in-time state:</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>What it captures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>target/manifest.json</code></td>
+<td>The parsed project: every model, source, test, macro, exposure with its config and dependencies</td>
+</tr>
+<tr>
+<td><code>target/run_results.json</code></td>
+<td>The result of the most recent command: which nodes ran, how long they took, whether they passed</td>
+</tr>
+<tr>
+<td><code>target/catalog.json</code></td>
+<td>Column-level metadata pulled from the warehouse via <code>dbt docs generate</code></td>
+</tr>
+</tbody>
+</table>
+<p>State selection works by <strong>comparing two manifests</strong> — the current one (in <code>target/</code>) against a previous one you point at via <code>--state &lt;path&gt;</code>. dbt walks every model node in the current manifest and asks <em>&ldquo;is this node different from the same node in the old manifest?&rdquo;</em> If yes, it qualifies for <code>state:modified</code>.</p>
+<h2>What &ldquo;modified&rdquo; actually means</h2>
+<p>A model is <code>state:modified</code> if any of these differ from the snapshot manifest:</p>
+<ul>
+<li>The model&rsquo;s SQL (file content)</li>
+<li>The model&rsquo;s config (materialization, unique_key, etc.)</li>
+<li>The model&rsquo;s schema (column-level YAML changes)</li>
+<li>The model&rsquo;s dependencies (upstream <code>ref()</code> calls changed)</li>
+</ul>
+<p>Adding a comment to the SQL counts. Even a whitespace-only change counts. dbt is conservative — if the file&rsquo;s hash differs, the model is modified.</p>
+<p>The <code>+</code> suffix expands the set: <code>state:modified+</code> includes the modified models <em>and everything downstream of them</em>. That&rsquo;s what you want in CI: rebuild what changed and everything that depends on it.</p>
+<h2>The CI workflow</h2>
+<p>In production, the pattern is:</p>
+<ol>
+<li><strong>Production main branch</strong> stores its <code>target/manifest.json</code> artifact somewhere (S3, a cache).</li>
+<li><strong>A PR opens</strong> with a model change.</li>
+<li><strong>CI runs:</strong>
+   - Pull the production manifest into <code>prev_target/</code>.
+   - Run <code>dbt build --select state:modified+ --state ./prev_target</code>.</li>
+<li><strong>Only the changed model + downstream</strong> rebuild and test in the PR&rsquo;s schema.</li>
+<li><strong>PR merges</strong>, the new state becomes the next baseline.</li>
+</ol>
+<p>Without state selection, every PR rebuilds the entire project — usually 90%+ unnecessary work.</p>
+<h2>What this exercise simulates</h2>
+<p>The seed-data project doesn&rsquo;t have a real &ldquo;previous state&rdquo; to compare against. So the exercise simulates one:</p>
+<ol>
+<li>Run <code>dbt build</code> to produce a fresh <code>target/manifest.json</code>.</li>
+<li>Copy <code>target/</code> to <code>state_initial/</code> — this becomes the &ldquo;previous build&rdquo; snapshot.</li>
+<li>Modify <code>dim_customers.sql</code> so it <em>differs</em> from the snapshot.</li>
+<li>Run <code>dbt run --select state:modified+ --state ../state_initial</code> — dbt detects only <code>dim_customers</code> (and its downstream, if any) changed.</li>
+</ol>
+<p>The verifier:
+- Confirms <code>state_initial/manifest.json</code> exists (proving you took the snapshot).
+- Confirms <code>dim_customers.sql</code> has the marker comment (proving you actually modified the file).
+- Runs the state-selection command itself and asserts it succeeds.</p>
+<h2>What you&rsquo;ll see in the output</h2>
+<p>When the state-aware run executes, dbt logs something like:</p>
+<pre><code>01:23:45  Found 7 models, 1 snapshot, 1 analysis, 14 data tests, 1 seed, 3 sources, 477 macros
+01:23:45  Concurrency: 1 threads (target='dev')
+01:23:45  1 of 1 START sql table model main.dim_customers
+01:23:45  1 of 1 OK created sql table model main.dim_customers
+01:23:45  Finished running 1 table model in 0 hours 0 minutes ...
+</code></pre>
+<p>One model selected. One model run. Compare to a plain <code>dbt build</code> which would say <code>5 of 7</code> for the model count alone, plus tests and the seed.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Forgetting to take the snapshot before modifying.</strong> If <code>state_initial/</code> doesn&rsquo;t exist or has the <em>same</em> manifest as the current state, dbt&rsquo;s state diff finds nothing and selects 0 models. The order matters: snapshot → modify → run.</li>
+<li><strong>Pointing <code>--state</code> at the current <code>target/</code> instead of the snapshot.</strong> This is a no-op — comparing target/ to itself yields 0 differences. Always point <code>--state</code> at a separate directory.</li>
+<li><strong>Running <code>dbt build</code> (not <code>dbt run</code>) for the state-aware step.</strong> Both work — <code>dbt build</code> will run the modified models <em>plus</em> their tests. For this exercise, plain <code>dbt run</code> is fine; in production CI you&rsquo;d typically use <code>dbt build</code>.</li>
+<li><strong>Putting <code>state_initial/</code> inside <code>dbt_project/</code>.</strong> dbt&rsquo;s <code>clean</code> command wipes <code>target/</code> and <code>dbt_packages/</code> from inside the project; <code>state_initial/</code> could get caught in the cleanup. Keep it at the repo root, peer of <code>dbt_project/</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

@@ -456,3 +456,79 @@ stages:
               name: snapshot has SCD2 metadata columns
               sql: "select count(*) from information_schema.columns where table_name='orders_snapshot' and column_name in ('dbt_scd_id','dbt_updated_at','dbt_valid_from','dbt_valid_to')"
               expected_value: 4
+
+  - id: stage_5_jinja_macros_state_exposures
+    title: "Stage 5 — Jinja, Macros, State & Exposures"
+    items:
+      - id: jinja_basics
+        type: lesson
+        file: lessons/stage5/jinja_basics.html
+
+      - id: first_macro
+        type: exercise
+        lesson:   lessons/stage5/first_macro.html
+        exercise: exercises/stage5/first_macro.md
+        original: originals/stage5/first_macro.md
+        hints:    hints/stage5/first_macro.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: stg__payments
+            - type: manifest_macro_exists
+              name: cents_to_dollars
+            - type: duckdb_query
+              name: stg__payments still produces dollar values
+              sql: "select count(*) from stg__payments where amount >= 0 and amount < 100"
+              expected_value: 113
+
+      - id: state_selection
+        type: exercise
+        lesson:   lessons/stage5/state_selection.html
+        exercise: exercises/stage5/state_selection.md
+        original: originals/stage5/state_selection.md
+        hints:    hints/stage5/state_selection.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: path_exists
+              path: state_initial/manifest.json
+            - type: file_contains
+              path: dbt_project/models/marts/dim_customers.sql
+              contains: "state-selection-marker"
+            - type: dbt_run_success
+              select: "state:modified+"
+              state: "../state_initial"
+
+      - id: exposures
+        type: exercise
+        lesson:   lessons/stage5/exposures.html
+        exercise: exercises/stage5/exposures.md
+        original: originals/stage5/exposures.md
+        hints:    hints/stage5/exposures.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_docs_generated
+            - type: manifest_exposure_exists
+              name: orders_dashboard
+              depends_on: [fct_orders, dim_customers]
+
+      - id: dbt_utils_install
+        type: exercise
+        lesson:   lessons/stage5/dbt_utils_install.html
+        exercise: exercises/stage5/dbt_utils_install.md
+        original: originals/stage5/dbt_utils_install.md
+        hints:    hints/stage5/dbt_utils_install.md
+        verifier: dbt
+        quiz:     quiz/stage5.yaml
+        dbt_checks:
+          rules:
+            - type: path_exists
+              path: dbt_project/dbt_packages/dbt_utils
+            - type: dbt_run_success
+              select: fct_orders
+            - type: duckdb_query
+              name: fct_orders.order_key is unique
+              sql: "select count(distinct order_key) from fct_orders"
+              expected_value: 99

@@ -1,0 +1,99 @@
+topic: stage5
+questions:
+  - id: stage5_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "Which Jinja delimiter would you use to set a variable that produces NO output?"
+    options:
+      a: "`{{ ... }}`"
+      b: "`{% ... %}`"
+      c: "`{# ... #}`"
+      d: "`<% ... %>`"
+    answer: b
+    explanation: |
+      `{% ... %}` is for **statements** — `set`, `if`, `for`, `macro` — that perform an action but produce no output. `{{ ... }}` is for **expressions** that print to the rendered file. `{# ... #}` is for **comments** that are stripped before compile. `<% %>` is ASP/ERB syntax, not Jinja.
+    related_item: jinja_basics
+
+  - id: stage5_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Why factor `amount / 100.0` out of `stg__payments.sql` into a `cents_to_dollars` macro?"
+    options:
+      a: "Macros are required by dbt for any column expression"
+      b: "Centralizes the conversion logic so future models (e.g., a new `stg__refunds`) reuse the same rule, and a rounding-policy change is one edit instead of many"
+      c: "Macros are faster than inline SQL"
+      d: "Inline SQL doesn't compile in dbt"
+    answer: b
+    explanation: |
+      Macros buy you **DRY**: the cents-to-dollars rule lives in one place. When the policy changes ("now we want 4 decimal places for international currencies"), you update the macro and every call site picks up the new behavior automatically. The runtime difference is zero — macros expand to the same SQL at parse time. The case for macros is maintenance, not performance.
+    related_item: first_macro
+
+  - id: stage5_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does `dbt run --select state:modified+ --state ./prev_target` do?"
+    options:
+      a: "Rebuilds every model in the project"
+      b: "Compares the current project against the manifest in `prev_target/` and rebuilds only the models that differ — plus everything downstream of them (`+`)"
+      c: "Rolls back the project to the previous state"
+      d: "Shows a diff of which models would change without running anything"
+    answer: b
+    explanation: |
+      State selection is dbt's CI optimization. dbt walks every node in the current manifest, compares against the same node in the snapshot manifest at `prev_target/`, and selects nodes whose SQL, config, or dependencies differ. The `+` suffix expands the set to include downstream models. In practice, a typical PR rebuilds 1–10 models instead of all 500+.
+    related_item: state_selection
+
+  - id: stage5_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "An exposure's `depends_on:` list should contain..."
+    options:
+      a: "Strings: `depends_on: ['fct_orders']`"
+      b: "`ref()` calls: `depends_on: [ref('fct_orders')]`"
+      c: "Either works"
+      d: "Nothing — `depends_on:` is optional"
+    answer: b
+    explanation: |
+      `ref('fct_orders')` is a Jinja expression evaluated by dbt at parse time. That's what registers the lineage edge in `target/manifest.json` so the docs site shows an arrow from `fct_orders` to the exposure. A string literal `'fct_orders'` is just metadata — no edge gets created. Always use `ref()` (or `source()` for sources).
+    related_item: exposures
+
+  - id: stage5_05
+    difficulty: easy
+    type: multiple_choice
+    prompt: "After editing `packages.yml`, what command actually installs the packages?"
+    options:
+      a: "`dbt build`"
+      b: "`dbt parse`"
+      c: "`dbt deps`"
+      d: "`dbt run`"
+    answer: c
+    explanation: |
+      `dbt deps` is the install command — it reads `packages.yml` and clones each package into `dbt_packages/`. `dbt build/parse/run` don't install anything; they assume packages are already installed. CI scripts usually run `dbt deps && dbt build` to install + build in one go.
+    related_item: dbt_utils_install
+
+  - id: stage5_06
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When calling a macro from `dbt_utils`, what's the right syntax?"
+    options:
+      a: "`{{ generate_surrogate_key(['order_id']) }}`"
+      b: "`{{ dbt_utils.generate_surrogate_key(['order_id']) }}`"
+      c: "`{{ from('dbt_utils').generate_surrogate_key(['order_id']) }}`"
+      d: "`{{ import('dbt_utils.generate_surrogate_key', ['order_id']) }}`"
+    answer: b
+    explanation: |
+      Package macros are referenced as `<package_name>.<macro_name>`. The dot-separated form disambiguates from same-named macros in your own project. Without the prefix, dbt would look for a *local* macro called `generate_surrogate_key` and fail with `'generate_surrogate_key' is undefined`.
+    related_item: dbt_utils_install
+
+  - id: stage5_07
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Why does `cents_to_dollars` use `{%- ... -%}` (with dashes) on its open and close tags?"
+    options:
+      a: "Required syntax — Jinja errors without the dashes"
+      b: "Whitespace control — strips the surrounding newlines so the macro expands as a clean inline expression instead of multi-line text"
+      c: "Comment markers"
+      d: "Negation — flags the macro as deprecated"
+    answer: b
+    explanation: |
+      The `-` inside a Jinja delimiter trims whitespace on that side. `{%- macro ... -%}` strips whitespace before the open tag; `{%- endmacro %}` strips after the close tag. The result: the macro's body fits inline like a SQL function call, instead of dropping into a new line with awkward gaps. Functional difference is zero; readability difference is meaningful.
+    related_item: first_macro

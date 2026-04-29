@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Jinja in dbt — three delimiters and why they matter</h1>
+<p>Every <code>{{ ref('stg__customers') }}</code>, every <code>{% if is_incremental() %}</code>, every <code>-- {{ this }}</code> you&rsquo;ve seen so far in this course is <strong>Jinja</strong>, a Python templating language that dbt uses to turn your SQL files into… more SQL. Stage 5 is where you stop <em>consuming</em> Jinja and start <em>writing</em> it.</p>
+<h2>The three delimiters</h2>
+<p>Jinja has exactly three syntactic forms. Knowing them is 70% of writing macros.</p>
+<table>
+<thead>
+<tr>
+<th>Delimiter</th>
+<th>Used for</th>
+<th>Renders to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{{ ... }}</code></td>
+<td><strong>Expressions.</strong> Print a value into the output.</td>
+<td>The string representation of whatever&rsquo;s inside.</td>
+</tr>
+<tr>
+<td><code>{% ... %}</code></td>
+<td><strong>Statements.</strong> Set variables, control flow (<code>if</code>, <code>for</code>, <code>set</code>, <code>macro</code>).</td>
+<td>Nothing — the statement runs but produces no output.</td>
+</tr>
+<tr>
+<td><code>{# ... #}</code></td>
+<td><strong>Comments.</strong> Ignored entirely.</td>
+<td>Nothing. Doesn&rsquo;t appear in compiled SQL.</td>
+</tr>
+</tbody>
+</table>
+<p>You&rsquo;ve already seen all three in this project, just maybe not consciously:</p>
+<pre><code class="language-sql">{{ ref('stg__orders') }}                      -- expression — produces a table name
+{% if is_incremental() %}where ...{% endif %}  -- statements — control flow
+{# this is a Jinja comment, never reaches the warehouse #}
+</code></pre>
+<p>The mental model: dbt&rsquo;s Jinja preprocessor walks the SQL file character by character. When it sees a delimiter, it switches into &ldquo;Jinja mode&rdquo; and evaluates whatever&rsquo;s inside. When the delimiter closes, it goes back to copying SQL. The output is what gets sent to the warehouse.</p>
+<h2>Variables and <code>{% set %}</code></h2>
+<pre><code class="language-jinja">{% set flavors = ['chocolate', 'vanilla', 'strawberry'] %}
+{% set today = '2024-03-15' %}
+
+select * from orders where order_date = '{{ today }}'
+</code></pre>
+<p>Setting a variable is a statement (no output). Using it is an expression. The difference matters: <code>{% set x = 1 %}</code> doesn&rsquo;t print anything; <code>{{ x }}</code> prints <code>1</code>.</p>
+<h2>Control flow</h2>
+<p><strong>If/else:</strong></p>
+<pre><code class="language-jinja">{% if target.name == 'prod' %}
+where date &gt;= current_date - interval '90 days'
+{% else %}
+where date &gt;= current_date - interval '7 days'
+{% endif %}
+</code></pre>
+<p>The whole block must be wrapped in <code>{% if ... %} ... {% endif %}</code>. The branch evaluates and produces SQL; the if/else machinery itself doesn&rsquo;t.</p>
+<p><strong>For-loops:</strong></p>
+<pre><code class="language-jinja">{% for status in ['placed', 'shipped', 'completed'] %}
+  sum(case when status = '{{ status }}' then 1 else 0 end) as {{ status }}_count
+  {% if not loop.last %},{% endif %}
+{% endfor %}
+</code></pre>
+<p><code>loop.last</code> is a built-in Jinja variable inside <code>for</code> blocks — true on the last iteration, false otherwise. Useful for handling commas in column lists.</p>
+<h2>Macros — Jinja functions</h2>
+<p>A <strong>macro</strong> is a Jinja function that can be called from anywhere in the project. The body produces text that gets inserted at the call site.</p>
+<pre><code class="language-jinja">{% macro cents_to_dollars(column_name, decimal_places=2) %}
+round( 1.0 * {{ column_name }} / 100, {{ decimal_places }} )
+{% endmacro %}
+</code></pre>
+<p>Calling it:</p>
+<pre><code class="language-sql">select
+    {{ cents_to_dollars('amount') }} as amount,
+    {{ cents_to_dollars('refund_amount', decimal_places=4) }} as refund_amount
+from raw_payments
+</code></pre>
+<p>Compiles to:</p>
+<pre><code class="language-sql">select
+    round( 1.0 * amount / 100, 2 ) as amount,
+    round( 1.0 * refund_amount / 100, 4 ) as refund_amount
+from raw_payments
+</code></pre>
+<p>The macro is just text substitution. The dollar-conversion logic is now <strong>in one place</strong>. Need to change the rounding policy across the project? One file edit. That&rsquo;s the DRY win — Don&rsquo;t Repeat Yourself.</p>
+<h2>Where macros live</h2>
+<p>Macros go in <code>dbt_project/macros/*.sql</code>. Filename and macro name don&rsquo;t have to match, though convention is one macro per file with matching names:</p>
+<pre><code>dbt_project/macros/
+├── cents_to_dollars.sql
+├── ...
+</code></pre>
+<p>dbt scans <code>macro-paths:</code> (default <code>macros/</code>) at parse time and registers every <code>{% macro ... %}</code> block it finds. After parse, the macro shows up in <code>target/manifest.json</code> under <code>macros.&lt;package&gt;.&lt;name&gt;</code> and is callable from any model, test, or analysis.</p>
+<h2>Whitespace control with <code>-</code></h2>
+<p>A subtle but useful trick: a leading or trailing <code>-</code> inside a delimiter trims whitespace on that side.</p>
+<pre><code class="language-jinja">{% macro cents_to_dollars(column_name) -%}
+round( 1.0 * {{ column_name }} / 100, 2 )
+{%- endmacro %}
+</code></pre>
+<p>The <code>-%}</code> strips trailing whitespace, the <code>{%-</code> strips leading whitespace. Without those dashes, the macro&rsquo;s expansion would have extra newlines around it that show up in compiled SQL. For one-line expressions like <code>cents_to_dollars</code>, the trim makes the output read like a single inline expression instead of a multi-line block.</p>
+<h2>Why this matters for the rest of Stage 5</h2>
+<p>The next four exercises all build on this:</p>
+<ul>
+<li><strong><code>first_macro</code></strong> writes the <code>cents_to_dollars</code> macro you just saw and refactors <code>stg__payments</code> to use it.</li>
+<li><strong><code>state_selection</code></strong> uses Jinja-rendered <code>{{ this }}</code> in the same way Stage 4&rsquo;s incremental models did.</li>
+<li><strong><code>exposures</code></strong> is mostly YAML, but the YAML uses <code>ref('fct_orders')</code> which is a Jinja expression evaluated by dbt at parse time.</li>
+<li><strong><code>dbt_utils_install</code></strong> installs a package whose entire content is Jinja macros.</li>
+</ul>
+<p>Knowing the three delimiters, what <code>{% set %}</code> and <code>{% if %}</code> and <code>{% macro %}</code> mean, and how text substitution works is enough to make sense of every Jinja construct you&rsquo;ll meet in the rest of Stage 5.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Putting SQL keywords inside <code>{{ }}</code> instead of <code>{% %}</code>.</strong> <code>{{ if x %}}</code> doesn&rsquo;t work — <code>if</code> is a statement, not an expression. Use <code>{% if x %}</code> for control flow.</li>
+<li><strong>Forgetting <code>{% endif %}</code> / <code>{% endfor %}</code> / <code>{% endmacro %}</code>.</strong> Jinja blocks need explicit closers, just like HTML tags.</li>
+<li><strong>Putting a macro definition outside <code>macros/</code>.</strong> dbt only scans <code>macro-paths:</code> for macros. A <code>{% macro %}</code> block inside a model file is technically callable by that model only and is a smell — keep macros in <code>macros/</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>
