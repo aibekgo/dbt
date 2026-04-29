@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Ephemeral models — inlined as CTEs, never persisted</h1>
+<p>The <code>view_to_table</code> exercise made <code>int_order_payments</code> more present in the warehouse — a real table you can query directly. This exercise does the opposite: makes it disappear from the warehouse entirely. After this change, <code>select * from int_order_payments</code> in DuckDB returns <em>&ldquo;table not found&rdquo;</em>. Yet <code>fct_orders</code> still works perfectly.</p>
+<p>That&rsquo;s <code>ephemeral</code>.</p>
+<h2>What ephemeral actually does</h2>
+<p>When you set <code>{{ config(materialized='ephemeral') }}</code> on a model, dbt does <strong>not</strong> issue any DDL for it. There&rsquo;s no <code>create view</code>, no <code>create table</code>, no warehouse object. Instead, every time a downstream model says <code>{{ ref('the_ephemeral') }}</code>, dbt <strong>inlines the ephemeral&rsquo;s query as a CTE</strong> in the downstream&rsquo;s compiled SQL.</p>
+<p>So <code>fct_orders.sql</code> says:</p>
+<pre><code class="language-sql">... from {{ ref('int_order_payments') }} p ...
+</code></pre>
+<p>And after <code>dbt compile</code>, <code>target/compiled/dbt_project/models/marts/fct_orders.sql</code> looks like:</p>
+<pre><code class="language-sql">with __dbt__cte__int_order_payments as (
+    select
+        order_id,
+        sum(amount)              as total_amount,
+        count(*)                 as payment_count
+    from &quot;main&quot;.&quot;stg__payments&quot;
+    group by order_id
+)
+select ... from __dbt__cte__int_order_payments p ...
+</code></pre>
+<p>The aggregation runs inline, every time <code>fct_orders</code> is rebuilt. There&rsquo;s no separate <code>int_order_payments</code> object to query, drop, or inspect.</p>
+<h2>When this is the right call</h2>
+<p>Ephemeral fits a narrow window:</p>
+<ul>
+<li><strong>Light intermediate logic.</strong> A handful of <code>case</code>s, a small grouping, a derived column. Not a full join chain.</li>
+<li><strong>Used by ≤ 2 downstream models.</strong> If three+ marts all <code>ref()</code> the same ephemeral, you&rsquo;re recomputing the work 3× per <code>dbt build</code>. Materialize as a table.</li>
+<li><strong>Not queried directly.</strong> You can&rsquo;t <code>select * from int_order_payments</code> if it&rsquo;s ephemeral. Debugging means running the full compiled SQL of a downstream model.</li>
+<li><strong>No tests.</strong> <code>unique</code> / <code>not_null</code> need a real relation to query — they error against ephemeral models. (Singular tests work fine; they <code>ref()</code> the ephemeral and the SQL inlines.)</li>
+</ul>
+<p>For our case (<code>int_order_payments</code> → only <code>fct_orders</code> consumes it, simple aggregation, no tests), ephemeral is <em>fine</em>. It&rsquo;s not necessarily <em>better</em> than the table version you just built — for 99 rows the difference is invisible. But the exercise demonstrates the mechanism clearly.</p>
+<h2>The leftover-object gotcha</h2>
+<p>There&rsquo;s a footgun specific to switching <em>from</em> <code>table</code> (or <code>view</code>) <em>to</em> <code>ephemeral</code>: the object dbt previously created stays in the warehouse. dbt doesn&rsquo;t proactively drop it; it just stops touching it. So after the switch:</p>
+<ul>
+<li>The manifest says <code>int_order_payments</code> is <code>ephemeral</code></li>
+<li>DuckDB still has the <code>int_order_payments</code> BASE TABLE from the previous exercise</li>
+</ul>
+<p>To clean it, run <code>dbt run --select +fct_orders --full-refresh</code>. The <code>+</code> selector means &ldquo;this model and everything upstream&rdquo;; <code>--full-refresh</code> tells dbt to drop and recreate downstream tables. As a side effect, the leftover ephemeral object gets dropped too because dbt&rsquo;s full-refresh logic notices it&rsquo;s no longer materializable.</p>
+<p>The exercise&rsquo;s verifier is intentionally lenient about this — it doesn&rsquo;t assert &ldquo;the table doesn&rsquo;t exist.&rdquo; It asserts the manifest reports <code>ephemeral</code> and that <code>fct_orders</code> still has 99 rows. Those two together prove the inlining is working.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Adding generic tests to an ephemeral.</strong> dbt parses fine but errors at test time: <em>&ldquo;Cannot test an ephemeral model — there&rsquo;s no relation to query.&rdquo;</em> Either remove the tests or change the materialization. The next exercise (<code>incremental_basic</code>) builds a fresh fact table that&rsquo;s fine to test on.</li>
+<li><strong>Treating ephemeral as a free win.</strong> Each downstream re-runs the ephemeral&rsquo;s query in its own compile. With three downstream models and a 5-second aggregation, that&rsquo;s 15s on every <code>dbt build</code> instead of 5. The win is &ldquo;fewer warehouse objects&rdquo;; the cost is &ldquo;duplicated work.&rdquo;</li>
+<li><strong>Forgetting the leftover table.</strong> Until you <code>--full-refresh</code>, the old <code>int_order_payments</code> table sits in DuckDB and confuses anyone running ad-hoc queries against it. Always full-refresh after this kind of materialization downgrade.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Override the folder default — make <code>int_order_payments</code> a table</h1>
+<p>Right now <code>int_order_payments</code> is a <strong>view</strong>. Why? Because <code>dbt_project.yml</code> only configures <code>staging:</code> and <code>marts:</code> materializations — <code>intermediate/</code> has no entry, so it falls back to dbt&rsquo;s built-in default, which is <code>view</code>.</p>
+<p>A 99-row aggregation of payments is too small to care about either way, but the <em>exercise</em> matters: this is how you tell dbt to build one specific model differently from its folder peers.</p>
+<h2>The override mechanism</h2>
+<p>dbt resolves a model&rsquo;s materialization by checking these places in order, latest wins:</p>
+<ol>
+<li>dbt&rsquo;s built-in default → <code>view</code></li>
+<li><code>dbt_project.yml</code>&rsquo;s <code>models: dbt_project: &lt;folder&gt;: +materialized: &lt;type&gt;</code></li>
+<li><code>{% config %}</code> inside a YAML schema file</li>
+<li><strong><code>{{ config(materialized='...') }}</code> at the top of the model&rsquo;s SQL file</strong></li>
+</ol>
+<p>The fourth — the inline SQL config — is the one used most. It lives next to the model so readers can see the choice without hunting through other files.</p>
+<pre><code class="language-sql">{{ config(materialized='table') }}
+
+select ...
+</code></pre>
+<p>The <code>{{ config(...) }}</code> call must be <strong>at the top</strong> of the file, before the <code>select</code>. dbt&rsquo;s parser scans models for these calls before executing anything, so <code>config()</code> doesn&rsquo;t behave like a normal Jinja expression — it&rsquo;s metadata, not output.</p>
+<h2>What changes after this exercise</h2>
+<p>Three things, all visible:</p>
+<ul>
+<li><code>target/manifest.json</code> — <code>nodes."model.dbt_project.int_order_payments".config.materialized</code> flips from <code>"view"</code> to <code>"table"</code>.</li>
+<li><code>dev.duckdb</code> — <code>select table_type from information_schema.tables where table_name='int_order_payments'</code> returns <code>BASE TABLE</code> instead of <code>VIEW</code>.</li>
+<li>The next time you run <code>dbt run --select int_order_payments</code>, dbt issues <code>create or replace table ... as select ...</code> instead of <code>create or replace view ... as ...</code>. The compiled SQL is the same; the wrapper SQL changes.</li>
+</ul>
+<p>The verifier checks all three.</p>
+<h2>Why this would matter on real data</h2>
+<p>99 payment rows aggregated to 99 order rows is a no-op for performance. But the same <code>int_order_payments</code> shape on 100 million payment rows aggregated to 80 million orders is <em>expensive</em> to recompute on every BI query that touches <code>fct_orders</code> (because a view re-runs its query at every read). Switching to <code>table</code> means dbt pays the aggregation cost once per <code>dbt build</code>, and every query downstream reads pre-aggregated rows.</p>
+<p>The decision rule: if the SQL behind a view is slow and the result is queried often, promote it to a table.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Putting <code>{{ config(materialized='table') }}</code> below the <code>select</code>.</strong> It&rsquo;s just inert text there. Always at the top of the file.</li>
+<li><strong>Editing <code>dbt_project.yml</code> to add an <code>intermediate:</code> block instead of using <code>{{ config() }}</code>.</strong> Both work, but they mean different things — the project-yml route changes the default for <em>every</em> model in the folder, while the inline route changes just one. For one model, prefer the inline route; if you find yourself wanting most intermediates as tables, then the project-yml route makes sense.</li>
+<li><strong>Forgetting to actually run <code>dbt run</code> after editing the file.</strong> Just changing the SQL doesn&rsquo;t update the warehouse — dbt doesn&rsquo;t watch for file changes. The warehouse only catches up when you re-run.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

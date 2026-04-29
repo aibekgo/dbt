@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Incremental models — load only the new rows</h1>
+<p>So far every model in this project gets fully rebuilt on every <code>dbt run</code>. For the 99-row jaffle_shop seed that&rsquo;s instant. For a real event table — <code>pageviews</code>, <code>transactions</code>, <code>orders</code> — the source might be tens of millions of rows growing daily, and recomputing the entire transformation every time becomes the slowest step in your pipeline.</p>
+<p><code>incremental</code> is the materialization for that problem: <strong>first run loads the full history; subsequent runs load only the new rows</strong>.</p>
+<h2>The mechanism</h2>
+<p>An incremental model has three pieces:</p>
+<ol>
+<li><strong><code>{{ config(materialized='incremental') }}</code></strong> — flag the materialization</li>
+<li><strong>A regular <code>select</code> statement</strong> — what the model wants in its first-run &ldquo;true&rdquo; form</li>
+<li><strong>An <code>{% if is_incremental() %}</code> filter</strong> — narrowing the select to &ldquo;rows since last run&rdquo;</li>
+</ol>
+<pre><code class="language-sql">{{ config(materialized='incremental') }}
+
+select
+    order_id,
+    customer_id,
+    order_date,
+    status
+from {{ ref('stg__orders') }}
+
+{% if is_incremental() %}
+where order_date &gt; (select max(order_date) from {{ this }})
+{% endif %}
+</code></pre>
+<p><code>is_incremental()</code> is a Jinja macro that returns <code>true</code> when <strong>all three</strong> of:</p>
+<ul>
+<li>The target table already exists in the warehouse</li>
+<li>The <code>--full-refresh</code> flag was <em>not</em> passed</li>
+<li>The model is configured with <code>materialized='incremental'</code></li>
+</ul>
+<p>are true. On the first run, the table doesn&rsquo;t exist yet, so <code>is_incremental()</code> is <code>false</code> and the filter is skipped — dbt does a <code>create table ... as select &lt;full query&gt;</code>. Every run after, the filter is included and dbt does an <code>insert into ... select &lt;filtered query&gt;</code>.</p>
+<p><code>{{ this }}</code> is a Jinja shortcut for the model&rsquo;s own fully-qualified name. It&rsquo;s how the filter says <em>&ldquo;go look at the existing table, find the watermark, and only load rows past it.&rdquo;</em> You can&rsquo;t use <code>{{ ref('this_model') }}</code> recursively — <code>this</code> is the right form for self-reference.</p>
+<h2>Why both must be valid SQL</h2>
+<p>The block of code dbt runs is the entire file&rsquo;s compiled output. So both branches of the <code>is_incremental()</code> if/else must produce valid SQL:</p>
+<ul>
+<li>When <code>is_incremental()</code> is <code>false</code>, the file compiles to <em>just</em> the <code>select</code> (filter omitted).</li>
+<li>When <code>is_incremental()</code> is <code>true</code>, the file compiles to the <code>select</code> <em>with</em> the filter.</li>
+</ul>
+<p>If you put the <code>where</code> keyword inside the <code>is_incremental()</code> block but the filter outside, the false-branch compiles to <code>select ... from foo where</code> — broken SQL. Always put the entire <code>where order_date &gt; ...</code> clause inside the <code>{% if %}</code> block.</p>
+<h2>What this exercise does</h2>
+<p>You&rsquo;ll create <code>models/marts/fct_order_events.sql</code> from scratch — a pretty thin event-style fact (one row per order, with date and status), materialized incrementally. Run <code>dbt build</code> once to get the initial 99 rows. Run it again and watch dbt do a small <code>insert</code> of 0 rows because the source hasn&rsquo;t grown.</p>
+<p>The seed CSVs are static, so the second run is structurally meaningful but visually anti-climactic. To get a real demo of incremental adding new rows, you&rsquo;d need a source that grows between runs — that&rsquo;s what production data does naturally and what&rsquo;s outside this course&rsquo;s seed-based scope.</p>
+<h2>What <code>dbt build</code> does on the second run</h2>
+<pre><code>$ dbt build --select fct_order_events
+01:05 1 of 1 START sql incremental model main.fct_order_events
+01:05 1 of 1 OK created incremental model main.fct_order_events ...
+</code></pre>
+<p>The word <code>incremental</code> in the log is the giveaway — same model name, different materialization handling. Behind the scenes:</p>
+<pre><code class="language-sql">-- Generated by dbt on the second run:
+insert into &quot;main&quot;.&quot;fct_order_events&quot;
+select order_id, customer_id, order_date, status
+from &quot;main&quot;.&quot;stg__orders&quot;
+where order_date &gt; (select max(order_date) from &quot;main&quot;.&quot;fct_order_events&quot;)
+</code></pre>
+<p>Zero rows match the filter (the seed is static and <code>max(order_date)</code> already includes everything), so the insert is a no-op. The model still has 99 rows — it just got there via <em>first run inserts all, second run inserts nothing</em>.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong><code>is_incremental()</code> typo (<code>is_incremental</code> without parens).</strong> Without the parens it&rsquo;s a function reference, not a function call. Compiles, but the if-block always evaluates the function as truthy — so the filter is <em>always</em> included, including on the first run, which fails because <code>{{ this }}</code> doesn&rsquo;t exist yet. Always include <code>()</code>.</li>
+<li><strong>Filter outside the <code>{% if %}</code> block.</strong> As noted: must wrap the entire <code>where ...</code> clause inside the if. The dangling <code>where</code> on first run breaks compile.</li>
+<li><strong>Self-referencing via <code>ref()</code> instead of <code>{{ this }}</code>.</strong> <code>ref('fct_order_events')</code> from inside <code>fct_order_events.sql</code> creates a circular dependency at parse time. <code>{{ this }}</code> is the special-case escape hatch for self-reference.</li>
+<li><strong>Forgetting <code>--full-refresh</code> after a structural change.</strong> If you add a new column or change a window in the SQL, the existing rows won&rsquo;t have the new shape. <code>dbt build --select fct_order_events --full-refresh</code> drops and recreates the table from scratch, applying the new logic to the entire history.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

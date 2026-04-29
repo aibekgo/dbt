@@ -351,3 +351,108 @@ stages:
             - type: dbt_compile_success
               select: top_customers_by_revenue
               compiled_artifact: analyses/top_customers_by_revenue.sql
+
+  - id: stage_4_materializations_and_snapshots
+    title: "Stage 4 — Materializations, Incremental & Snapshots"
+    items:
+      - id: materialization_overview
+        type: lesson
+        file: lessons/stage4/materialization_overview.html
+
+      - id: view_to_table
+        type: exercise
+        lesson:   lessons/stage4/view_to_table.html
+        exercise: exercises/stage4/view_to_table.md
+        original: originals/stage4/view_to_table.md
+        hints:    hints/stage4/view_to_table.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: int_order_payments
+            - type: manifest_materialization
+              model: int_order_payments
+              expected: table
+            - type: duckdb_query
+              name: int_order_payments is a table not a view
+              sql: "select table_type from information_schema.tables where table_name='int_order_payments'"
+              expected_value: "BASE TABLE"
+
+      - id: ephemeral_model
+        type: exercise
+        lesson:   lessons/stage4/ephemeral_model.html
+        exercise: exercises/stage4/ephemeral_model.md
+        original: originals/stage4/ephemeral_model.md
+        hints:    hints/stage4/ephemeral_model.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_run_success
+              select: "+fct_orders"
+            - type: manifest_materialization
+              model: int_order_payments
+              expected: ephemeral
+            - type: duckdb_query
+              name: fct_orders still has 99 rows after ephemeral inline
+              sql: "select count(*) from fct_orders"
+              expected_value: 99
+
+      - id: incremental_basic
+        type: exercise
+        lesson:   lessons/stage4/incremental_basic.html
+        exercise: exercises/stage4/incremental_basic.md
+        original: originals/stage4/incremental_basic.md
+        hints:    hints/stage4/incremental_basic.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_build_success
+              select: fct_order_events
+            - type: manifest_materialization
+              model: fct_order_events
+              expected: incremental
+            - type: duckdb_query
+              name: fct_order_events row count
+              sql: "select count(*) from fct_order_events"
+              expected_value: 99
+
+      - id: incremental_merge
+        type: exercise
+        lesson:   lessons/stage4/incremental_merge.html
+        exercise: exercises/stage4/incremental_merge.md
+        original: originals/stage4/incremental_merge.md
+        hints:    hints/stage4/incremental_merge.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_build_success
+              select: fct_order_events
+            - type: duckdb_query
+              name: fct_order_events row count after merge config
+              sql: "select count(*) from fct_order_events"
+              expected_value: 99
+            - type: duckdb_query
+              name: fct_order_events still uniquely keyed
+              sql: "select count(distinct order_id) from fct_order_events"
+              expected_value: 99
+
+      - id: snapshot_scd2
+        type: exercise
+        lesson:   lessons/stage4/snapshot_scd2.html
+        exercise: exercises/stage4/snapshot_scd2.md
+        original: originals/stage4/snapshot_scd2.md
+        hints:    hints/stage4/snapshot_scd2.md
+        verifier: dbt
+        quiz:     quiz/stage4.yaml
+        dbt_checks:
+          rules:
+            - type: dbt_snapshot_success
+              select: orders_snapshot
+            - type: duckdb_query
+              name: snapshot active row count
+              sql: "select count(*) from snapshots.orders_snapshot where dbt_valid_to is null"
+              expected_value: 99
+            - type: duckdb_query
+              name: snapshot has SCD2 metadata columns
+              sql: "select count(*) from information_schema.columns where table_name='orders_snapshot' and column_name in ('dbt_scd_id','dbt_updated_at','dbt_valid_from','dbt_valid_to')"
+              expected_value: 4

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Incremental strategies — <code>append</code>, <code>merge</code>, <code>delete+insert</code>, <code>insert_overwrite</code></h1>
+<p>The <code>incremental_basic</code> exercise wired up the <em>materialization</em> but said nothing about <em>strategy</em> — what dbt does when those new rows arrive. By default, dbt picks a sensible strategy per warehouse. On DuckDB the default is <code>merge</code> if a <code>unique_key</code> is defined and <code>append</code> otherwise. Either way, the choice matters once your data has updates, not just inserts.</p>
+<p>This exercise makes the strategy explicit.</p>
+<h2>What strategy does</h2>
+<p>Strategy answers the question: <em>&ldquo;Once dbt has the rows it wants to load, how does it merge them with what&rsquo;s already in the table?&rdquo;</em></p>
+<p>There are four common strategies (plus <code>microbatch</code>, the new one for time-series data, deferred to a later stage):</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>What it does</th>
+<th>Good for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>append</code></td>
+<td><code>INSERT INTO target SELECT ...</code> — blindly adds rows. No de-dup, no updates.</td>
+<td>Truly immutable event streams (clickstream, IoT readings).</td>
+</tr>
+<tr>
+<td><code>merge</code></td>
+<td><code>MERGE INTO target USING staging ON unique_key WHEN MATCHED THEN UPDATE WHEN NOT MATCHED THEN INSERT</code> — upserts.</td>
+<td>Tables that get new rows <em>and</em> receive updates to old ones.</td>
+</tr>
+<tr>
+<td><code>delete+insert</code></td>
+<td>Two-step: <code>DELETE FROM target WHERE unique_key IN (...)</code> then <code>INSERT INTO target SELECT ...</code>.</td>
+<td>Same use case as <code>merge</code>, on warehouses that don&rsquo;t support <code>MERGE</code> natively (older Redshift).</td>
+</tr>
+<tr>
+<td><code>insert_overwrite</code></td>
+<td>Replaces entire partitions of the table (e.g., a day of data).</td>
+<td>Partitioned tables on BigQuery — way faster than <code>merge</code> for time-partitioned data.</td>
+</tr>
+</tbody>
+</table>
+<p>For DuckDB, <code>merge</code> is supported natively and is the most-used strategy when <code>unique_key</code> is set.</p>
+<h2>What <code>unique_key</code> does</h2>
+<p><code>unique_key</code> is the column (or list of columns) dbt uses to decide <em>which row</em> in the existing table to update when a row with the same key arrives in the new batch.</p>
+<pre><code class="language-sql">{{ config(
+    materialized='incremental',
+    unique_key='order_id',
+    incremental_strategy='merge'
+) }}
+
+select ... from {{ ref('stg__orders') }} {% if is_incremental() %}where ...{% endif %}
+</code></pre>
+<p>When this runs the second time, dbt issues SQL roughly like:</p>
+<pre><code class="language-sql">merge into &quot;main&quot;.&quot;fct_order_events&quot; as target
+using (
+    select * from &quot;main&quot;.&quot;stg__orders&quot; where order_date &gt; (select max(order_date) from &quot;main&quot;.&quot;fct_order_events&quot;)
+) as source
+on target.order_id = source.order_id
+when matched then update set
+    customer_id = source.customer_id,
+    order_date = source.order_date,
+    status = source.status
+when not matched then insert (order_id, customer_id, order_date, status)
+values (source.order_id, source.customer_id, source.order_date, source.status)
+</code></pre>
+<p>So if order #42&rsquo;s <code>status</code> changed from <code>placed</code> to <code>shipped</code>, the row gets <em>updated</em> in place rather than duplicated.</p>
+<p>Without <code>unique_key</code>, dbt has no idea which existing row corresponds to a new row, so it falls back to <code>append</code> regardless of the strategy you wrote. <strong><code>merge</code> without <code>unique_key</code> is silently <code>append</code>.</strong></p>
+<h2>Why this matters even on a static seed</h2>
+<p>The jaffle_shop seed never changes between runs, so the merge logic doesn&rsquo;t have updates to apply — every second-run insert finds 0 matching rows. But the <em>configuration</em> matters: you&rsquo;ve now declared the contract for how this model handles updates, even if the demo data doesn&rsquo;t exercise it.</p>
+<p>A real production check this guards against: the source system corrects an order status (vendor sent the wrong update), the corrected row arrives in the next dbt run, and the merge strategy upserts it cleanly. Without the merge strategy, you&rsquo;d have two rows for the same order — the original and the correction — and downstream queries would either count it twice or pick the wrong one.</p>
+<h2>When you&rsquo;d pick something other than <code>merge</code></h2>
+<ul>
+<li><strong><code>append</code></strong> — your source genuinely never updates. Pageviews. Sensor readings. Audit log entries. You want <em>every</em> event preserved including possible duplicates that real-life appends would cause.</li>
+<li><strong><code>delete+insert</code></strong> — your warehouse doesn&rsquo;t support <code>MERGE</code> (old Redshift). dbt translates the strategy to two statements; the result is functionally similar to <code>merge</code>.</li>
+<li><strong><code>insert_overwrite</code></strong> — your table is partitioned by date, and you&rsquo;re rebuilding <em>yesterday&rsquo;s</em> partition each morning. <code>merge</code> would scan the whole table to find matching keys; <code>insert_overwrite</code> just blows away yesterday&rsquo;s partition and reloads it. Big BigQuery cost saver.</li>
+</ul>
+<p>For most warehouses + most use cases, <code>merge</code> is the right default and what production dbt projects converge on.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong><code>merge</code> without <code>unique_key</code>.</strong> Silently degrades to <code>append</code> — your second run <em>adds</em> rows instead of updating them. If you see duplicates appearing in an &ldquo;incremental merge&rdquo; model, this is almost always the cause.</li>
+<li><strong>Composite key syntax.</strong> For multi-column unique keys: <code>unique_key=['order_id', 'event_type']</code> (a YAML/Jinja list, not a comma-separated string). Single-column: <code>unique_key='order_id'</code> (a string).</li>
+<li><strong>Forgetting <code>--full-refresh</code> after changing the schema.</strong> Adding a new column doesn&rsquo;t backfill old rows. The incremental insert applies the new schema only to new rows. To fix the historical data, force a <code>dbt build --select fct_order_events --full-refresh</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

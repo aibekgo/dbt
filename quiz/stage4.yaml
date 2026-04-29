@@ -1,0 +1,99 @@
+topic: stage4
+questions:
+  - id: stage4_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "Which materialization does NOT create a queryable warehouse object?"
+    options:
+      a: "view"
+      b: "table"
+      c: "ephemeral"
+      d: "incremental"
+    answer: c
+    explanation: |
+      `ephemeral` models aren't built — there's no `create view` or `create table`. dbt inlines the ephemeral's SQL as a CTE in every downstream model that references it. The other three all produce queryable objects (a view, a table, or — for incremental — a table that grows on each run).
+    related_item: ephemeral_model
+
+  - id: stage4_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Where does an inline `{{ config(materialized='table') }}` block need to go inside a model SQL file?"
+    options:
+      a: "Anywhere in the file — dbt scans the whole thing"
+      b: "At the very top, before any `select` or other SQL"
+      c: "Right after the `from` clause"
+      d: "In a separate `_models.yml` file — it can't go in the SQL"
+    answer: b
+    explanation: |
+      The `{{ config(...) }}` call is metadata, not part of the rendered query. dbt's parser scans for these calls before evaluating the SQL — they have to be at the top of the file. Below the `select`, the call is just inert text inside the query body and gets ignored.
+    related_item: view_to_table
+
+  - id: stage4_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "On the *first* run of an incremental model, what does `is_incremental()` return?"
+    options:
+      a: "true — the model exists in the manifest"
+      b: "false — the target table doesn't exist yet, so the filter is skipped"
+      c: "It errors out because there's nothing to compare against"
+      d: "It depends on whether `--full-refresh` was passed"
+    answer: b
+    explanation: |
+      `is_incremental()` returns `true` only when ALL three are true: the table already exists, `--full-refresh` was not passed, AND the model is configured `incremental`. On the first run, the table doesn't exist yet, so the macro returns `false` — the `{% if is_incremental() %}` filter is skipped and dbt does a full `create table as select`. This is why both branches of the if/else have to produce valid SQL.
+    related_item: incremental_basic
+
+  - id: stage4_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "You set `incremental_strategy='merge'` but forgot `unique_key`. What happens on the second run?"
+    options:
+      a: "dbt errors out with a clear message"
+      b: "It silently degrades to `append` — duplicates accumulate"
+      c: "It picks `unique_key` automatically from the model's primary key"
+      d: "Nothing — `merge` doesn't need a `unique_key`"
+    answer: b
+    explanation: |
+      Without `unique_key`, dbt has no way to identify "the same logical row" across runs, so `merge` falls back to `append`. New rows get inserted regardless of duplicates with existing keys. This is the most common cause of "my incremental merge model has duplicates" — diagnosis is always: confirm `unique_key` is set.
+    related_item: incremental_merge
+
+  - id: stage4_05
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does the `dbt_valid_to` column hold for the *currently active* version of a row in an SCD2 snapshot?"
+    options:
+      a: "The current timestamp"
+      b: "The far-future date (`9999-12-31`)"
+      c: "`NULL`"
+      d: "The same value as `dbt_valid_from`"
+    answer: c
+    explanation: |
+      In a default SCD2 snapshot, the active version's `dbt_valid_to` is `NULL` — semantically meaning "still valid, no end date yet." Queries that want "current state" filter `where dbt_valid_to is null`. (You *can* override this with `dbt_valid_to_current: 'to_date(\"9999-12-31\")'` if your BI tool can't handle nulls, but the default is null.)
+    related_item: snapshot_scd2
+
+  - id: stage4_06
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Snapshot strategies: when should you pick `check` over `timestamp`?"
+    options:
+      a: "Always — `check` is faster"
+      b: "When the source has no reliable `updated_at` column, or when you only care about specific columns changing"
+      c: "Only on Snowflake"
+      d: "When the table has fewer than 1000 rows"
+    answer: b
+    explanation: |
+      `timestamp` strategy is cheaper when the source has a trustworthy last-modified column — dbt does one comparison per row. `check` is the fallback for sources without `updated_at`, or when you want to track only specific columns (e.g., snapshot whenever `status` changes, even if other columns also change). The seed in this project doesn't have an `updated_at`, so `check` on `status` is the right pick.
+    related_item: snapshot_scd2
+
+  - id: stage4_07
+    difficulty: easy
+    type: multiple_choice
+    prompt: "An `int_*` model's SQL is used by exactly one downstream `fct_*` model and isn't queried directly. Best materialization?"
+    options:
+      a: "`table` — for performance"
+      b: "`incremental` — for cost"
+      c: "`ephemeral` — inlined as a CTE, no warehouse object"
+      d: "`view` — the dbt default"
+    answer: c
+    explanation: |
+      Single consumer, no direct queries — that's exactly the `ephemeral` sweet spot. The intermediate's logic gets inlined as a CTE in `fct_*`'s compiled SQL; no warehouse clutter, no extra `dbt run` step. The tradeoff: you can't query it directly for debugging, and you can't attach generic tests. With more downstream consumers, the recompute cost stacks up — at that point `view` or `table` wins.
+    related_item: ephemeral_model

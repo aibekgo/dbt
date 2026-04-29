@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Snapshots — preserving how data changed over time</h1>
+<p>Imagine an <code>orders</code> table where <code>status</code> flips from <code>placed</code> → <code>shipped</code> → <code>completed</code>. Your warehouse only sees the <em>current</em> status. The <code>placed</code> state is gone the moment shipping happens. If a stakeholder asks <em>&ldquo;how long did orders typically sit in <code>placed</code> before shipping?&rdquo;</em>, you can&rsquo;t answer — the data was overwritten.</p>
+<p>Snapshots are dbt&rsquo;s solution. They convert a mutable source table into a <strong>slowly-changing-dimension Type 2</strong> history: every time a tracked column changes, a new row gets appended with <code>valid_from</code> and <code>valid_to</code> timestamps. The previous row&rsquo;s <code>valid_to</code> is closed off. Querying <em>&ldquo;what was order #42&rsquo;s status on 2024-03-15?&rdquo;</em> becomes a <code>where dbt_valid_from &lt;= '2024-03-15' and (dbt_valid_to is null or dbt_valid_to &gt; '2024-03-15')</code> lookup.</p>
+<h2>What a snapshot looks like</h2>
+<p>A snapshot is a <code>.sql</code> file under <code>snapshots/</code>. The shape is unusual — it uses <code>{% snapshot %}</code> and <code>{% endsnapshot %}</code> tags that wrap a config block plus a <code>select</code>:</p>
+<pre><code class="language-sql">{% snapshot orders_snapshot %}
+
+{{
+    config(
+        target_schema='snapshots',
+        unique_key='order_id',
+        strategy='check',
+        check_cols=['status']
+    )
+}}
+
+select * from {{ ref('stg__orders') }}
+
+{% endsnapshot %}
+</code></pre>
+<p>Three things to flag:</p>
+<ul>
+<li><strong><code>target_schema='snapshots'</code></strong> — the snapshot lands in a separate schema (created automatically). Default is whatever <code>profiles.yml</code> says, but a dedicated schema for snapshots keeps them organized.</li>
+<li><strong><code>unique_key='order_id'</code></strong> — same idea as incremental&rsquo;s unique key: how dbt identifies &ldquo;the same logical row across runs.&rdquo;</li>
+<li><strong><code>strategy='check'</code> + <code>check_cols=['status']</code></strong> — <em>&ldquo;watch the <code>status</code> column; whenever it changes for an existing <code>order_id</code>, append a new row to the snapshot.&rdquo;</em> The other strategy is <code>timestamp</code>, which uses an <code>updated_at</code> column instead of column-by-column comparison.</li>
+</ul>
+<h2>What dbt adds to your data</h2>
+<p>After running <code>dbt snapshot</code>, the table <code>snapshots.orders_snapshot</code> exists with:</p>
+<ul>
+<li>All columns from your <code>select</code> statement (so for <code>select *</code> from <code>stg__orders</code>: <code>order_id</code>, <code>customer_id</code>, <code>order_date</code>, <code>status</code>)</li>
+<li><strong>Four extra metadata columns dbt manages:</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>What it holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt_scd_id</code></td>
+<td>Hash uniquely identifying each version of each row</td>
+</tr>
+<tr>
+<td><code>dbt_updated_at</code></td>
+<td>Timestamp of when this version was loaded</td>
+</tr>
+<tr>
+<td><code>dbt_valid_from</code></td>
+<td>When this version became active</td>
+</tr>
+<tr>
+<td><code>dbt_valid_to</code></td>
+<td>When this version stopped being active (<code>NULL</code> for the currently-active version)</td>
+</tr>
+</tbody>
+</table>
+<p>So a single order that&rsquo;s gone through three statuses produces three rows in the snapshot:</p>
+<table>
+<thead>
+<tr>
+<th>order_id</th>
+<th>status</th>
+<th>dbt_valid_from</th>
+<th>dbt_valid_to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>42</td>
+<td>placed</td>
+<td>2024-03-15 12:00</td>
+<td>2024-03-16 09:00</td>
+</tr>
+<tr>
+<td>42</td>
+<td>shipped</td>
+<td>2024-03-16 09:00</td>
+<td>2024-03-18 14:00</td>
+</tr>
+<tr>
+<td>42</td>
+<td>completed</td>
+<td>2024-03-18 14:00</td>
+<td><code>NULL</code></td>
+</tr>
+</tbody>
+</table>
+<p>The currently-active row (<code>completed</code>) has <code>dbt_valid_to IS NULL</code>. Queries that want &ldquo;current state&rdquo; filter to <code>where dbt_valid_to is null</code>. Queries that want &ldquo;state at a point in time&rdquo; use the date-range predicate above.</p>
+<h2><code>check</code> vs <code>timestamp</code> strategies</h2>
+<p>Both strategies do SCD2. They differ in <em>how</em> dbt detects &ldquo;this row changed.&rdquo;</p>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>When dbt considers a row &ldquo;changed&rdquo;</th>
+<th>Required config</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check</code></td>
+<td>Any value in <code>check_cols</code> differs from the previous version</td>
+<td><code>check_cols: [...]</code> (list of columns to watch)</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>The source&rsquo;s <code>updated_at</code> column is newer than the snapshot&rsquo;s last load</td>
+<td><code>updated_at: &lt;column_name&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p>Pick <code>timestamp</code> when the source has a reliable last-modified column — it&rsquo;s cheaper to compute (one column comparison vs many). Pick <code>check</code> when there&rsquo;s no <code>updated_at</code>, or when only specific columns &ldquo;matter&rdquo; for the snapshot&rsquo;s purpose. For our <code>stg__orders</code>, <code>check</code> on <code>status</code> is the cleanest fit — there&rsquo;s no <code>updated_at</code> in the seed.</p>
+<h2>Running snapshots</h2>
+<pre><code class="language-bash">dbt snapshot                               # all snapshots in the project
+dbt snapshot --select orders_snapshot      # just one
+</code></pre>
+<p><code>dbt build</code> runs snapshots too, in DAG order alongside seeds, models, and tests. So in production you typically run <code>dbt build</code> and snapshots happen automatically on the right cadence.</p>
+<h2>When snapshots are the right tool</h2>
+<p>The decision tree:</p>
+<ol>
+<li><strong>Does your downstream care about the <em>history</em> of a column&rsquo;s value?</strong> If yes → snapshot.</li>
+<li><strong>Or just the current value?</strong> If yes → regular model. The warehouse already has the current value; snapshot is overkill.</li>
+</ol>
+<p>For an orders table, you almost always want snapshots — operational analyses (cohort analysis, status-transition timing, churn) need history. For a <code>customer_attributes</code> table where you only care about <em>current</em> address, snapshots are overkill.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Forgetting <code>target_schema</code>.</strong> Without it, the snapshot lands in the default profile schema (<code>main</code> for our DuckDB profile), which mixes snapshots with regular models. A dedicated <code>snapshots</code> schema is the convention.</li>
+<li><strong>Picking <code>check</code> with too many columns.</strong> <code>check_cols=['*']</code> watches every column; any change anywhere triggers a new row. That&rsquo;s noisy. Pick the columns that matter.</li>
+<li><strong>Using <code>dbt_valid_to is null</code> and forgetting null-arithmetic.</strong> Snapshot queries that filter to &ldquo;as of date X&rdquo; need the <code>(dbt_valid_to is null or dbt_valid_to &gt; 'X')</code> shape — the <code>null or</code> part is critical. Without it, the active row gets excluded from history queries.</li>
+<li><strong>Treating snapshots as regular models.</strong> Snapshots can&rsquo;t be <code>ref()</code>&lsquo;d in the same way until they exist. The first time you <code>dbt build</code> a project that includes snapshots, you have to run <code>dbt snapshot</code> first (or use <code>dbt build</code> which does both in DAG order).</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Materializations — how dbt persists each model</h1>
+<p>Every dbt model is a <code>select</code>. The question dbt asks at build time is: <strong>what should I do with the result?</strong> The answer is the model&rsquo;s <em>materialization</em>. Stage 1 set folder-level defaults (<code>staging/</code> → view, <code>marts/</code> → table) and Stage 4 introduces the per-model override and the two non-trivial strategies — <code>ephemeral</code> and <code>incremental</code>.</p>
+<h2>The five materializations at a glance</h2>
+<table>
+<thead>
+<tr>
+<th>Materialization</th>
+<th>What dbt does on each run</th>
+<th>Where it lives</th>
+<th>Read perf</th>
+<th>Build cost</th>
+<th>When to pick</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>view</code></td>
+<td><code>create or replace view ...</code></td>
+<td>Warehouse object — pointer to the SQL</td>
+<td>Slow (re-runs SQL on every query)</td>
+<td>Fast (no data movement)</td>
+<td><strong>Default starting point.</strong> Light staging, simple transforms.</td>
+</tr>
+<tr>
+<td><code>table</code></td>
+<td><code>create or replace table ... as ...</code></td>
+<td>Warehouse object — physical rows</td>
+<td>Fast</td>
+<td>Slow on big data</td>
+<td>Marts, BI-queried models, anything queried often</td>
+</tr>
+<tr>
+<td><code>ephemeral</code></td>
+<td>Nothing — inlined as a CTE in downstream models</td>
+<td>Not in the warehouse</td>
+<td>n/a</td>
+<td>Free</td>
+<td>Light intermediate logic used by 1–2 downstream models</td>
+</tr>
+<tr>
+<td><code>materialized_view</code></td>
+<td><code>create materialized view ...</code> (warehouse manages refresh)</td>
+<td>Warehouse object</td>
+<td>Fast</td>
+<td>Auto-refresh per warehouse</td>
+<td>Snowflake / BigQuery / Postgres only — <em>not DuckDB</em></td>
+</tr>
+<tr>
+<td><code>incremental</code></td>
+<td>First run = <code>create as ...</code>, later runs = <code>insert only the new rows</code></td>
+<td>Warehouse table</td>
+<td>Fast</td>
+<td>Cheap on later runs</td>
+<td>Big append-only event tables, when full rebuilds become slow</td>
+</tr>
+</tbody>
+</table>
+<h2>How to set a materialization</h2>
+<p>Three places, in increasing precedence:</p>
+<ol>
+<li><strong><code>dbt_project.yml</code> folder default</strong> — Stage 1&rsquo;s <code>models: dbt_project: staging: +materialized: view</code>. Lowest priority.</li>
+<li><strong><code>{% config %}</code> in YAML schema files</strong> — under a model entry, you can set <code>config: { materialized: table }</code>. Mid priority.</li>
+<li><strong><code>{{ config(materialized='table') }}</code> block at the top of the SQL file</strong> — highest priority. Overrides both above.</li>
+</ol>
+<p>The SQL-level config is the override learners reach for first because it lives next to the model — readers see the materialization choice at the same time they see the SQL.</p>
+<pre><code class="language-sql">{{ config(materialized='table') }}
+
+select ... from {{ ref('foo') }}
+</code></pre>
+<p>dbt parses every model file looking for these blocks and stores the result in <code>target/manifest.json</code> under <code>nodes.&lt;unique_id&gt;.config.materialized</code>. That&rsquo;s the value the verifier checks.</p>
+<h2>Why <code>view</code> is the default</h2>
+<p>A view is the cheapest thing dbt can build — just a saved query. Switching it to a table only matters when:</p>
+<ul>
+<li>The query is slow enough that re-running on every BI hit hurts users</li>
+<li>The model has many downstream consumers — running expensive SQL once and reading rows many times beats re-running the query</li>
+</ul>
+<p>Don&rsquo;t pre-materialize as table just because. Start with view; promote when there&rsquo;s a real performance reason.</p>
+<h2>What <code>ephemeral</code> actually does</h2>
+<p>An ephemeral model is <strong>not built</strong>. It has no warehouse object — no view, no table, nothing in <code>information_schema.tables</code>. Instead, when a downstream model references it via <code>{{ ref('the_ephemeral') }}</code>, dbt <strong>inlines the ephemeral&rsquo;s query as a CTE</strong> in the downstream&rsquo;s compiled SQL.</p>
+<p>So an ephemeral chain like <code>stg_a → int_b (ephemeral) → fct_c</code> produces compiled SQL for <code>fct_c</code> that looks like:</p>
+<pre><code class="language-sql">with __dbt__cte__int_b as (
+    select ... from &quot;main&quot;.&quot;stg_a&quot; ...
+)
+select ... from __dbt__cte__int_b ...
+</code></pre>
+<p>Wins:
+- No clutter in the warehouse
+- No per-build cost for the intermediate</p>
+<p>Costs:
+- Can&rsquo;t query the ephemeral directly in the warehouse for debugging
+- Can&rsquo;t attach generic tests to columns of an ephemeral (they&rsquo;d need a real relation to query)
+- Refactoring an ephemeral to a table is a small cost shift; refactoring once you have many downstream consumers is more painful</p>
+<p>Rule of thumb: if more than 1–2 models use it, or if you ever want to query it during debugging, make it a regular table or view.</p>
+<h2>What <code>incremental</code> actually does</h2>
+<p><code>incremental</code> is the materialization for <strong>append-only big tables</strong> — event streams, log lines, append-style CDC. The model&rsquo;s SQL has an extra block:</p>
+<pre><code class="language-sql">{{ config(materialized='incremental') }}
+
+select * from {{ ref('events_raw') }}
+
+{% if is_incremental() %}
+where event_time &gt; (select max(event_time) from {{ this }})
+{% endif %}
+</code></pre>
+<p><code>is_incremental()</code> is a Jinja macro that returns <code>true</code> when <strong>all</strong> of:
+- The target table already exists in the warehouse
+- <code>--full-refresh</code> was <em>not</em> passed
+- The model&rsquo;s config has <code>materialized='incremental'</code></p>
+<p>First run: <code>is_incremental()</code> is <code>false</code> (no table yet), the filter is skipped, dbt does <code>create table ... as select &lt;full query&gt;</code>. Every run after: <code>is_incremental()</code> is <code>true</code>, the filter eliminates already-loaded rows, dbt does <code>insert into ... select &lt;filtered query&gt;</code> (with strategy-specific variations — <code>merge</code> upserts, <code>append</code> blindly inserts, etc.).</p>
+<p>You&rsquo;ll learn the full mechanics over the next two exercises. The thing to internalize now: incremental is the <em>only</em> materialization where the SQL itself <strong>changes shape</strong> based on warehouse state.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Picking <code>table</code> everywhere because it&rsquo;s faster to query.</strong> Tables get rebuilt on every <code>dbt run</code>. A table that takes 5 minutes to rebuild and gets queried every 30 seconds may still be the right choice — but a table that takes 30 minutes to rebuild and gets queried once a day is wasted money.</li>
+<li><strong><code>ephemeral</code> for models with generic tests.</strong> dbt won&rsquo;t let you attach <code>unique</code> / <code>not_null</code> to an ephemeral&rsquo;s columns — there&rsquo;s no relation to query. If you&rsquo;ve added tests, the model has to be at least a view.</li>
+<li><strong>Putting the <code>{{ config() }}</code> block below the <code>select</code>.</strong> It must be at the top of the file. Below the SQL, it&rsquo;s just text inside the query and dbt ignores it.</li>
+</ul>
+<p>Press <code>n</code> to start the first exercise.</p>
+</body>
+
+</html>

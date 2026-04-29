@@ -12,6 +12,8 @@ Currently implemented rule types:
   - dbt_run_success: `dbt run --select <model>` exits 0
   - dbt_test_success: `dbt test [--select X]` exits 0 and every test in
     target/run_results.json shows status=pass
+  - dbt_snapshot_success: `dbt snapshot [--select X]` exits 0 and every
+    snapshot in target/run_results.json shows status=success
   - dbt_build_success: `dbt build` (optionally scoped) exits 0 and every
     node in target/run_results.json shows status=success
   - dbt_compile_success: `dbt compile [--select X]` exits 0 and (optional)
@@ -29,7 +31,6 @@ Currently implemented rule types:
     tests are attached to a model (optionally check named test types).
 
 Planned (added per-stage as needed):
-  - dbt_snapshot_success
   - manifest_node_exists, manifest_exposure_exists
   - run_results_node_status, incremental_row_growth
 """
@@ -510,6 +511,49 @@ def _check_dbt_docs_generated(rule: dict) -> list[TestResult]:
     return results
 
 
+def _check_dbt_snapshot_success(rule: dict) -> list[TestResult]:
+    """`dbt snapshot [--select X]` exits 0 and every snapshot succeeds."""
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_snapshot_success")
+    args = ["snapshot"]
+    select = rule.get("select")
+    if select:
+        args += ["--select", select]
+    run = _run_dbt(*args)
+    label = "dbt snapshot" + (f" --select {select}" if select else "")
+    results: list[TestResult] = [TestResult(
+        name=label,
+        passed=run.ok,
+        message="" if run.ok else _tail(run.stdout + run.stderr, lines=25),
+    )]
+    if not run.ok:
+        return results
+    if not RUN_RESULTS_PATH.exists():
+        # No-op snapshot run on an empty snapshots/ folder produces no results
+        # file in some dbt versions — treat that as benign.
+        return results
+    run_results = json.loads(RUN_RESULTS_PATH.read_text())
+    failures = [
+        r for r in run_results.get("results", [])
+        if r.get("status") not in ("success", "pass")
+    ]
+    if failures:
+        names = ", ".join(r.get("unique_id", "?") for r in failures[:5])
+        results.append(TestResult(
+            name="all snapshots success",
+            passed=False,
+            message=f"{len(failures)} snapshot(s) did not succeed: {names}",
+        ))
+    else:
+        n = len(run_results.get("results", []))
+        results.append(TestResult(
+            name="all snapshots success",
+            passed=True,
+            message=f"all {n} snapshot(s) succeeded",
+        ))
+    return results
+
+
 def _check_dbt_test_success(rule: dict) -> list[TestResult]:
     """`dbt test [--select X]` exits 0 and every test passes."""
     if not DBT_PROJECT_DIR.exists():
@@ -717,6 +761,7 @@ RULE_HANDLERS: dict[str, RuleHandler] = {
     "dbt_seed_success":          _check_dbt_seed_success,
     "dbt_run_success":           _check_dbt_run_success,
     "dbt_test_success":          _check_dbt_test_success,
+    "dbt_snapshot_success":      _check_dbt_snapshot_success,
     "dbt_build_success":         _check_dbt_build_success,
     "dbt_compile_success":       _check_dbt_compile_success,
     "dbt_docs_generated":        _check_dbt_docs_generated,
