@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Deployment patterns — getting dbt into production</h1>
+<p>You&rsquo;ve built a complete dbt project: sources, models, tests, snapshots, macros, packages, exposures. You can <code>dbt build</code> it locally and watch it succeed. The question Stage 7 answers is: <strong>how do other people run this code, in production, without you sitting there pressing keys?</strong></p>
+<p>That&rsquo;s deployment. It has two parts: (1) <strong>how does the code get from your laptop to a server?</strong> and (2) <strong>how does the server know which version to run, and against which warehouse?</strong></p>
+<h2>Part 1 — Code promotion: 1-trunk vs 2-trunk</h2>
+<p>When dbt code lives in a Git repo and gets shipped via a CI pipeline, two patterns dominate.</p>
+<h3>1-trunk (direct promotion) — the default</h3>
+<pre><code>feature-branch → PR → CI builds in temp schema → review → merge to main → prod build
+</code></pre>
+<p>The lifecycle:</p>
+<ol>
+<li>Developer branches off <code>main</code>, makes changes.</li>
+<li>Opens a PR. This kicks off a CI job — typically GitHub Actions, GitLab CI, or a dbt Cloud CI job — that runs <code>dbt build</code> against a temporary PR schema (e.g. <code>dbt_pr_142</code>).</li>
+<li>Reviewer reads the diff, sees the CI status, approves.</li>
+<li>Merge to <code>main</code>. A scheduled or merge-triggered job rebuilds the prod schema.</li>
+</ol>
+<p>This is what 90% of teams use. It&rsquo;s fast, it&rsquo;s simple, every change touches prod within hours of merging.</p>
+<h3>2-trunk (indirect promotion) — for batched releases</h3>
+<pre><code>feature-branch → PR → CI temp schema → review → merge to qa → batch QA → merge qa to main → prod build
+</code></pre>
+<p>The lifecycle:</p>
+<ol>
+<li>The code owner creates a <code>qa</code> branch off <code>main</code>.</li>
+<li>Developers branch off <code>qa</code>, open PRs into <code>qa</code>.</li>
+<li>CI runs the same per-PR temp-schema build.</li>
+<li>After review, code merges into <code>qa</code> — that triggers a build of the <code>qa</code> schema.</li>
+<li>UAT happens against the <code>qa</code> schema. Stakeholders kick the tires.</li>
+<li>On a release cadence (weekly, every two weeks), the code owner runs a separate CI job to merge <code>qa</code> into <code>main</code> and rebuild prod.</li>
+</ol>
+<p>This pattern adds latency but gives you a real staging environment. Use it when stakeholders need to UAT changes before they hit prod, or when releases are batched (e.g. you ship every Tuesday).</p>
+<h3>Which to pick?</h3>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>1-trunk</th>
+<th>2-trunk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Time-to-prod</td>
+<td>Hours</td>
+<td>Days to weeks</td>
+</tr>
+<tr>
+<td>UAT environment</td>
+<td>Per-PR temp schema</td>
+<td>Persistent QA schema</td>
+</tr>
+<tr>
+<td>Code owner overhead</td>
+<td>Low</td>
+<td>Higher (manages qa→main merges)</td>
+</tr>
+<tr>
+<td>Default for new teams</td>
+<td>✅</td>
+<td>When you outgrow 1-trunk</td>
+</tr>
+</tbody>
+</table>
+<p>Most companies start with 1-trunk and only adopt 2-trunk when stakeholder UAT becomes a recurring blocker.</p>
+<h2>Part 2 — Targets, environments, and <code>--target</code></h2>
+<p>A <strong>target</strong> is a named output configuration in <code>profiles.yml</code>. Each target points dbt at a different warehouse / schema / set of credentials.</p>
+<p>The minimal <code>profiles.yml</code> you&rsquo;ve used so far has one target — <code>dev</code> — pointing at a local DuckDB file:</p>
+<pre><code class="language-yaml">dbt_project:
+  target: dev          # default target if none specified
+  outputs:
+    dev:
+      type: duckdb
+      path: ../database/dev.duckdb
+</code></pre>
+<p>In production, the same project file declares multiple targets:</p>
+<pre><code class="language-yaml">dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: my_co.snowflakecomputing.com
+      database: ANALYTICS_DEV
+      schema: dbt_alice
+      threads: 4
+    prod:
+      type: snowflake
+      account: my_co.snowflakecomputing.com
+      database: ANALYTICS_PROD
+      schema: analytics
+      threads: 16
+</code></pre>
+<p>Same code, two destinations. The CI server runs <code>dbt build --target prod</code>; you run <code>dbt build</code> locally (which defaults to <code>dev</code>).</p>
+<h3>The <code>--target</code> flag</h3>
+<pre><code class="language-bash">dbt build                  # uses outputs.target (the default — usually dev)
+dbt build --target prod    # uses outputs.prod
+dbt build --target qa      # uses outputs.qa
+</code></pre>
+<p>Three patterns are common:</p>
+<ol>
+<li><strong>Per-developer dev schemas</strong>: every developer gets their own schema (<code>dbt_alice</code>, <code>dbt_bob</code>) so nobody&rsquo;s local builds clobber each other.</li>
+<li><strong>Per-environment targets</strong>: <code>dev</code> / <code>qa</code> / <code>prod</code>, each pointing at a different schema (or warehouse).</li>
+<li><strong>CI temp schemas</strong>: the CI job generates a unique schema per PR (<code>dbt_pr_142</code>) so reviewers can query the rebuild.</li>
+</ol>
+<h3>What changes between targets, in practice?</h3>
+<ul>
+<li><strong><code>database</code></strong> — points at a different warehouse database (e.g. <code>ANALYTICS_DEV</code> vs <code>ANALYTICS_PROD</code>).</li>
+<li><strong><code>schema</code></strong> — different schema (e.g. <code>dbt_alice</code> vs <code>analytics</code>).</li>
+<li><strong><code>threads</code></strong> — dev usually runs with 4 threads, prod often runs with 16+ for speed.</li>
+<li><strong>Credentials</strong> — dev uses your user account, prod uses a service account.</li>
+<li><strong><code>vars</code></strong> — sometimes per-target vars (e.g. <code>is_prod: true</code>) toggle behavior in models.</li>
+</ul>
+<p>In DuckDB land — which is what this course uses — the only thing that meaningfully differs is the file <code>path</code>. That&rsquo;s still enough to demonstrate the <strong>mechanic</strong> of multi-target builds, which is what Stage 7&rsquo;s first exercise does.</p>
+<h2>Part 3 — Where state selection fits</h2>
+<p>Stage 5 introduced state selection: <code>dbt build --select state:modified+ --state ../state_initial</code>. That command says <em>&ldquo;build only the things that changed since this prior state, plus their downstream dependencies.&rdquo;</em></p>
+<p>State selection is the single most important production speedup. A typical CI pipeline does:</p>
+<ol>
+<li>Compare the PR&rsquo;s manifest against the production manifest.</li>
+<li>Run <code>dbt build --select state:modified+ --state ./prod_artifacts</code>.</li>
+<li>Only the changed nodes (and their downstream) get tested.</li>
+</ol>
+<p>This turns a 30-minute &ldquo;build everything&rdquo; CI job into a 30-second &ldquo;build the diff&rdquo; job. Real CI pipelines maintain a <code>prod_artifacts/</code> directory — the manifest from the last successful prod run — and use it as the comparison baseline for every PR.</p>
+<h2>Part 4 — dbt Cloud vs self-hosted</h2>
+<p>Two ways to run dbt in production:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>dbt Cloud</th>
+<th>Self-hosted (GitHub Actions, Airflow, Dagster)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Setup</td>
+<td>~30 min UI</td>
+<td>A few hours of YAML</td>
+</tr>
+<tr>
+<td>Cost</td>
+<td>Per developer seat</td>
+<td>Free + your CI minutes</td>
+</tr>
+<tr>
+<td>Job scheduling</td>
+<td>Built-in cron + UI</td>
+<td>Whatever your runner does</td>
+</tr>
+<tr>
+<td>State selection</td>
+<td>First-class</td>
+<td>You wire it manually with artifact upload/download</td>
+</tr>
+<tr>
+<td>dbt CI on PRs</td>
+<td>Built-in</td>
+<td>You write a workflow</td>
+</tr>
+<tr>
+<td>Doc hosting</td>
+<td>Built-in (auto-publishes docs site)</td>
+<td>You publish the static <code>target/</code> files yourself</td>
+</tr>
+<tr>
+<td>Lock-in</td>
+<td>Yes (Cloud-only features)</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>dbt Cloud is the path-of-least-resistance for teams that don&rsquo;t have strong ops practices. Self-hosted (typically GitHub Actions calling <code>dbt build</code> directly) is what teams with ops chops choose. Both are valid; the choice is mostly about how much of your team&rsquo;s time you want to spend writing CI YAML.</p>
+<h2>What Stage 7&rsquo;s exercises do</h2>
+<p>You&rsquo;ve already learned the dbt code that runs in production. Stage 7 covers the <strong>mechanics around it</strong>:</p>
+<ul>
+<li><strong><code>multi_target_profile</code></strong> — concretely add a <code>prod:</code> target to <code>profiles.yml</code> and run <code>dbt build --target prod</code>. Even though both targets are local DuckDB files, the YAML mechanic is identical to what you&rsquo;d configure for Snowflake/BigQuery.</li>
+<li><strong><code>analysis_to_model</code></strong> — promotes one of the analyses you wrote in Stage 3 to a real, tested mart. This is the &ldquo;code review&rdquo; step in real life: when an analysis gets queried often enough, it graduates to a model, gets a description and a test, and joins the production graph.</li>
+</ul>
+<p>The remaining Stage 7 items (<code>tooling_landscape</code>, <code>course_complete</code>) are concept lessons.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Hardcoding <code>dev</code> schema names in models.</strong> If a model has <code>from analytics_dev.raw_orders</code>, it will fail in prod. The fix: use sources (<code>{{ source('jaffle_shop', 'raw_orders') }}</code>) and let the source YAML control the database/schema per-target.</li>
+<li><strong>Forgetting that targets share the same code.</strong> A YAML typo isn&rsquo;t caught by <code>--target prod</code> if you only ever test <code>--target dev</code>. CI should run against a target that matches prod&rsquo;s adapter, even if the schema is different.</li>
+<li><strong>Treating dbt Cloud as the only path to prod.</strong> It&rsquo;s a valid choice, but plain GitHub Actions + <code>dbt build --target prod</code> is enough for most teams. If you can call dbt from a shell, you can deploy it.</li>
+</ul>
+<p>Press <code>n</code> to start the multi-target profile exercise.</p>
+</body>
+
+</html>

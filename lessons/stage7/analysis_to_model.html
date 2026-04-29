@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Analysis-to-model — promoting one-off SQL to a tested mart</h1>
+<p>In Stage 3 you wrote <code>analyses/top_customers_by_revenue.sql</code> — a quick <code>select ... group by ... limit 10</code> that compiles into <code>target/compiled/</code> but doesn&rsquo;t materialize. It&rsquo;s the version of &ldquo;ad-hoc SQL&rdquo; that&rsquo;s at least version-controlled and <code>ref</code>-aware.</p>
+<p>Most analyses live and die that way: someone needs a number for a meeting, writes the query, gets the answer, moves on. But some analyses get queried again. And again. By dashboards. By other analysts. By external partners. At some point it crosses a threshold and becomes a <strong>production asset</strong> — and an analysis is the wrong shape for that.</p>
+<p>That moment is when an analysis <strong>graduates to a model</strong>. This lesson is about doing that promotion well.</p>
+<h2>When does an analysis graduate?</h2>
+<p>Three signals, any of which is enough:</p>
+<ol>
+<li><strong>It&rsquo;s queried more than once.</strong> A one-off becomes an asset the second time someone needs the same number.</li>
+<li><strong>A dashboard depends on it.</strong> Once Looker / Tableau / Metabase points at the SQL, the SQL has consumers, and consumers expect tests, schemas, and stable column names.</li>
+<li><strong>It needs documentation or contracts.</strong> &ldquo;What does <code>lifetime_revenue</code> mean?&rdquo; is a question that gets asked. Models have descriptions; analyses don&rsquo;t.</li>
+</ol>
+<p>When any of these is true, the analysis stops being throwaway and starts being infrastructure. Promote it.</p>
+<h2>What changes between an analysis and a model?</h2>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Analysis</th>
+<th>Model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Location</td>
+<td><code>analyses/</code></td>
+<td><code>models/marts/</code></td>
+</tr>
+<tr>
+<td>Materialization</td>
+<td>None — compile-only</td>
+<td>Configurable (<code>view</code>, <code>table</code>, <code>incremental</code>, etc.)</td>
+</tr>
+<tr>
+<td>Tests</td>
+<td>None</td>
+<td>Whatever you declare in YAML</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>None</td>
+<td><code>description:</code> field</td>
+</tr>
+<tr>
+<td><code>meta:</code> / <code>tags:</code></td>
+<td>No</td>
+<td>Yes — for ownership, PII flags, selection</td>
+</tr>
+<tr>
+<td>Lineage</td>
+<td>One-off</td>
+<td>Part of the DAG; downstream models can <code>ref()</code> it</td>
+</tr>
+<tr>
+<td>BI tools see it?</td>
+<td>No</td>
+<td>Yes (it&rsquo;s a queryable table/view)</td>
+</tr>
+</tbody>
+</table>
+<p>A promotion isn&rsquo;t just a folder move. You&rsquo;re declaring: <em>&ldquo;this SQL is now part of the analytics-engineering surface area. Here&rsquo;s what it means, who owns it, and how I want it tested.&rdquo;</em></p>
+<h2>The CTE refactor — imports → logic → final</h2>
+<p>When promoting, take the opportunity to clean up. The dbt community converged on a 3-section CTE pattern:</p>
+<pre><code class="language-sql">{{ config(materialized='table') }}
+
+with
+
+-- 1. IMPORT CTEs — one per upstream ref/source. Pure passthrough.
+customers as (
+    select * from {{ ref('dim_customers') }}
+),
+
+orders as (
+    select * from {{ ref('fct_orders') }}
+),
+
+-- 2. LOGICAL CTEs — joins, aggregations, transformations
+customer_revenue as (
+    select
+        c.customer_id,
+        c.first_name,
+        c.last_name,
+        sum(o.amount) as lifetime_revenue,
+        count(o.order_id) as lifetime_orders
+    from customers c
+    left join orders o on c.customer_id = o.customer_id
+    group by c.customer_id, c.first_name, c.last_name
+),
+
+-- 3. FINAL CTE — the row shape that gets exposed
+final as (
+    select * from customer_revenue
+    order by lifetime_revenue desc
+)
+
+select * from final
+</code></pre>
+<p>Why this shape:</p>
+<ul>
+<li><strong>Import CTEs at the top</strong> make every dependency visible at a glance. Reviewers can see what&rsquo;s coming in without scanning the body.</li>
+<li><strong>Logical CTEs in the middle</strong> are where joins and transformations happen. Each CTE has a name that says what it computes.</li>
+<li><strong>A <code>final</code> CTE wraps the result</strong> so the bottom is always a one-liner. If you ever need to add post-processing (a filter, a column rename), it has an obvious place to go.</li>
+</ul>
+<p>The pattern scales. A 5-line model uses one logical CTE; a 200-line model has fifteen. The shape is always the same.</p>
+<h2>YAML metadata — <code>description</code>, <code>meta</code>, <code>tags</code></h2>
+<p>Once the model exists, declare it in <code>_models.yml</code> with rich metadata:</p>
+<pre><code class="language-yaml">- name: mart_customer_revenue
+  description: &quot;Customer-grain lifetime revenue and order count, derived from fct_orders + dim_customers.&quot;
+  config:
+    meta:
+      owner: data_eng
+      pii: false
+    tags:
+      - revenue
+      - finance
+  columns:
+    - name: customer_id
+      description: &quot;Stable customer identifier.&quot;
+      tests:
+        - unique
+        - not_null
+    - name: lifetime_revenue
+      description: &quot;Sum of fct_orders.amount across all orders for this customer.&quot;
+</code></pre>
+<p>The three knobs:</p>
+<ul>
+<li><strong><code>description:</code></strong> — human prose. Shows up in the dbt docs site, in BI tools that read dbt metadata, and in the manifest. Write it for the next person who&rsquo;ll touch the model.</li>
+<li><strong><code>meta:</code></strong> — structured key/value pairs. Common keys: <code>owner</code> (who maintains it), <code>pii</code> (does this contain personal data?), <code>team</code>, <code>business_critical</code>, <code>slack_channel</code>. The schema is yours — dbt doesn&rsquo;t enforce one — but every tool that reads the manifest can act on it.</li>
+<li><strong><code>tags:</code></strong> — flat string list. Used as a selection shortcut: <code>dbt build --select tag:finance</code> rebuilds every model tagged <code>finance</code>. Also useful for grouping in docs.</li>
+</ul>
+<p>A model with no <code>meta:</code> or <code>tags:</code> is invisible to ownership tools. A model with both is governable: you can answer &ldquo;who owns the revenue marts?&rdquo; by querying the manifest.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Promoting too early.</strong> Not every analysis needs to be a model. Throwaway exploration belongs in <code>analyses/</code> (or even outside the project). Promote when the query has <em>recurring consumers</em>, not just because the SQL feels important.</li>
+<li><strong>Skipping the CTE refactor.</strong> Copying the analysis SQL verbatim into <code>models/marts/</code> and adding <code>{{ config(materialized='table') }}</code> works but loses the readability win. The 5-minute CTE refactor at promotion time is the cheapest cleanup you&rsquo;ll ever do.</li>
+<li><strong>Forgetting <code>meta:</code> and <code>tags:</code>.</strong> A description alone is fine for a side project; in a real org, the model needs ownership metadata for incident routing and selection metadata for build orchestration. Add both at promotion time — retrofitting them later means trawling every model file.</li>
+<li><strong>Deleting the original analysis.</strong> Don&rsquo;t. Keep <code>analyses/top_customers_by_revenue.sql</code> alongside the new mart. The analysis is the documentation: <em>&ldquo;this is what the model is meant to compute.&rdquo;</em> Some teams call this &ldquo;audit artifacts&rdquo; — files that show the lineage from idea to production.</li>
+</ul>
+<p>Press <code>n</code> after you&rsquo;ve promoted the analysis.</p>
+</body>
+
+</html>

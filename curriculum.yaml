@@ -624,3 +624,61 @@ stages:
               path: dbt_project/target/compiled
             - type: path_exists
               path: dbt_project/target/run
+
+  - id: stage_7_production_and_tooling
+    title: "Stage 7 — Production Patterns & Tooling"
+    items:
+      - id: deployment_patterns
+        type: lesson
+        file: lessons/stage7/deployment_patterns.html
+
+      - id: multi_target_profile
+        type: exercise
+        lesson:   lessons/stage7/multi_target_profile.html
+        exercise: exercises/stage7/multi_target_profile.md
+        original: originals/stage7/multi_target_profile.md
+        hints:    hints/stage7/multi_target_profile.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: file_contains
+              path: dbt_project/profiles.yml
+              contains: "prod:"
+            - type: path_exists
+              path: database/prod.duckdb
+
+      - id: analysis_to_model
+        type: exercise
+        lesson:   lessons/stage7/analysis_to_model.html
+        exercise: exercises/stage7/analysis_to_model.md
+        original: originals/stage7/analysis_to_model.md
+        hints:    hints/stage7/analysis_to_model.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: path_exists
+              path: dbt_project/models/marts/mart_customer_revenue.sql
+            - type: file_contains
+              path: dbt_project/models/marts/mart_customer_revenue.sql
+              contains: "final as ("
+            - type: dbt_run_success
+              select: mart_customer_revenue
+            - type: manifest_test_count
+              model: mart_customer_revenue
+              min: 2
+              tests: [unique, not_null]
+            - type: file_contains
+              path: dbt_project/models/marts/_models.yml
+              contains: "meta:"
+            - type: file_contains
+              path: dbt_project/models/marts/_models.yml
+              contains: "tags:"
+
+      - id: tooling_landscape
+        type: lesson
+        file: lessons/stage7/tooling_landscape.html
+
+      - id: course_complete
+        type: lesson
+        file: lessons/stage7/course_complete.html
+        quiz: quiz/stage7.yaml

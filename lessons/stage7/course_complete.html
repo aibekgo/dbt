@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Course complete</h1>
+<p>You started the course on Stage 0 reading about ETL vs ELT. You&rsquo;re now at the bottom of Stage 7. In between, you built and tested every layer of a real dbt project. This is the recap.</p>
+<h2>What you can now do</h2>
+<p>Given a dbt project you&rsquo;ve never seen, you can:</p>
+<ul>
+<li><strong>Read its config file</strong> (<code>dbt_project.yml</code>) and understand the materialization defaults.</li>
+<li><strong>Trace the lineage</strong> from raw sources to final marts using <code>ref()</code> / <code>source()</code>.</li>
+<li><strong>Add a new staging model</strong> following naming conventions.</li>
+<li><strong>Add intermediate and mart models</strong> with proper CTE structure (imports → logic → final).</li>
+<li><strong>Write all four built-in tests</strong> (<code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code>) plus singular tests in <code>tests/</code> and custom generic tests in <code>tests/generic/</code>.</li>
+<li><strong>Switch a model&rsquo;s materialization</strong> between <code>view</code>, <code>table</code>, <code>ephemeral</code>, and <code>incremental</code> — and explain when to pick each.</li>
+<li><strong>Configure incremental models</strong> with <code>merge</code> / <code>delete+insert</code> strategies and <code>unique_key</code>.</li>
+<li><strong>Snapshot a slowly-changing dimension</strong> with the <code>check</code> strategy and SCD2 metadata.</li>
+<li><strong>Write Jinja macros</strong> to deduplicate SQL across models.</li>
+<li><strong>Use packages</strong> — install via <code>packages.yml</code>, run <code>dbt deps</code>, call macros and tests from <code>dbt_utils</code> and <code>dbt_expectations</code>.</li>
+<li><strong>Run state-aware builds</strong> — <code>dbt build --select state:modified+ --state ...</code> to rebuild only what changed.</li>
+<li><strong>Declare exposures</strong> to make BI consumers visible in the lineage.</li>
+<li><strong>Tune test severity</strong> with <code>severity: warn</code>, <code>where:</code> row filters, and <code>store_failures</code>.</li>
+<li><strong>Use the dbt CLI fluently</strong> — <code>parse</code>, <code>ls</code>, <code>show</code>, <code>compile</code>, <code>build</code>, <code>retry</code>, <code>clean</code>.</li>
+<li><strong>Inspect <code>target/</code> artifacts</strong> when something breaks: <code>manifest.json</code>, <code>run_results.json</code>, <code>compiled/</code>, <code>run/</code>.</li>
+<li><strong>Add a production target</strong> to <code>profiles.yml</code> and run <code>dbt build --target prod</code>.</li>
+<li><strong>Promote an analysis to a tested mart</strong> with <code>meta:</code>, <code>tags:</code>, descriptions, and column tests.</li>
+</ul>
+<p>That&rsquo;s the full surface area of dbt-core for a junior-to-mid analytics engineer. You&rsquo;re equipped.</p>
+<h2>What this course did NOT cover</h2>
+<p>Be honest with yourself about the gaps so you know what to learn next on the job:</p>
+<ul>
+<li><strong>Real warehouse adapters.</strong> This course used DuckDB end-to-end. Snowflake, BigQuery, Databricks, Redshift, and Postgres each have adapter-specific quirks (data types, materialization options, performance characteristics). The dbt code you write is mostly portable; the configs are not.</li>
+<li><strong>dbt Cloud.</strong> The hosted offering with an IDE, scheduler, and built-in CI. If your team uses it, the basics (jobs, environments, CI integration) take a day to learn.</li>
+<li><strong>CI/CD setup.</strong> Knowing the patterns (1-trunk vs 2-trunk, state selection in CI) is half the battle. Wiring it up — GitHub Actions YAML, secrets management, artifact upload/download — is the other half. Pair with a senior engineer the first time.</li>
+<li><strong><code>dbt clone</code>.</strong> Snowflake / BigQuery / Databricks have first-class table-cloning support that dbt exposes. Fast environment cloning is a real superpower; it&rsquo;s not available on DuckDB so we skipped it.</li>
+<li><strong><code>dbt source freshness</code>.</strong> Checks how stale your raw data is. Useful when you&rsquo;re ingesting from real connectors with <code>loaded_at_field</code> timestamps; not demonstrable on static seeds.</li>
+<li><strong>The Semantic Layer + MetricFlow.</strong> Define metrics once, query them consistently across BI tools. Heavy setup, paid feature; mentioned in <code>tooling_landscape</code>.</li>
+<li><strong>Grants / row-level security.</strong> Each warehouse has different <code>grant</code> syntax; dbt has a <code>grants:</code> config that abstracts some of it. Warehouse-specific.</li>
+<li><strong>Performance tuning at scale.</strong> Partitioning, clustering, query optimization, model-level performance audits. Important once your project has 500+ models; out of scope here.</li>
+<li><strong>Multi-project / dbt Mesh.</strong> Splitting a monolithic project across teams with <code>groups</code>, <code>access:</code>, and contracts. Forward-looking topic.</li>
+<li><strong>dbt MCP, dbt Fusion + VS Code extension.</strong> AI-era tooling that&rsquo;s reshaping how dbt code gets written. Mentioned in <code>tooling_landscape</code>; the setup is environment-specific.</li>
+</ul>
+<p>None of these are scary topics. They&rsquo;re just topics that require <em>the right context</em> (a real warehouse, a real CI pipeline, a real org structure) to learn well.</p>
+<h2>Where to go from here</h2>
+<p>Three paths, in increasing depth:</p>
+<h3>1. Use this on a real project (any size)</h3>
+<p>The fastest way to consolidate everything you just learned is to write dbt against a <em>real</em> warehouse. If you have access to a Postgres, Snowflake, or BigQuery instance at work — even a sandbox — clone this project, swap the adapter (<code>type: duckdb</code> → <code>type: snowflake</code>), and re-run it. You&rsquo;ll hit your first adapter-specific issue within an hour, and you&rsquo;ll learn a lot solving it.</p>
+<p>If you don&rsquo;t have a warehouse: start a <a href="https://cloud.google.com/bigquery/pricing">BigQuery free tier</a> account (10 GB free), or a <a href="https://signup.snowflake.com/">Snowflake trial</a> (30 days, $400 credit). Either is enough to build a real-feeling dbt project.</p>
+<h3>2. Read the <a href="https://docs.getdbt.com/">dbt docs</a> end-to-end</h3>
+<p>You&rsquo;ve already encountered ~70% of what&rsquo;s in the docs. The remaining 30% is the warehouse-specific configs, the deeper YAML reference, and the operational patterns. The docs are unusually well-written for technical documentation — readable in a weekend, valuable as a reference for years.</p>
+<h3>3. Contribute to a dbt package</h3>
+<p>Look at <a href="https://hub.getdbt.com/">hub.getdbt.com</a>. Pick a package that intrigues you (<code>dbt_utils</code>, <code>dbt_expectations</code>, <code>audit_helper</code>, <code>dbt-coverage</code>). Read the source. Find an issue tagged <code>good first issue</code>. Open a PR. This is the fastest way to graduate from <em>user</em> to <em>practitioner</em> — the day you&rsquo;ve contributed code to the dbt ecosystem, the ecosystem starts to feel like yours.</p>
+<h2>A final note</h2>
+<p>dbt is a tool, and tools are mostly a question of <em>muscle memory</em>. You won&rsquo;t write fluent dbt because you read about it; you&rsquo;ll write fluent dbt because you&rsquo;ve shipped fifty models and broken twenty of them. This course got you to model #50 in a controlled environment. Now go ship the next fifty in production.</p>
+<p>Press <code>n</code> to wrap up the course.</p>
+</body>
+
+</html>

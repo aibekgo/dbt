@@ -1,0 +1,99 @@
+topic: stage7
+questions:
+  - id: stage7_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What's the primary difference between 1-trunk and 2-trunk deployment patterns?"
+    options:
+      a: "1-trunk is faster CI; 2-trunk is slower CI"
+      b: "1-trunk has one promotion path (PR → main → prod); 2-trunk inserts a `qa` branch between feature work and main, enabling batched UAT"
+      c: "1-trunk requires dbt Cloud; 2-trunk is self-hosted only"
+      d: "1-trunk is for analytics engineers; 2-trunk is for data engineers"
+    answer: b
+    explanation: |
+      1-trunk = direct promotion: PR → CI temp schema → review → merge to main → prod build. 2-trunk = indirect: PR → qa branch → batched UAT in qa schema → release-cadence merge to main → prod build. 2-trunk adds a persistent staging environment for stakeholder testing, at the cost of slower time-to-prod. Most teams start with 1-trunk and only adopt 2-trunk when stakeholder UAT becomes a recurring blocker.
+    related_item: deployment_patterns
+
+  - id: stage7_02
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When you run `dbt build --target prod`, which of the following changes vs `dbt build` (default `dev`)?"
+    options:
+      a: "The model SQL is automatically rewritten for production"
+      b: "Tests are skipped to make the build faster"
+      c: "dbt connects to whatever warehouse / schema / credentials are configured under the `prod:` block in `profiles.yml` — same SQL, different destination"
+      d: "Snapshots stop running"
+    answer: c
+    explanation: |
+      `--target` swaps the *connection*, not the *code*. Same models, same tests, same snapshots — they just materialize against the prod target's database/schema instead of dev's. In real warehouses, the targets differ in `database`, `schema`, `account`, `threads`, and credentials. In DuckDB they only differ in file path, but the YAML mechanic is identical regardless of adapter.
+    related_item: multi_target_profile
+
+  - id: stage7_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What's the typical pattern when an analysis (in `analyses/`) graduates to a model?"
+    options:
+      a: "Move the file to `models/` and add `{{ config(materialized='table') }}` — done"
+      b: "Move to `models/marts/`, refactor into imports → logic → final CTE structure, add a YAML entry with `description`, `meta:`, `tags:`, and at least one PK test"
+      c: "Always inline it as ephemeral — analyses are too small to materialize"
+      d: "Delete the original analysis file to avoid duplication"
+    answer: b
+    explanation: |
+      Promotion isn't just a folder move. The CTE refactor (imports → logic → final) makes the SQL reviewable. The YAML entry — description, meta (owner, PII flag), tags (for selection), column tests on the primary key — declares this is now production infrastructure. Most teams keep the original analysis in place as documentation showing what the mart is meant to compute.
+    related_item: analysis_to_model
+
+  - id: stage7_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What is `meta:` used for in a model's YAML config?"
+    options:
+      a: "It's an alias for `description:`"
+      b: "Structured key/value pairs (owner, PII flag, slack_channel, business_critical) that tools downstream of dbt can read from the manifest to route ownership / alerting / governance"
+      c: "Only useful with dbt Cloud"
+      d: "Replaces tests"
+    answer: b
+    explanation: |
+      `meta:` is a free-form dict — dbt doesn't enforce a schema, but every tool that reads the manifest (dbt-coverage, dbt-project-evaluator, custom dashboards, your own scripts) can act on the keys you put there. Common keys: `owner`, `pii`, `team`, `business_critical`, `slack_channel`. Without `meta:`, the model is invisible to ownership / governance tooling.
+    related_item: analysis_to_model
+
+  - id: stage7_05
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What does dbt Fusion (the Rust-based dbt engine, in preview late 2025) primarily speed up?"
+    options:
+      a: "Warehouse query execution"
+      b: "Project parsing (manifest construction) — ~30× faster than dbt-core's Python parser — and adds local SQL validation that surfaces errors as you type"
+      c: "Snapshot materialization"
+      d: "Network calls to the warehouse"
+    answer: b
+    explanation: |
+      Fusion is a reimplementation of the dbt parser/compiler in Rust. The headline gain is parse speed — a 1000-model project parses in under a second instead of ~20s. The bigger qualitative shift is local SQL validation: Fusion can emulate Snowflake/BigQuery/etc. locally and surface SQL errors in your editor without round-tripping to the warehouse. Pairs with the dbt VS Code extension for an IDE-grade development experience.
+    related_item: tooling_landscape
+
+  - id: stage7_06
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does dbt MCP enable that the regular dbt CLI doesn't?"
+    options:
+      a: "Faster builds"
+      b: "Exposes your dbt project as a structured tool an LLM-based agent (Claude, Cursor, VS Code) can inspect, navigate, and operate on — listing models, reading lineage, running builds and tests on your behalf"
+      c: "Cloud hosting"
+      d: "Replaces `dbt build`"
+    answer: b
+    explanation: |
+      MCP (Model Context Protocol) is the standard for letting AI agents talk to tools. dbt MCP exposes dbt to agents: an LLM in Cursor or Claude can answer "why is fct_orders failing?" by actually running `dbt build --select fct_orders`, reading the error, and suggesting a fix. Setup involves installing `uv`, creating a `.env` with `DBT_PATH` and `DBT_PROJECT_DIR`, and pointing the IDE's MCP config at `uvx --env-file .env dbt-mcp`.
+    related_item: tooling_landscape
+
+  - id: stage7_07
+    difficulty: easy
+    type: multiple_choice
+    prompt: "If your team needs row-by-row comparison of a refactored dbt model against the legacy SQL it replaces, which package would you reach for?"
+    options:
+      a: "dbt_utils"
+      b: "dbt_expectations"
+      c: "audit_helper"
+      d: "dbt_artifacts"
+    answer: c
+    explanation: |
+      `audit_helper` is purpose-built for refactor migrations: given two relations (the legacy version and the new dbt model), it produces a row-by-row comparison report. Use it when porting legacy SQL to dbt and you need to *prove* the new version produces identical output before retiring the old one. `dbt_utils` is generic SQL helpers, `dbt_expectations` is statistical tests, `dbt_artifacts` is for loading dbt's own metadata into the warehouse.
+    related_item: tooling_landscape

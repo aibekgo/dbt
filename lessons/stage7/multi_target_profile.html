@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Multi-target profiles — <code>dev</code> vs <code>prod</code> in one config file</h1>
+<p><code>profiles.yml</code> is the file that tells dbt <strong>where to run</strong>. So far yours has had one output — <code>dev</code> — pointing at a local DuckDB file. In production, the same project file declares multiple <strong>targets</strong>, and you switch between them with <code>--target</code>.</p>
+<h2>What &ldquo;target&rdquo; means in dbt</h2>
+<p>A target is a named output configuration. Each target is a YAML block under <code>outputs:</code> with everything dbt needs to connect to a warehouse:</p>
+<pre><code class="language-yaml">dbt_project:
+  target: dev          # ← which target to use when --target isn't passed
+  outputs:
+    dev:
+      type: duckdb
+      path: ../database/dev.duckdb
+      threads: 4
+    prod:
+      type: duckdb
+      path: ../database/prod.duckdb
+      threads: 4
+</code></pre>
+<p>The <code>target:</code> key at the top sets the default. Override per command:</p>
+<pre><code class="language-bash">dbt build                  # uses dev (the default)
+dbt build --target prod    # uses prod
+</code></pre>
+<p>The two builds produce <strong>two different warehouses</strong>. Same SQL, different destinations.</p>
+<h2>What changes between targets in real warehouses?</h2>
+<p>In DuckDB land, you only really have a different file path. In Snowflake/BigQuery/Redshift, the differences are more meaningful:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>database</code></td>
+<td>Which warehouse-level container (e.g. <code>ANALYTICS_DEV</code> vs <code>ANALYTICS_PROD</code>).</td>
+</tr>
+<tr>
+<td><code>schema</code></td>
+<td>Which schema inside the database. dev usually <code>dbt_&lt;your_username&gt;</code>, prod typically <code>analytics</code>.</td>
+</tr>
+<tr>
+<td><code>account</code> / <code>host</code></td>
+<td>Which warehouse instance (rarely differs in practice).</td>
+</tr>
+<tr>
+<td><code>user</code> / <code>password</code> / <code>keyfile</code></td>
+<td>Per-target credentials — dev uses your account, prod uses a service account.</td>
+</tr>
+<tr>
+<td><code>threads</code></td>
+<td>Parallelism. dev runs 4 threads, prod often runs 16+.</td>
+</tr>
+<tr>
+<td><code>warehouse</code> (Snowflake-specific)</td>
+<td>Which compute warehouse to use — <code>WH_DEV_XS</code> for dev, <code>WH_PROD_L</code> for prod.</td>
+</tr>
+</tbody>
+</table>
+<p>The YAML mechanic — <strong>declare a named target, switch with <code>--target</code></strong> — is identical regardless of which adapter you&rsquo;re using. That&rsquo;s what this exercise teaches.</p>
+<h2>How <code>--target</code> interacts with everything else</h2>
+<p>When you run <code>dbt build --target prod</code>:</p>
+<ol>
+<li>dbt reads <code>profiles.yml</code>, finds the <code>prod</code> block, connects.</li>
+<li><strong>All <code>{{ source(...) }}</code> references</strong> still point at the same source tables — but now in the prod database/schema.</li>
+<li><strong>All models</strong> materialize into the prod schema.</li>
+<li><strong>All tests</strong> run against prod data.</li>
+<li><strong>All snapshots</strong> write to the prod snapshot schema (<code>snapshots/</code>).</li>
+</ol>
+<p>Nothing in your model SQL changes between dev and prod. dbt swaps the <em>connection</em>, not the <em>code</em>. That&rsquo;s the entire point.</p>
+<h2>Per-target config in <code>dbt_project.yml</code></h2>
+<p>Sometimes you want a config to differ per target — e.g. only run snapshots in prod, or use a different schema suffix. dbt supports per-target overrides via <code>vars:</code> in <code>profiles.yml</code>:</p>
+<pre><code class="language-yaml">outputs:
+  dev:
+    type: duckdb
+    path: ../database/dev.duckdb
+    schema: dbt_alice          # only used by warehouses that need it
+  prod:
+    type: duckdb
+    path: ../database/prod.duckdb
+</code></pre>
+<p>…and reading them in models with <code>{{ var('is_prod', false) }}</code>:</p>
+<pre><code class="language-jinja">{% if target.name == 'prod' %}
+  -- prod-only filter
+  where dbt_valid_from &lt; current_date
+{% endif %}
+</code></pre>
+<p><code>{{ target.name }}</code>, <code>{{ target.schema }}</code>, <code>{{ target.database }}</code> are always available inside Jinja. Use them sparingly — code that branches on target is harder to test.</p>
+<h2>What this exercise demonstrates</h2>
+<p>Even though both targets in this exercise are local DuckDB files (so the differences are cosmetic — just two file paths), the <strong>YAML mechanic</strong> is exactly what you&rsquo;d write for a Snowflake or BigQuery setup. The skills transfer:</p>
+<ul>
+<li>Adding a new named target under <code>outputs:</code></li>
+<li>Switching to it with <code>--target prod</code></li>
+<li>Watching dbt build the entire DAG against the new destination</li>
+</ul>
+<p>Once you&rsquo;ve done it for DuckDB, doing it for Snowflake is just changing <code>type: duckdb</code> to <code>type: snowflake</code> and filling in the credentials.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Forgetting that <code>--target prod</code> rebuilds everything.</strong> It doesn&rsquo;t share state with the dev target — every model gets re-materialized into the prod warehouse from scratch (unless you also use <code>--state</code>).</li>
+<li><strong>Hardcoding <code>dev</code> schema names in models.</strong> A SQL line like <code>from analytics_dev.raw_orders</code> works in dev and breaks in prod. Always reach raw data through <code>{{ source(...) }}</code> so the schema flows from the source YAML, not from hardcoded SQL.</li>
+<li><strong>Sharing credentials across targets.</strong> Don&rsquo;t put your real prod password in <code>profiles.yml</code> if the file is committed. Use environment variables: <code>password: "{{ env_var('DBT_PROD_PASSWORD') }}"</code>.</li>
+</ul>
+</body>
+
+</html>
