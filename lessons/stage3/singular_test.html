@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Singular tests — when no built-in fits</h1>
+<p>The four built-in generic tests cover most pure column-level assertions. But sooner or later you&rsquo;ll have a rule that doesn&rsquo;t fit the mold. Examples:</p>
+<ul>
+<li><em>Total payment amount on an order should never be negative.</em></li>
+<li><em>Refund timestamps should always be later than the original payment timestamp.</em></li>
+<li><em>No customer should appear in <code>dim_customers</code> without at least one matching row in <code>stg__orders</code>.</em></li>
+</ul>
+<p>These are <strong>business rules</strong>, not column shape rules. They depend on the relationship between rows, on derived values, or on assertions that span tables. There&rsquo;s no <code>dbt-utils.no_negative_payments</code> test off the shelf. You write them yourself, as <strong>singular tests</strong>.</p>
+<h2>What a singular test looks like</h2>
+<p>A singular test is a <code>.sql</code> file in the <code>tests/</code> folder. Inside is a plain <code>select</code> statement. The rule is:</p>
+<blockquote>
+<p><strong>A singular test passes when the query returns 0 rows.</strong>
+<strong>It fails when the query returns ≥ 1 row.</strong></p>
+</blockquote>
+<p>That&rsquo;s the whole contract. You write the SQL that <em>finds the bad rows</em>. dbt runs it, counts the rows, and decides pass/fail based on the count.</p>
+<p>For our project, here&rsquo;s a useful one — payments shouldn&rsquo;t have negative totals:</p>
+<pre><code class="language-sql">-- dbt_project/tests/assert_no_negative_payment_totals.sql
+select order_id, total_amount
+from {{ ref('int_order_payments') }}
+where total_amount &lt; 0
+</code></pre>
+<p>Read it as the assertion <em>&ldquo;there should be no rows where total_amount is negative.&rdquo;</em> If the staging logic ever miscounts and produces a negative dollar total, this test catches it. If everything&rsquo;s well-behaved, the query returns 0 rows and the test passes silently.</p>
+<h2>Where it lives and what dbt does with it</h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt_project/tests/assert_no_negative_payment_totals.sql</code></td>
+<td>The file you write</td>
+</tr>
+<tr>
+<td><code>target/run_results.json</code> after <code>dbt test</code></td>
+<td>Records the pass/fail status</td>
+</tr>
+<tr>
+<td><code>target/compiled/dbt_project/tests/...</code></td>
+<td>Where dbt puts the rendered SQL after compile</td>
+</tr>
+</tbody>
+</table>
+<p>dbt&rsquo;s <code>test-paths:</code> config (default <code>tests</code>) tells it where to look. Anything ending in <code>.sql</code> under there is treated as a singular test. The filename becomes the test&rsquo;s unique_id, so use a descriptive name — <code>assert_no_negative_payment_totals</code> is much better than <code>test_1.sql</code>.</p>
+<h2>Selecting just singular tests</h2>
+<p>When you have both kinds of tests in a project, you can scope to one or the other:</p>
+<pre><code class="language-bash">dbt test --select test_type:singular   # only the .sql files in tests/
+dbt test --select test_type:generic    # only the YAML-attached tests
+</code></pre>
+<p><code>test_type:</code> is one of dbt&rsquo;s built-in selectors. Most teams don&rsquo;t use it day-to-day — <code>dbt test</code> runs all kinds together — but it&rsquo;s useful for debugging a singular test in isolation.</p>
+<h2>When to reach for a singular test</h2>
+<p>The decision tree is short:</p>
+<ol>
+<li><strong>Can a built-in (<code>unique</code>, <code>not_null</code>, <code>accepted_values</code>, <code>relationships</code>) cover this?</strong> Use that.</li>
+<li><strong>Does a package like <code>dbt-utils</code> or <code>dbt-expectations</code> already have a test for this shape?</strong> Use that.</li>
+<li><strong>Otherwise</strong>, write a singular test.</li>
+</ol>
+<p>Singular tests aren&rsquo;t reusable across models — that&rsquo;s their main weakness. If you find yourself writing the same pattern twice (e.g. <em>&ldquo;this column&rsquo;s sum should match that column&rsquo;s sum across two models&rdquo;</em> on two different model pairs), it&rsquo;s time to convert it into a custom <em>generic</em> test (a Jinja macro under <code>tests/generic/</code>). That&rsquo;s a Stage 5+ topic.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong><code>select *</code> returning every row.</strong> Forgetting the <code>where</code> clause means the test always finds bad rows and always fails. Always include the predicate that defines what &ldquo;bad&rdquo; looks like.</li>
+<li><strong>Inverting the polarity.</strong> New writers sometimes write the <em>positive</em> condition: <code>where total_amount &gt;= 0</code> (the rows you want). That returns mostly all rows and fails forever. The query has to find the <em>violations</em>, the rows that <em>shouldn&rsquo;t</em> exist.</li>
+<li><strong>Hard-coding the schema name.</strong> Always use <code>{{ ref('int_order_payments') }}</code> — never <code>main.int_order_payments</code>. The <code>ref()</code> makes the test depend on the model in the DAG, so dbt knows to build the model first when you run <code>dbt build</code>.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

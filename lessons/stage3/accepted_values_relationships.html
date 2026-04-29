@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1><code>accepted_values</code> and <code>relationships</code> — the other two built-ins</h1>
+<p><code>unique</code> and <code>not_null</code> are the workhorses of generic testing — almost every primary key gets both. The other two built-in tests, <code>accepted_values</code> and <code>relationships</code>, fire less often but catch a different <em>class</em> of bug. This exercise wires up one of each.</p>
+<h2><code>accepted_values</code> — enum-style assertions</h2>
+<p>Every business has columns that should only ever hold a fixed set of values. Order status, subscription tier, country code, payment method. When something <em>outside</em> that set shows up — a typo (<code>"shippeed"</code>), a new value the warehouse forgot to handle (<code>"refund_pending"</code>) — every downstream filter that says <code>where status = 'shipped'</code> silently misses it.</p>
+<p><code>accepted_values</code> is the assertion: <em>&ldquo;the only legal values for this column are X, Y, Z.&rdquo;</em> Anything else fails the test.</p>
+<pre><code class="language-yaml">- name: status
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+</code></pre>
+<p>Note the indentation — <code>accepted_values</code> takes arguments, so it&rsquo;s a YAML mapping (<code>accepted_values: {values: [...]}</code>), not just a name like <code>unique</code>. Same for <code>relationships</code>.</p>
+<p>When a new status appears upstream, this test fires the next time <code>dbt test</code> runs. You either:
+- update the list (the new status is legitimate)
+- or fix the data (the new status is a typo or a vendor mistake)</p>
+<p>Either way, you find out the day it lands instead of the day a quarterly report is wrong.</p>
+<h2><code>relationships</code> — foreign-key integrity</h2>
+<p>dbt models live in a warehouse, and warehouses don&rsquo;t enforce foreign keys. If you point a join at <code>customer_id</code> in <code>fct_orders</code>, nothing stops a row from sneaking in where the <code>customer_id</code> doesn&rsquo;t exist in <code>dim_customers</code>. The join silently drops it (with <code>inner join</code>) or returns nulls (with <code>left join</code>).</p>
+<p><code>relationships</code> is the test that says <em>&ldquo;every value in this column must exist in the referenced model&rsquo;s column.&rdquo;</em></p>
+<pre><code class="language-yaml">- name: customer_id
+  tests:
+    - relationships:
+        to: ref('dim_customers')
+        field: customer_id
+</code></pre>
+<p>The arguments are:
+- <strong><code>to:</code></strong> — a <code>ref()</code> to the model that holds the parent table.
+- <strong><code>field:</code></strong> — the column in that parent table the value must appear in.</p>
+<p>When the test runs, dbt generates SQL roughly equivalent to:</p>
+<pre><code class="language-sql">select customer_id from &quot;main&quot;.&quot;fct_orders&quot;
+where customer_id is not null
+  and customer_id not in (select customer_id from &quot;main&quot;.&quot;dim_customers&quot;)
+</code></pre>
+<p>If that returns 0 rows, every customer_id in <code>fct_orders</code> is accounted for. If not, you have orphan rows — usually a sign that one staging model is filtering out customers the other one didn&rsquo;t.</p>
+<h2>Where these go</h2>
+<p>The new tests land in two places:</p>
+<ul>
+<li><code>models/staging/_models.yml</code> — extend the <code>status</code> column on <code>stg__orders</code> with <code>accepted_values</code>.</li>
+<li><code>models/marts/_models.yml</code> — a <strong>new</strong> file, peer of the staging one, declaring <code>fct_orders</code> and its tests.</li>
+</ul>
+<p>The <code>marts/</code> folder didn&rsquo;t have a YAML file before because Stage 2 didn&rsquo;t add one. That&rsquo;s normal — every layer eventually gets its own <code>_models.yml</code> once you start documenting and testing the models in it.</p>
+<h2>Why this catches bugs <code>unique</code> doesn&rsquo;t</h2>
+<p><code>unique</code> and <code>not_null</code> only assert things about a column <strong>in isolation</strong>. They can&rsquo;t tell you that <code>fct_orders.customer_id</code> is a real customer; they can only tell you that it&rsquo;s set and non-duplicated.</p>
+<p><code>relationships</code> is the cross-model assertion. It enforces the invariants that the warehouse won&rsquo;t enforce for you. Combined with <code>unique</code> on the parent&rsquo;s <code>customer_id</code>, it gives you the foreign-key safety net a transactional database would. Without one or both, you&rsquo;re trusting that joins behave — and joins are exactly where data quietly goes wrong.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong><code>relationships</code> syntax: <code>to: 'dim_customers'</code>.</strong> This silently passes parsing in older dbt versions but doesn&rsquo;t compile to a real reference. Use <code>to: ref('dim_customers')</code> — that&rsquo;s a Jinja expression dbt evaluates.</li>
+<li><strong>Putting <code>accepted_values</code> at the column level without the <code>values:</code> key.</strong> <code>accepted_values</code> <em>requires</em> arguments. The bare form <code>- accepted_values</code> will parse but fail at run time with a confusing error. Always include <code>values: [...]</code>.</li>
+<li><strong>Listing values that don&rsquo;t actually exist.</strong> If your <code>status</code> column has <code>'returned'</code> but you list <code>'return'</code> in <code>accepted_values</code>, every <code>'returned'</code> row will fail the test. The lesson includes the canonical list for jaffle_shop — copy it exactly.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

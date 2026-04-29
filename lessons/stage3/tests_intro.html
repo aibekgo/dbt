@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Why test? — <code>dbt test</code> and the four built-in tests</h1>
+<p>Stage 2 left you with a working DAG: sources → staging → intermediate → marts. It compiles. It runs. The numbers in <code>fct_orders</code> look plausible. Now ask yourself:</p>
+<ul>
+<li>How do you know <code>customer_id</code> is unique in <code>dim_customers</code>?</li>
+<li>How do you know every <code>order_id</code> in <code>fct_orders</code> joined to a real customer?</li>
+<li>How do you know the <code>status</code> column doesn&rsquo;t have a typo like <code>"shippeed"</code> rotting a downstream filter?</li>
+</ul>
+<p>Right now you don&rsquo;t. You hope. And next time someone changes a staging model, you&rsquo;ll keep hoping.</p>
+<p>This is what <code>dbt test</code> exists to fix. Tests turn assumptions about your data into <strong>executable assertions</strong> that run alongside the models — same DAG, same <code>dbt build</code>, same green-or-red feedback loop.</p>
+<h2>Two kinds of tests</h2>
+<p>dbt has exactly two flavors:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Where it lives</th>
+<th>Shape</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Generic</strong></td>
+<td>YAML, alongside the model definition</td>
+<td>A predefined check applied to one column</td>
+<td>&ldquo;I want this column to be unique.&rdquo;</td>
+</tr>
+<tr>
+<td><strong>Singular</strong></td>
+<td>A <code>.sql</code> file in <code>tests/</code></td>
+<td>A custom <code>select</code> that returns the <em>bad</em> rows</td>
+<td>&ldquo;I have a weird business rule that doesn&rsquo;t fit a generic.&rdquo;</td>
+</tr>
+</tbody>
+</table>
+<p>Both run when you say <code>dbt test</code>. Both fail the run if any rows come back where rows shouldn&rsquo;t.</p>
+<h2>The four built-in generic tests</h2>
+<p>Out of the box, dbt ships with four generic tests. They cover ~80% of what an analytics engineer needs day to day:</p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>What it asserts</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unique</code></td>
+<td>Every value in this column appears exactly once</td>
+<td>Primary keys (<code>customer_id</code>, <code>order_id</code>)</td>
+</tr>
+<tr>
+<td><code>not_null</code></td>
+<td>No null values in this column</td>
+<td>Required fields, foreign keys</td>
+</tr>
+<tr>
+<td><code>accepted_values</code></td>
+<td>Every value is from a fixed list</td>
+<td>Status / state / enum-style columns</td>
+</tr>
+<tr>
+<td><code>relationships</code></td>
+<td>Every value matches a value in another model&rsquo;s column</td>
+<td>Foreign-key integrity (<code>fct_orders.customer_id</code> → <code>dim_customers</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>These four show up in the schema YAML next to the column they apply to:</p>
+<pre><code class="language-yaml">version: 2
+
+models:
+  - name: stg__customers
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+</code></pre>
+<p>That&rsquo;s it. Two lines per assertion. dbt generates the actual SQL behind the scenes and runs it for you.</p>
+<h2>How a generic test runs</h2>
+<p>When you say <code>dbt test --select stg__customers</code>, dbt:</p>
+<ol>
+<li>Parses the project, finds every test attached to that model.</li>
+<li>For each one, generates a SQL query that returns the rows where the assertion is <strong>violated</strong>. For <code>unique</code> on <code>customer_id</code> that&rsquo;s:</li>
+</ol>
+<p><code>sql
+   select customer_id, count(*)
+   from "main"."stg__customers"
+   group by customer_id
+   having count(*) &gt; 1</code></p>
+<ol start="3">
+<li>Runs the query. If it returns 0 rows, the test passes. If it returns ≥1 rows, the test fails and dbt prints how many bad rows it found.</li>
+</ol>
+<p>That&rsquo;s the whole mental model. <strong>A test passes when its query returns nothing.</strong> Singular tests work the same way — you write the &ldquo;find the bad rows&rdquo; SQL by hand instead of letting dbt generate it.</p>
+<h2>Where the YAML actually lives</h2>
+<p>Every <code>models/staging/*.sql</code> file deserves a sibling YAML entry. The convention is to put them in a single file per folder:</p>
+<pre><code>models/staging/
+├── _models.yml          ← descriptions + tests for every staging model
+├── _sources.yml         ← from Stage 2
+├── stg__customers.sql
+├── stg__orders.sql
+└── stg__payments.sql
+</code></pre>
+<p>The leading underscore on <code>_models.yml</code> is a sort order trick — it keeps the YAML at the top of the folder when listed alphabetically. dbt itself doesn&rsquo;t care about the filename; it scans every <code>.yml</code> under <code>model-paths</code> and merges them.</p>
+<h2>Tests run as part of <code>dbt build</code></h2>
+<p>Recall from Stage 2 that <code>dbt build</code> runs models <em>and</em> tests in DAG order. After this stage, <code>dbt build</code> becomes meaningfully different from <code>dbt run</code>: a model with a failing test will block its downstream models from building. That&rsquo;s the safety guarantee — bad data doesn&rsquo;t silently propagate to BI.</p>
+<h2>What this stage will land</h2>
+<p>By the end of Stage 3 you&rsquo;ll have:</p>
+<ul>
+<li><code>models/staging/_models.yml</code> and <code>models/marts/_models.yml</code> declaring <code>unique</code> / <code>not_null</code> / <code>accepted_values</code> / <code>relationships</code> on every primary and foreign key</li>
+<li>A singular test in <code>tests/</code> catching a business-rule violation</li>
+<li>A small reference seed (<code>order_status_descriptions.csv</code>) and an analysis (<code>top_customers_by_revenue.sql</code>) — the two adjacent file types from the same dbt chapter</li>
+</ul>
+<p>Press <code>n</code> to start with the first exercise.</p>
+</body>
+
+</html>

@@ -1,0 +1,99 @@
+topic: stage3
+questions:
+  - id: stage3_01
+    difficulty: easy
+    type: multiple_choice
+    prompt: "When does a singular test (a `.sql` file in `tests/`) PASS?"
+    options:
+      a: "When it returns exactly 1 row"
+      b: "When it returns 0 rows"
+      c: "When it returns the same row count as the underlying model"
+      d: "When the SQL compiles without an error"
+    answer: b
+    explanation: |
+      The contract is: a singular test's `select` should return the *bad* rows — the ones that violate the assertion. 0 bad rows = test passes. ≥1 bad row = test fails, and dbt reports the count. This is why the predicate has to find violations (`where total_amount < 0`), not the rows you want.
+    related_item: singular_test
+
+  - id: stage3_02
+    difficulty: easy
+    type: multiple_choice
+    prompt: "Where do generic tests (like `unique`, `not_null`) attach in the YAML?"
+    options:
+      a: "Directly under the `models:` entry"
+      b: "Under a column inside `columns:`"
+      c: "In a separate `tests.yml` file"
+      d: "Inside the SQL file with a `{{ config(tests=[...]) }}` block"
+    answer: b
+    explanation: |
+      Generic tests attach to a *column*: `models: - name: <model> columns: - name: <col> tests: -`. Putting `tests:` at the model level instead of under a column is one of the most common silent bugs — the YAML parses fine, but no tests are actually attached. The verifier catches this with `manifest_test_count` rather than relying on `dbt test` to fail loudly.
+    related_item: generic_tests
+
+  - id: stage3_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which built-in test enforces foreign-key integrity between two models?"
+    options:
+      a: "`unique`"
+      b: "`not_null`"
+      c: "`accepted_values`"
+      d: "`relationships`"
+    answer: d
+    explanation: |
+      `relationships` is the cross-model assertion: every value in the column must exist in the referenced model's column. Configured with `to: ref('dim_customers')` (a Jinja expression — `ref()` is mandatory) and `field: customer_id`. Combined with `unique` on the parent's key, it gives you the foreign-key safety net the warehouse won't enforce on its own.
+    related_item: accepted_values_relationships
+
+  - id: stage3_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When should you reach for a seed (`dbt seed`) instead of declaring the data as a source?"
+    options:
+      a: "Whenever the data is in CSV format"
+      b: "When the data is small, slow-changing, and worth versioning in git alongside your dbt code"
+      c: "When the data has fewer than 100 rows"
+      d: "Seeds and sources are interchangeable"
+    answer: b
+    explanation: |
+      Seeds are for committed-to-git reference data that diffs cleanly in PRs (country code → name, status → description, frozen exchange rates). Sources are for upstream tables loaded by an external pipeline you don't control. Stage 1's Python ingestion handled the *primary* CSVs; this Stage 3 seed adds a small *reference* table — different use case, different tool.
+    related_item: seed_basics
+
+  - id: stage3_05
+    difficulty: medium
+    type: multiple_choice
+    prompt: "What does `dbt compile --select my_analysis` produce?"
+    options:
+      a: "A new table or view in the warehouse"
+      b: "A flat `.sql` file under `target/compiled/<project>/analyses/` with all Jinja resolved — no warehouse changes"
+      c: "Nothing — `dbt compile` is a no-op for analyses"
+      d: "A test result row in `target/run_results.json`"
+    answer: b
+    explanation: |
+      Analyses don't materialize. `dbt compile` parses Jinja, resolves `ref()` to fully-qualified table names, and writes the rendered SQL to `target/compiled/`. That's the file you copy-paste into a BI tool or DuckDB shell. `dbt run` and `dbt build` both *skip* analyses entirely — `compile` is the only command that exercises them.
+    related_item: analyses_intro
+
+  - id: stage3_06
+    difficulty: easy
+    type: multiple_choice
+    prompt: "What does `dbt test --select test_type:singular` run?"
+    options:
+      a: "Only the `.sql` files in the `tests/` folder"
+      b: "Only `unique` and `not_null` tests"
+      c: "Only tests on a single model"
+      d: "It's an alias for `dbt test`"
+    answer: a
+    explanation: |
+      `test_type:singular` is one of dbt's built-in selectors. It scopes to singular tests — the `.sql` files under `tests/`. The complement is `test_type:generic`, which scopes to YAML-declared tests like `unique`. Most teams just run `dbt test` (everything), but the type selector is useful when iterating on a single singular test in isolation.
+    related_item: singular_test
+
+  - id: stage3_07
+    difficulty: medium
+    type: multiple_choice
+    prompt: "An order of `'shippeed'` (typo, should be `'shipped'`) lands in `stg__orders.status`. Which test catches it?"
+    options:
+      a: "`unique`"
+      b: "`not_null`"
+      c: "`accepted_values: [placed, shipped, completed, return_pending, returned]`"
+      d: "`relationships`"
+    answer: c
+    explanation: |
+      `accepted_values` is the enum assertion — the column may only hold values from the listed set. A typo or a new vendor-introduced value gets flagged immediately. `unique` and `not_null` only check column shape (not duplicated, not blank), and `relationships` enforces cross-model integrity. Each built-in catches a different *class* of bug — most primary keys end up with `unique` + `not_null`, status columns get `accepted_values`, foreign keys get `relationships`.
+    related_item: accepted_values_relationships

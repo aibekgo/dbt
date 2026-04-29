@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Analyses — SQL that compiles but doesn&rsquo;t materialize</h1>
+<p>Models, tests, and seeds all <em>do something</em> in the warehouse — they create tables, run assertions, load data. <strong>Analyses</strong> are the odd cousin: they&rsquo;re SQL files in your dbt project that get <strong>compiled</strong> but never run as a build step.</p>
+<h2>What an analysis is for</h2>
+<p>An analysis is the right home for SQL that you want to:</p>
+<ul>
+<li><strong>Version alongside your dbt code</strong> so the team can review it in PRs</li>
+<li><strong>Use <code>ref()</code> and macros</strong> so it stays in sync with the rest of the project</li>
+<li><strong>Compile to runnable SQL</strong> that you (or a BI tool, or a one-off cron) can paste into a query editor</li>
+<li><strong>Not materialize</strong> as a table or view — because it&rsquo;s a one-off, an audit, or a teaching example</li>
+</ul>
+<p>Concrete examples:</p>
+<ul>
+<li><strong>Top-N reports</strong> that should be run on demand, not nightly. <em>&ldquo;Top 10 customers by lifetime revenue.&rdquo;</em></li>
+<li><strong>Audit queries</strong> flagging suspicious rows. <em>&ldquo;Orders with <code>payment_count = 0</code> that are still marked <code>completed</code>.&rdquo;</em></li>
+<li><strong>Migration validation queries</strong> comparing old and new versions of a fact table side by side.</li>
+<li><strong>Training queries</strong> that show a new analyst how to construct a particular cohort.</li>
+</ul>
+<p>The common thread: <strong>valuable SQL, but not part of the production data flow</strong>.</p>
+<h2>Where they live and what <code>dbt compile</code> does</h2>
+<p>Analyses go in <code>dbt_project/analyses/</code> (the folder is part of the default scaffold).</p>
+<p>When you run:</p>
+<pre><code class="language-bash">dbt compile --select top_customers_by_revenue
+</code></pre>
+<p>dbt does this:</p>
+<ol>
+<li>Parses the project to build the manifest. The analysis shows up as a node with <code>resource_type = "analysis"</code>.</li>
+<li>Renders the Jinja in your analysis SQL — <code>ref()</code>, <code>source()</code>, macros, <code>{% if %}</code> blocks all get evaluated.</li>
+<li>Writes the result to <code>target/compiled/&lt;project&gt;/analyses/&lt;analysis_name&gt;.sql</code>.</li>
+</ol>
+<p>That&rsquo;s it. No <code>create table</code>, no <code>create view</code>, nothing in DuckDB. The output is a flat <code>.sql</code> file you can copy-paste anywhere.</p>
+<p><code>dbt run</code> <em>skips</em> analyses entirely — they don&rsquo;t materialize, so there&rsquo;s nothing for <code>dbt run</code> to do. Likewise <code>dbt build</code>. The only way to exercise an analysis is <code>dbt compile</code>.</p>
+<h2>Why not just write a model?</h2>
+<p>You could materialize the top-customers query as a view:</p>
+<pre><code class="language-sql">{{ config(materialized='view') }}
+
+select ... from {{ ref('fct_orders') }} ...
+limit 10
+</code></pre>
+<p>It works, but it costs you on three axes:</p>
+<table>
+<thead>
+<tr>
+<th>Axis</th>
+<th>Model</th>
+<th>Analysis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lives in the warehouse</strong></td>
+<td>Yes — view or table</td>
+<td>No — only in <code>target/compiled/</code></td>
+</tr>
+<tr>
+<td><strong>Runs on every <code>dbt run</code></strong></td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>Counted in your DAG / docs</strong> as production output</td>
+<td>Yes — surfaces in lineage</td>
+<td>Yes, but as a separate <code>analysis</code> node</td>
+</tr>
+<tr>
+<td><strong><code>limit</code> semantics</strong></td>
+<td>&ldquo;Top 10 ever&rdquo; — view stale unless re-run</td>
+<td>&ldquo;Top 10 right now&rdquo; — query is run on demand</td>
+</tr>
+</tbody>
+</table>
+<p>The deciding question: <strong>is this query part of the production data product, or is it ad-hoc?</strong> Production = model. Ad-hoc but worth keeping = analysis.</p>
+<h2>Compiled output you can actually run</h2>
+<p>After <code>dbt compile</code>, <code>target/compiled/dbt_project/analyses/top_customers_by_revenue.sql</code> looks like this (Jinja resolved):</p>
+<pre><code class="language-sql">select
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    count(o.order_id) as order_count,
+    sum(o.amount)     as lifetime_revenue
+from &quot;main&quot;.&quot;fct_orders&quot; o
+join &quot;main&quot;.&quot;dim_customers&quot; c using (customer_id)
+group by 1, 2, 3
+order by lifetime_revenue desc
+limit 10
+</code></pre>
+<p>That&rsquo;s drop-in pasteable into the DuckDB CLI, a BI tool, or anywhere else that speaks SQL. The <code>{{ ref(...) }}</code> references have been resolved to fully-qualified table names.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Putting a <code>{{ config(...) }}</code> block in an analysis.</strong> Analyses don&rsquo;t materialize; the config is silently ignored, but it&rsquo;s a sign the file is in the wrong folder. If you find yourself wanting <code>materialized='table'</code>, move the file to <code>models/</code>.</li>
+<li><strong>Calling it <code>analysis/</code> (singular).</strong> The default config is <code>analysis-paths: ["analyses"]</code> (plural). The folder name is plural; the resource type in the manifest is <code>analysis</code> (singular). Don&rsquo;t conflate.</li>
+<li><strong>Forgetting <code>dbt compile</code> runs the entire project by default.</strong> Without <code>--select</code>, you&rsquo;ll compile every analysis and every model in the project. Scope with <code>--select &lt;name&gt;</code> while iterating to keep the feedback loop fast.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+</body>
+
+</html>

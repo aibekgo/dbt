@@ -10,8 +10,12 @@ Currently implemented rule types:
   - dbt_debug_success: `dbt debug` exits 0
   - dbt_seed_success: `dbt seed` exits 0 (optional `select` to scope)
   - dbt_run_success: `dbt run --select <model>` exits 0
+  - dbt_test_success: `dbt test [--select X]` exits 0 and every test in
+    target/run_results.json shows status=pass
   - dbt_build_success: `dbt build` (optionally scoped) exits 0 and every
     node in target/run_results.json shows status=success
+  - dbt_compile_success: `dbt compile [--select X]` exits 0 and (optional)
+    a compiled SQL artifact lands under target/compiled/
   - dbt_docs_generated: `dbt docs generate` exits 0 and target/manifest.json
     + target/catalog.json were regenerated this run
   - duckdb_table_exists: query dev.duckdb's information_schema for the table
@@ -21,10 +25,12 @@ Currently implemented rule types:
     materialized=<expected>
   - manifest_source_declared: parse target/manifest.json, assert a source
     block named `<source>` declares each table in `<tables>`.
+  - manifest_test_count: parse target/manifest.json, assert at least N
+    tests are attached to a model (optionally check named test types).
 
 Planned (added per-stage as needed):
-  - dbt_test_success, dbt_snapshot_success
-  - manifest_node_exists, manifest_test_count, manifest_exposure_exists
+  - dbt_snapshot_success
+  - manifest_node_exists, manifest_exposure_exists
   - run_results_node_status, incremental_row_growth
 """
 
@@ -504,6 +510,191 @@ def _check_dbt_docs_generated(rule: dict) -> list[TestResult]:
     return results
 
 
+def _check_dbt_test_success(rule: dict) -> list[TestResult]:
+    """`dbt test [--select X]` exits 0 and every test passes."""
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_test_success")
+    args = ["test"]
+    select = rule.get("select")
+    if select:
+        args += ["--select", select]
+    run = _run_dbt(*args)
+    label = "dbt test" + (f" --select {select}" if select else "")
+    results: list[TestResult] = [TestResult(
+        name=label,
+        passed=run.ok,
+        message="" if run.ok else _tail(run.stdout + run.stderr, lines=25),
+    )]
+    if not run.ok:
+        return results
+    if not RUN_RESULTS_PATH.exists():
+        results.append(TestResult(
+            name="run_results.json present",
+            passed=False,
+            message=f"{RUN_RESULTS_PATH.relative_to(ROOT)} missing after `dbt test`",
+        ))
+        return results
+    run_results = json.loads(RUN_RESULTS_PATH.read_text())
+    failures = [
+        r for r in run_results.get("results", [])
+        if r.get("status") not in ("success", "pass")
+    ]
+    if failures:
+        names = ", ".join(r.get("unique_id", "?") for r in failures[:5])
+        results.append(TestResult(
+            name="all tests pass",
+            passed=False,
+            message=f"{len(failures)} test(s) did not pass: {names}",
+        ))
+    else:
+        n = len(run_results.get("results", []))
+        results.append(TestResult(
+            name="all tests pass",
+            passed=True,
+            message=f"all {n} test(s) passed",
+        ))
+    return results
+
+
+def _check_manifest_test_count(rule: dict) -> list[TestResult]:
+    """At least `min` tests are attached to `<model>` in target/manifest.json.
+
+    Optional `tests` field — list of test type prefixes (e.g. `unique`,
+    `not_null`, `accepted_values`, `relationships`) — also asserts each
+    appears in the auto-generated test names. The test name pattern is
+    `<test_type>_<model>_<column>` so we use prefix matching.
+    """
+    model = rule.get("model")
+    minimum = rule.get("min")
+    if not model or minimum is None:
+        return [TestResult(
+            name="manifest_test_count",
+            passed=False,
+            message="rule needs both `model` (str) and `min` (int) fields",
+        )]
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("manifest_test_count")
+    parse = _run_dbt("parse")
+    if not parse.ok:
+        return [TestResult(
+            name="dbt parse",
+            passed=False,
+            message=_tail(parse.stdout + parse.stderr, lines=20),
+        )]
+    if not MANIFEST_PATH.exists():
+        return [TestResult(
+            name="manifest_test_count",
+            passed=False,
+            message=f"manifest.json not found at {MANIFEST_PATH.relative_to(ROOT)}",
+        )]
+    manifest = json.loads(MANIFEST_PATH.read_text())
+    # Find the model's unique_id so we can cross-reference depends_on lists.
+    model_unique_id: str | None = None
+    for node in manifest.get("nodes", {}).values():
+        if node.get("name") == model and node.get("resource_type") == "model":
+            model_unique_id = node.get("unique_id")
+            break
+    if model_unique_id is None:
+        return [TestResult(
+            name=f"manifest_test_count:{model}",
+            passed=False,
+            message=(
+                f"Model `{model}` not found in target/manifest.json. "
+                f"Did the model file land in `models/`?"
+            ),
+        )]
+    test_names: list[str] = []
+    for node in manifest.get("nodes", {}).values():
+        if node.get("resource_type") != "test":
+            continue
+        depends = node.get("depends_on", {}).get("nodes", [])
+        if model_unique_id in depends:
+            test_names.append(node.get("name", ""))
+    actual = len(test_names)
+    results: list[TestResult] = []
+    if actual < minimum:
+        results.append(TestResult(
+            name=f"manifest_test_count:{model}",
+            passed=False,
+            message=(
+                f"Model `{model}` has {actual} test(s) in target/manifest.json — "
+                f"expected at least {minimum}. "
+                f"Did you add them in a YAML `tests:` block?"
+            ),
+        ))
+        return results
+    results.append(TestResult(
+        name=f"manifest_test_count:{model}",
+        passed=True,
+        message=f"{actual} test(s) attached: {', '.join(sorted(test_names)) or '(none)'}",
+    ))
+    expected_types = rule.get("tests") or []
+    for test_type in expected_types:
+        if not any(name.startswith(f"{test_type}_") for name in test_names):
+            results.append(TestResult(
+                name=f"manifest_test_count:{model} has `{test_type}`",
+                passed=False,
+                message=(
+                    f"Model `{model}` has tests but none of type `{test_type}`. "
+                    f"Found: {', '.join(sorted(test_names)) or '(none)'}"
+                ),
+            ))
+        else:
+            results.append(TestResult(
+                name=f"manifest_test_count:{model} has `{test_type}`",
+                passed=True,
+                message="",
+            ))
+    return results
+
+
+def _check_dbt_compile_success(rule: dict) -> list[TestResult]:
+    """`dbt compile [--select X]` exits 0; optionally compiled artifact exists.
+
+    `compiled_artifact` is a path *relative to* `target/compiled/<project>/`
+    — e.g. `analyses/top_customers_by_revenue.sql`. We glob over project
+    name so this rule doesn't hardcode the dbt project's `name:` value.
+    """
+    if not DBT_PROJECT_DIR.exists():
+        return _project_missing_result("dbt_compile_success")
+    args = ["compile"]
+    select = rule.get("select")
+    if select:
+        args += ["--select", select]
+    run = _run_dbt(*args)
+    label = "dbt compile" + (f" --select {select}" if select else "")
+    results: list[TestResult] = [TestResult(
+        name=label,
+        passed=run.ok,
+        message="" if run.ok else _tail(run.stdout + run.stderr, lines=25),
+    )]
+    if not run.ok:
+        return results
+    artifact = rule.get("compiled_artifact")
+    if not artifact:
+        return results
+    compiled_root = DBT_PROJECT_DIR / "target" / "compiled"
+    matches = list(compiled_root.glob(f"*/{artifact}"))
+    if matches:
+        rel = matches[0].relative_to(ROOT)
+        results.append(TestResult(
+            name=f"compiled artifact:{artifact}",
+            passed=True,
+            message=f"found at {rel}",
+        ))
+    else:
+        results.append(TestResult(
+            name=f"compiled artifact:{artifact}",
+            passed=False,
+            message=(
+                f"Compiled artifact `{artifact}` not found under target/compiled/. "
+                f"Did you run `dbt compile --select {select or '<name>'}`? "
+                f"Check the file lives at the expected path inside `dbt_project/`."
+            ),
+        ))
+    return results
+
+
 def _short_sql(sql: str, limit: int = 40) -> str:
     one_line = " ".join(sql.split())
     return one_line if len(one_line) <= limit else one_line[: limit - 1] + "…"
@@ -525,12 +716,15 @@ RULE_HANDLERS: dict[str, RuleHandler] = {
     "dbt_debug_success":         _check_dbt_debug_success,
     "dbt_seed_success":          _check_dbt_seed_success,
     "dbt_run_success":           _check_dbt_run_success,
+    "dbt_test_success":          _check_dbt_test_success,
     "dbt_build_success":         _check_dbt_build_success,
+    "dbt_compile_success":       _check_dbt_compile_success,
     "dbt_docs_generated":        _check_dbt_docs_generated,
     "duckdb_table_exists":       _check_duckdb_table_exists,
     "duckdb_query":              _check_duckdb_query,
     "manifest_materialization":  _check_manifest_materialization,
     "manifest_source_declared":  _check_manifest_source_declared,
+    "manifest_test_count":       _check_manifest_test_count,
 }
 
 

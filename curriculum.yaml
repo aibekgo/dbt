@@ -256,3 +256,98 @@ stages:
         dbt_checks:
           rules:
             - type: dbt_docs_generated
+
+  - id: stage_3_data_quality
+    title: "Stage 3 — Data Quality: Tests, Seeds & Analyses"
+    items:
+      - id: tests_intro
+        type: lesson
+        file: lessons/stage3/tests_intro.html
+
+      - id: generic_tests
+        type: exercise
+        lesson:   lessons/stage3/generic_tests.html
+        exercise: exercises/stage3/generic_tests.md
+        original: originals/stage3/generic_tests.md
+        hints:    hints/stage3/generic_tests.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_test_success
+              select: staging
+            - type: manifest_test_count
+              model: stg__customers
+              min: 2
+              tests: [unique, not_null]
+            - type: manifest_test_count
+              model: stg__orders
+              min: 2
+              tests: [unique, not_null]
+            - type: manifest_test_count
+              model: stg__payments
+              min: 2
+              tests: [unique, not_null]
+
+      - id: accepted_values_relationships
+        type: exercise
+        lesson:   lessons/stage3/accepted_values_relationships.html
+        exercise: exercises/stage3/accepted_values_relationships.md
+        original: originals/stage3/accepted_values_relationships.md
+        hints:    hints/stage3/accepted_values_relationships.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_test_success
+              select: fct_orders
+            - type: manifest_test_count
+              model: stg__orders
+              min: 3
+              tests: [accepted_values]
+            - type: manifest_test_count
+              model: fct_orders
+              min: 3
+              tests: [unique, not_null, relationships]
+
+      - id: singular_test
+        type: exercise
+        lesson:   lessons/stage3/singular_test.html
+        exercise: exercises/stage3/singular_test.md
+        original: originals/stage3/singular_test.md
+        hints:    hints/stage3/singular_test.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_test_success
+              select: "test_type:singular"
+
+      - id: seed_basics
+        type: exercise
+        lesson:   lessons/stage3/seed_basics.html
+        exercise: exercises/stage3/seed_basics.md
+        original: originals/stage3/seed_basics.md
+        hints:    hints/stage3/seed_basics.md
+        verifier: dbt
+        dbt_checks:
+          rules:
+            - type: dbt_seed_success
+              select: order_status_descriptions
+            - type: duckdb_table_exists
+              table: order_status_descriptions
+            - type: duckdb_query
+              name: seed row count
+              sql: "select count(*) from order_status_descriptions"
+              expected_value: 5
+
+      - id: analyses_intro
+        type: exercise
+        lesson:   lessons/stage3/analyses_intro.html
+        exercise: exercises/stage3/analyses_intro.md
+        original: originals/stage3/analyses_intro.md
+        hints:    hints/stage3/analyses_intro.md
+        verifier: dbt
+        quiz:     quiz/stage3.yaml
+        dbt_checks:
+          rules:
+            - type: dbt_compile_success
+              select: top_customers_by_revenue
+              compiled_artifact: analyses/top_customers_by_revenue.sql
