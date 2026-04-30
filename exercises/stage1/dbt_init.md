@@ -21,6 +21,8 @@ dbt will prompt you with a couple of questions. Use these answers:
 
 If `dbt init` doesn't prompt for a database (some versions skip it when only one adapter is installed), that's fine — it'll just scaffold the project.
 
+If dbt asks whether to overwrite an existing `~/.dbt/profiles.yml`, answer `n` (we won't use that one — this course keeps `profiles.yml` inside the project).
+
 ## What success looks like
 
 After it finishes you should have a new directory tree:
@@ -31,13 +33,23 @@ dbt_project/
 ├── analyses/
 ├── macros/
 ├── models/
-│   └── example/        ← sample models dbt drops in; we'll ignore them for now
+│   └── example/        ← sample models dbt drops in — delete in the next step
 ├── seeds/
 ├── snapshots/
 └── tests/
 ```
 
 The CLI may also create or update `~/.dbt/profiles.yml` in your home directory. Ignore it — we won't use that one. The next exercise has you write `dbt_project/profiles.yml` instead.
+
+## Remove the example models
+
+`dbt init` ships sample models at `dbt_project/models/example/` (`my_first_dbt_model.sql`, `my_second_dbt_model.sql`, plus `schema.yml`). One of them returns a NULL row that fails a `not_null` test, which will break the Stage 2 `dbt build` exercise. Delete the folder now:
+
+```bash
+rm -rf dbt_project/models/example
+```
+
+You'll write your own models under `models/staging/` (Stage 1) and `models/marts/` / `models/intermediate/` (Stage 2).
 
 ## How verification works
 
