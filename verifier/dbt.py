@@ -470,7 +470,7 @@ def _check_dbt_build_success(rule: dict) -> list[TestResult]:
     run_results = json.loads(RUN_RESULTS_PATH.read_text())
     failures = [
         r for r in run_results.get("results", [])
-        if r.get("status") not in ("success", "pass")
+        if r.get("status") not in ("success", "pass", "no-op")
     ]
     if failures:
         names = ", ".join(r.get("unique_id", "?") for r in failures[:5])
@@ -548,7 +548,7 @@ def _check_dbt_snapshot_success(rule: dict) -> list[TestResult]:
     run_results = json.loads(RUN_RESULTS_PATH.read_text())
     failures = [
         r for r in run_results.get("results", [])
-        if r.get("status") not in ("success", "pass")
+        if r.get("status") not in ("success", "pass", "no-op")
     ]
     if failures:
         names = ", ".join(r.get("unique_id", "?") for r in failures[:5])
@@ -594,7 +594,7 @@ def _check_dbt_test_success(rule: dict) -> list[TestResult]:
     run_results = json.loads(RUN_RESULTS_PATH.read_text())
     failures = [
         r for r in run_results.get("results", [])
-        if r.get("status") not in ("success", "pass")
+        if r.get("status") not in ("success", "pass", "no-op")
     ]
     if failures:
         names = ", ".join(r.get("unique_id", "?") for r in failures[:5])
