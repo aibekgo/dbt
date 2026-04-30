@@ -49,14 +49,15 @@ class FileVerifier(BaseVerifier):
 
         tests: list[TestResult] = []
         for entry in checks:
-            path = ROOT / entry["path"]
+            rel = entry["path"]
+            path = ROOT / rel
             min_bytes = entry.get("min_bytes", 0)
 
             if not path.exists():
                 tests.append(TestResult(
-                    name=f"exists:{path}",
+                    name=f"exists:{rel}",
                     passed=False,
-                    message=f"Expected path does not exist: {path}",
+                    message=f"Expected path does not exist: {rel}",
                 ))
                 continue
 
@@ -67,10 +68,10 @@ class FileVerifier(BaseVerifier):
 
             size_ok = total >= min_bytes
             tests.append(TestResult(
-                name=f"size:{path}",
+                name=f"size:{rel}",
                 passed=size_ok,
                 message="" if size_ok else (
-                    f"{path}: {total:,} bytes found, need at least {min_bytes:,} bytes"
+                    f"{rel}: {total:,} bytes found, need at least {min_bytes:,} bytes"
                 ),
             ))
 

@@ -15,7 +15,7 @@ dbt init dbt_project
 dbt will prompt you with a couple of questions. Use these answers:
 
 | Prompt | Answer |
-|---|---|
+| --- | --- |
 | `Which database would you like to use?` | `1` (or whichever number is next to **duckdb**) |
 | Profile-related prompts (path, threads, etc.) | press Enter to accept defaults — we'll overwrite `profiles.yml` properly in the next exercise anyway |
 
@@ -27,7 +27,7 @@ If dbt asks whether to overwrite an existing `~/.dbt/profiles.yml`, answer `n` (
 
 After it finishes you should have a new directory tree:
 
-```
+```text
 dbt_project/
 ├── dbt_project.yml
 ├── analyses/

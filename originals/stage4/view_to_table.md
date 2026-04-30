@@ -66,3 +66,5 @@ Or open `target/manifest.json` and search for the `int_order_payments` node — 
 ## After you pass
 
 Press `n`. The next exercise demonstrates the *opposite* tradeoff — switching the same model to `ephemeral`, where it disappears from DuckDB entirely and gets inlined as a CTE in `fct_orders`.
+
+> **Heads up:** the next two exercises (`ephemeral_model` and Stage 6's `custom_generic_test`) keep changing `int_order_payments`'s materialization. Once you've moved on, don't press `p` to come back and re-press `v` here — the model is no longer a table, so this exercise's verifier would fail. Each materialization is the "current truth" only at the exercise that sets it.
