@@ -66,7 +66,7 @@ def show_item(item: CurriculumItem, state: dict) -> None:
     if item.type == "exercise" and item.exercise_path:
         file_hint = (
             f"\n📁 File: [green]{item.exercise}[/]"
-            f"\n[dim]Read the comments in the file for instructions.[/]"
+            f"\n[dim]Open the file for step-by-step instructions.[/]"
         )
 
     console.print()
@@ -87,6 +87,8 @@ def show_prompt(item: CurriculumItem) -> None:
         parts.append("[bold]v[/]:verify")
     parts.append("[bold]n[/]:next")
     parts.append("[bold]p[/]:previous")
+    if item.type == "exercise":
+        parts.append("[bold]x[/]:reset-exercise")
     parts.append("[bold]r[/]:reset-progress")
     parts.append("[bold]q[/]:quit")
     console.print("\n" + "  ".join(parts) + " ? ", end="")

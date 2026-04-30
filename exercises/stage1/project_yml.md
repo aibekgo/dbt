@@ -32,6 +32,7 @@ from {{ ref('stg__customers') }}
 ```
 
 Two things to notice:
+
 - **No `{{ config(materialized='table') }}` at the top.** The materialization will come entirely from `dbt_project.yml` in the next step.
 - `{{ ref('stg__customers') }}` — marts depend on staging models via `ref()`, the same way staging depends on raw via `source()`. dbt will build `stg__customers` first, then `dim_customers`.
 
@@ -56,6 +57,7 @@ models:
 ```
 
 What this YAML says:
+
 - `models:` — top-level config block
 - `dbt_project:` — your project name (must match the `name:` field at the top of the same file)
 - `staging:` and `marts:` — folders under `models/` that the configs apply to

@@ -10,9 +10,15 @@ An interactive, rustlings-style CLI for learning dbt — hands-on exercises with
 
 ## Setup
 
-**1. Clone the repo and open it in VSCode.**
+**1. Clone the repo, then `cd` into it and open it in VSCode:**
 
-**2. Set up your Python environment:**
+```bash
+git clone <repo-url> learn_dbt
+cd learn_dbt
+code .
+```
+
+**2. Set up your Python environment from inside `learn_dbt/`:**
 
 ```bash
 uv venv
@@ -44,6 +50,8 @@ Once inside, navigate with single-key commands:
 |-----|--------|
 | `l` | Open the lesson in browser |
 | `n` | Advance to next item |
+| `p` | Go back to the previous item |
+| `r` | Reset progress only (start over from item 1; keeps your `dbt_project/` and warehouse) |
 | `q` | Quit |
 
 **Exercises:**
@@ -54,15 +62,22 @@ Once inside, navigate with single-key commands:
 | `v` | Verify your solution (output is shown inline) |
 | `h` | Show hints |
 | `n` | Advance (must pass verification first) |
-| `x` | Reset the current exercise back to its scaffold |
+| `p` | Go back to the previous item |
+| `x` | Reset the current exercise file back to its scaffold |
+| `r` | Reset progress only (start over from item 1; keeps your `dbt_project/` and warehouse) |
 | `q` | Quit |
 
 ## CLI commands (non-interactive)
 
 ```bash
-dbt-learn          # launch interactive session
-dbt-learn list     # list all curriculum items and their status
-dbt-learn reset    # reset progress, restore exercise scaffolds, wipe DuckDB and re-seed
+dbt-learn                  # launch interactive session
+dbt-learn list             # list all curriculum items and their status
+dbt-learn quiz             # run the full quiz across every stage
+dbt-learn reset-progress   # reset progress only — keeps your dbt_project/ and DuckDB intact
+dbt-learn reset            # ⚠️  DESTRUCTIVE: resets progress, restores all exercise files,
+                           #    deletes dbt_project/ and database/*.duckdb*, and sends you back to stage 1.
+                           #    The warehouse is empty afterwards — you'll re-run
+                           #    `python scripts/ingest_raw.py` from the Stage 1 ingestion exercise.
 ```
 
 ## How exercises work
@@ -72,4 +87,4 @@ Each curriculum item is either a **lesson** or an **exercise**.
 - **Lessons** — press `l` to open in browser, then `n` to advance.
 - **Exercises** — press `l` to open the lesson first, edit the exercise file the CLI points you at, then press `v` to verify. The verifier runs `dbt` for real and inspects `target/manifest.json`, `run_results.json`, and the DuckDB warehouse to confirm correctness. Fix any failures and verify again — press `n` to advance once all checks pass.
 
-The dbt project lives at `dbt_project/`. The `jaffle_shop` raw CSVs (`raw_customers`, `raw_orders`, `raw_payments`) ship in `dbt_project/seeds/` and load into DuckDB on first run.
+The dbt project lives at `dbt_project/` — you'll create it yourself in Stage 1 with `dbt init`. The three `jaffle_shop` raw CSVs (`raw_customers`, `raw_orders`, `raw_payments`) live at `data/raw_*.csv` and are loaded into DuckDB by `scripts/ingest_raw.py`, which the Stage 1 ingestion exercise walks you through. We use a Python script (not `dbt seed`) on purpose — it mirrors how a real data team uses an ingestion tool like Fivetran or Airbyte for raw operational data, leaving `dbt seed` for what it's actually good at: small lookup tables (you'll meet that in Stage 3).
