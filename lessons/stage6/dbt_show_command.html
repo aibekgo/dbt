@@ -143,6 +143,59 @@
 </ul>
 <p>The exercise: run <code>dbt show --select fct_orders --limit 5</code>, see the output, press <code>v</code>. Tiny exercise; the value is the muscle memory.</p>
 <p>Press <code>n</code> to start.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From inside <code>dbt_project/</code>, run:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt show --select fct_orders --limit 5
+</code></pre>
+<p>Output should show 5 rows of <code>fct_orders</code>, formatted as a table. Columns include <code>order_id</code>, <code>customer_id</code>, <code>first_name</code>, <code>last_name</code>, <code>order_date</code>, <code>status</code>, <code>amount</code>, <code>payment_count</code>, plus the <code>order_key</code> you added in Stage 5.</p>
+<p><strong>2.</strong> (Optional, to try the inline mode.) Run a one-off aggregation without writing a file:</p>
+<pre><code class="language-bash">dbt show --inline &quot;select status, count(*) as n from {{ ref('fct_orders') }} group by 1 order by n desc&quot;
+</code></pre>
+<p>Five rows, one per status, with the count. Notice how <code>{{ ref('fct_orders') }}</code> works inside <code>--inline</code> just like inside a model file.</p>
+<p><strong>3.</strong> (Also optional, to see the limit knob.) Compare the same query with different limits:</p>
+<pre><code class="language-bash">dbt show --select fct_orders --limit 1
+dbt show --select fct_orders --limit 20
+</code></pre>
+<p>The first prints one row, the second prints 20. The model isn&rsquo;t re-run between them — <code>--limit</code> is a presentation-time cap, not a query-time filter.</p>
+<p><strong>4.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt show --select fct_orders --limit 5</code> exits 0.</li>
+</ul>
+<p>The verifier itself runs the same command and confirms it succeeds. Your output isn&rsquo;t compared — only the exit code. So as long as <code>fct_orders</code> is queryable, this passes.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Catalog Error: Table with name fct_orders does not exist!</code></td>
+<td>The model isn&rsquo;t built. Run <code>dbt run --select fct_orders</code> first, then retry.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'fct_orders' is undefined</code></td>
+<td>Typo in the <code>--select</code> value, or the model name has changed. Run <code>dbt ls --resource-type model</code> to confirm.</td>
+</tr>
+<tr>
+<td>Output is garbled / truncated</td>
+<td>Terminal width is too narrow. Resize the terminal wider, or scope columns with <code>--inline "select order_id, status, amount from ... limit 5"</code>.</td>
+</tr>
+<tr>
+<td>Verifier itself is slow</td>
+<td><code>dbt show</code> runs the model&rsquo;s full SQL query. For our 99-row seed, this is instant. On big tables, it can take a while — that&rsquo;s normal.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next is <code>commands_tour</code> — a lesson covering the full dbt CLI surface (<code>dbt parse</code>, <code>dbt ls</code>, <code>dbt source freshness</code>, <code>dbt retry</code>, <code>dbt clean</code>, etc.) so you know what&rsquo;s available beyond the workhorse <code>run</code>/<code>build</code>/<code>test</code>.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

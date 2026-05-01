@@ -73,26 +73,26 @@
 <body>
 <h1>The fact table — what an analyst actually queries</h1>
 <p>Three staging models, one intermediate. None of them is what someone would open BI on. The fact is the model an analyst runs <code>select * from</code> against and gets answers — joins resolved, columns named for humans, grain set deliberately.</p>
-<p>This exercise builds <code>fct_orders</code>: one row per order, every column the analyst needs to answer &ldquo;who ordered what, when, for how much.&rdquo;</p>
+<p>This exercise builds <code>fct_orders</code>: one row per order, every column the analyst needs to answer “who ordered what, when, for how much.”</p>
 <h2>Fact vs dimension</h2>
 <p>The data warehouse vocabulary:</p>
 <ul>
-<li><strong>Facts</strong> are <em>events</em> — orders, sessions, transactions, page views. The grain is &ldquo;one event per row.&rdquo; <code>fct_orders</code> has one row per order. <code>fct_payments</code> would have one row per payment. The columns are mostly numeric measures (amounts, counts, durations) with foreign keys out to dimensions.</li>
-<li><strong>Dimensions</strong> are <em>things</em> — customers, products, locations. The grain is &ldquo;one thing per row.&rdquo; <code>dim_customers</code> has one row per customer. The columns are mostly attributes (names, tiers, regions).</li>
+<li><strong>Facts</strong> are <em>events</em> — orders, sessions, transactions, page views. The grain is “one event per row.” <code>fct_orders</code> has one row per order. <code>fct_payments</code> would have one row per payment. The columns are mostly numeric measures (amounts, counts, durations) with foreign keys out to dimensions.</li>
+<li><strong>Dimensions</strong> are <em>things</em> — customers, products, locations. The grain is “one thing per row.” <code>dim_customers</code> has one row per customer. The columns are mostly attributes (names, tiers, regions).</li>
 </ul>
 <p>Stage 1 already built one dimension (<code>dim_customers</code>). This exercise adds the corresponding fact, and the two together are what most analyses join.</p>
 <h2>Set the grain first</h2>
-<p>The hardest part of writing a fact isn&rsquo;t the SQL — it&rsquo;s deciding the grain. &ldquo;One row per what?&rdquo; Pick wrong and the row count lies (joins fan out, aggregates double-count, foreign keys aren&rsquo;t actually unique).</p>
+<p>The hardest part of writing a fact isn’t the SQL — it’s deciding the grain. “One row per what?” Pick wrong and the row count lies (joins fan out, aggregates double-count, foreign keys aren’t actually unique).</p>
 <p>Here, the grain is <strong>one row per order</strong>. That means:</p>
 <ul>
 <li><code>stg__orders</code> is the <strong>driving table</strong> — its row count sets the row count of the fact.</li>
 <li>Everything else gets <code>left join</code>-ed in. Joins must not multiply rows. Customers join 1:1 (a customer per order). Payments join via <code>int_order_payments</code>, which we already collapsed to one-row-per-order — so the join is also 1:1.</li>
-<li>If you joined directly to <code>stg__payments</code> (113 rows), you&rsquo;d get 113 rows out. That&rsquo;s why the intermediate exists.</li>
+<li>If you joined directly to <code>stg__payments</code> (113 rows), you’d get 113 rows out. That’s why the intermediate exists.</li>
 </ul>
 <p>A useful sanity check: after building, <code>select count(*) from fct_orders</code> should equal <code>select count(*) from stg__orders</code>. The verifier checks this.</p>
 <h2>What the fact looks like</h2>
 <p><code>models/marts/fct_orders.sql</code>:</p>
-<pre><code class="language-sql">select
+<pre><code>select
     o.order_id,
     o.customer_id,
     c.first_name,
@@ -108,9 +108,9 @@ left join {{ ref('int_order_payments') }} p using (order_id)
 <p>Reading it top-to-bottom:</p>
 <ul>
 <li><strong><code>{{ ref('stg__orders') }} o</code></strong> is the driving table. Aliased <code>o</code> for readability.</li>
-<li><strong><code>left join … customers using (customer_id)</code></strong> — every order has a customer, so <code>inner join</code> would also work, but <code>left join</code> is safer: if a customer record vanishes upstream, you&rsquo;d rather see the order with nulls than have it disappear from the fact silently.</li>
-<li><strong><code>left join … int_order_payments using (order_id)</code></strong> — orders without payments would land here as nulls. <code>coalesce(…, 0)</code> makes the analyst&rsquo;s life easier: no <code>null</code> dollars in the report.</li>
-<li><strong><code>using (customer_id)</code></strong> — DuckDB syntax for &ldquo;join where columns of the same name are equal.&rdquo; Equivalent to <code>on o.customer_id = c.customer_id</code>. Slightly cleaner when names line up.</li>
+<li><strong><code>left join … customers using (customer_id)</code></strong> — every order has a customer, so <code>inner join</code> would also work, but <code>left join</code> is safer: if a customer record vanishes upstream, you’d rather see the order with nulls than have it disappear from the fact silently.</li>
+<li><strong><code>left join … int_order_payments using (order_id)</code></strong> — orders without payments would land here as nulls. <code>coalesce(…, 0)</code> makes the analyst’s life easier: no <code>null</code> dollars in the report.</li>
+<li><strong><code>using (customer_id)</code></strong> — DuckDB syntax for “join where columns of the same name are equal.” Equivalent to <code>on o.customer_id = c.customer_id</code>. Slightly cleaner when names line up.</li>
 <li><strong>No <code>{{ config(...) }}</code> block.</strong> The model lives under <code>models/marts/</code> and inherits <code>+materialized: table</code> from <code>dbt_project.yml</code> — facts almost always materialize as tables (built once, read many times).</li>
 </ul>
 <h2>Order of joins matters</h2>
@@ -119,11 +119,91 @@ left join {{ ref('int_order_payments') }} p using (order_id)
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong>Grain explosion.</strong> Joining <code>stg__payments</code> (the un-aggregated 113-row staging model) instead of <code>int_order_payments</code> blows the row count from 99 to 113. The verifier catches this.</li>
-<li><strong>Inner join instead of left join.</strong> Loses rows silently. If <code>select count(*) from fct_orders</code> is less than <code>select count(*) from stg__orders</code>, you&rsquo;re filtering rows out somewhere — usually an inner join.</li>
+<li><strong>Inner join instead of left join.</strong> Loses rows silently. If <code>select count(*) from fct_orders</code> is less than <code>select count(*) from stg__orders</code>, you’re filtering rows out somewhere — usually an inner join.</li>
 <li><strong>Forgetting <code>coalesce</code>.</strong> Analyst queries <code>sum(amount)</code> and gets <code>null</code> for the few orders without payments. Better to materialize <code>0</code> once than chase the bug downstream.</li>
 <li><strong><code>using (id)</code> ambiguity.</strong> <code>using</code> only works when the join column has the same name on both sides. Mismatched names need explicit <code>on a.x = b.y</code>.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> Create <code>dbt_project/models/marts/fct_orders.sql</code>:</p>
+<pre><code class="language-sql">select
+    o.order_id,
+    o.customer_id,
+    c.first_name,
+    c.last_name,
+    o.order_date,
+    o.status,
+    coalesce(p.total_amount, 0)  as amount,
+    coalesce(p.payment_count, 0) as payment_count
+from {{ ref('stg__orders') }} o
+left join {{ ref('stg__customers') }}     c using (customer_id)
+left join {{ ref('int_order_payments') }} p using (order_id)
+</code></pre>
+<p>Things to look at while you&rsquo;re typing:</p>
+<ul>
+<li><strong><code>stg__orders</code> is the driving table.</strong> It sets the grain (one row per order). Both other models are <code>left join</code>-ed in.</li>
+<li><strong><code>coalesce(…, 0)</code></strong> — defensive defaults so analyst-facing queries don&rsquo;t have to handle nulls.</li>
+<li><strong><code>using (customer_id)</code> / <code>using (order_id)</code></strong> — works because Stage 2&rsquo;s renames made the column names line up across staging models. If they didn&rsquo;t, you&rsquo;d write <code>on o.customer_id = c.customer_id</code> instead.</li>
+<li>No materialization block — <code>models/marts/</code> inherits <code>+materialized: table</code> from <code>dbt_project.yml</code>.</li>
+</ul>
+<p><strong>2.</strong> Build the whole chain:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select +fct_orders
+</code></pre>
+<p>The <code>+</code> prefix means &ldquo;this model and everything upstream&rdquo; — dbt will rebuild any staging or intermediate models that aren&rsquo;t fresh, in the right order, before building the fact.</p>
+<p>You should see four green nodes: <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>, <code>int_order_payments</code>, then <code>fct_orders</code>.</p>
+<p><strong>3.</strong> Sanity-check the grain matches <code>stg__orders</code>:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;
+  select
+    (select count(*) from stg__orders)   as orders_count,
+    (select count(*) from fct_orders)    as fact_count;
+&quot;
+</code></pre>
+<p>Both should be <code>99</code>. If <code>fact_count</code> is bigger, a join fanned out (likely you used <code>stg__payments</code> instead of <code>int_order_payments</code>). If smaller, an <code>inner join</code> filtered rows out.</p>
+<p><strong>4.</strong> Spot-check a few rows look right:</p>
+<pre><code class="language-bash">dbt show --select fct_orders --limit 5
+</code></pre>
+<p>Each row should have a customer name, an <code>amount</code> in dollars (e.g. <code>26.00</code>), and a <code>payment_count</code> between 1 and 3 for orders with payments.</p>
+<p><strong>5.</strong> Press <code>v</code>.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select +fct_orders</code> exits 0, building all dependencies in DAG order.</li>
+<li>The table <code>fct_orders</code> exists in <code>dev.duckdb</code>.</li>
+<li><code>select count(*) from fct_orders</code> equals <code>select count(*) from stg__orders</code> — proving no fan-out, no row loss.</li>
+<li>The schema has the columns: <code>order_id</code>, <code>customer_id</code>, <code>first_name</code>, <code>last_name</code>, <code>order_date</code>, <code>status</code>, <code>amount</code>, <code>payment_count</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: Model 'fct_orders' depends on a node named 'int_order_payments' which was not found</code></td>
+<td>Previous exercise didn&rsquo;t ship — go back to <code>intermediate_model</code>.</td>
+</tr>
+<tr>
+<td><code>select count(*) from fct_orders</code> is 113 instead of 99</td>
+<td>You joined directly to <code>stg__payments</code>. Use the intermediate (<code>int_order_payments</code>) — that&rsquo;s why we built it.</td>
+</tr>
+<tr>
+<td><code>select count(*) from fct_orders</code> is less than 99</td>
+<td>Inner join filtered rows. Switch to <code>left join</code> for the customer / payments joins.</td>
+</tr>
+<tr>
+<td><code>Binder Error: Reference to column "customer_id" is ambiguous</code></td>
+<td><code>using (customer_id)</code> requires the column to have the same name in both tables. If you wrote <code>o.user_id</code> instead of <code>o.customer_id</code>, switch to <code>on o.user_id = c.customer_id</code> or fix the staging rename.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. You&rsquo;ve finished the model layer for Stage 2. The remaining two exercises are dbt CLI tooling: <code>dbt build</code> (the unified build command) and <code>dbt docs</code> (the lineage site).</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

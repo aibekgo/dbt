@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <style>
@@ -11,88 +12,92 @@
       color: #1a1a1a;
       line-height: 1.6;
     }
-    h1, h2, h3 { margin-top: 2em; }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
     code {
       background: #f0f0f0;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 0.9em;
     }
+
     pre {
       background: #f0f0f0;
       padding: 16px;
       border-radius: 6px;
       overflow-x: auto;
     }
+
     pre code {
       background: none;
       padding: 0;
     }
+
     img {
       max-width: 100%;
       border-radius: 6px;
       margin: 16px auto;
       display: block;
     }
+
     blockquote {
       border-left: 4px solid #ccc;
       margin: 0;
       padding: 4px 16px;
       color: #555;
     }
+
     table {
       border-collapse: collapse;
       width: 100%;
     }
-    th, td {
+
+    th,
+    td {
       border: 1px solid #ddd;
       padding: 8px 12px;
       text-align: left;
     }
-    th { background: #f0f0f0; }
+
+    th {
+      background: #f0f0f0;
+    }
   </style>
 </head>
+
 <body>
 <h1>Your first model</h1>
-
-<p>Three raw tables sit in DuckDB &mdash; landed by <code>scripts/ingest_raw.py</code>. Time to write the thing dbt actually exists for: a <strong>model</strong>.</p>
-
-<p>To keep this first one focused, we&rsquo;ll skip every advanced concept (sources, <code>{{ source(...) }}</code>, materialization config) and just build the simplest model that works. The next exercise (<code>add_sources</code>) re-does the same model the production way.</p>
-
+<p>Three raw tables sit in DuckDB — landed by <code>scripts/ingest_raw.py</code>. Time to write the thing dbt actually exists for: a <strong>model</strong>.</p>
+<p>To keep this first one focused, we’ll skip every advanced concept (sources, <code>{{ source(...) }}</code>, materialization config) and just build the simplest model that works. The next exercise (<code>add_sources</code>) re-does the same model the production way.</p>
 <h2>What a model is</h2>
-
-<img src="../../images/first_model/model.png" alt="A dbt model: a SELECT statement in a .sql file becomes a view or table in the warehouse">
-
-<p>A dbt <strong>model</strong> is a single <code>.sql</code> file under <code>models/</code> that contains exactly one <code>SELECT</code> statement. No <code>CREATE TABLE</code>, no <code>INSERT</code>, no DDL of any kind &mdash; you write the query, dbt wraps it in the right DDL and runs it for you. If the view already exists, dbt drops and rebuilds it.</p>
-
-<pre><code class="language-sql">-- models/staging/stg__customers.sql
+<p><img alt="A dbt model: a SELECT statement in a .sql file becomes a view or table in the warehouse" src="../../images/first_model/model.png"></p>
+<p>A dbt <strong>model</strong> is a single <code>.sql</code> file under <code>models/</code> that contains exactly one <code>SELECT</code> statement. No <code>CREATE TABLE</code>, no <code>INSERT</code>, no DDL of any kind — you write the query, dbt wraps it in the right DDL and runs it for you. If the view already exists, dbt drops and rebuilds it.</p>
+<pre><code>-- models/staging/stg__customers.sql
 select
     id          as customer_id,
     first_name,
     last_name
 from main.raw_customers
 </code></pre>
-
-<p>That&rsquo;s the entire file. Three columns, a rename, no Jinja. <code>main.raw_customers</code> is the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote.</p>
-
+<p>That’s the entire file. Three columns, a rename, no Jinja. <code>main.raw_customers</code> is the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote.</p>
 <blockquote>
-<p>Hardcoding the schema and table name like this is something you almost never do in real dbt code &mdash; production models always go through <code>{{ source(...) }}</code> or <code>{{ ref(...) }}</code>. We&rsquo;re using the hardcode here on purpose, to keep the cognitive load on this very first model at zero. The <strong>add_sources</strong> exercise (next) refactors it.</p>
+<p>Hardcoding the schema and table name like this is something you almost never do in real dbt code — production models always go through <code>{{ source(...) }}</code> or <code>{{ ref(...) }}</code>. We’re using the hardcode here on purpose, to keep the cognitive load on this very first model at zero. The <strong>add_sources</strong> exercise (next) refactors it.</p>
 </blockquote>
-
 <h2>What <code>dbt run</code> actually does</h2>
-
 <p>When you run <code>dbt run --select stg__customers</code>, dbt walks the same loop it walks for every model:</p>
-
 <ol>
-  <li><strong>Parse</strong> &mdash; reads every file under <code>models/</code> and builds an in-memory representation of the project.</li>
-  <li><strong>Compile</strong> &mdash; expands any Jinja in your model file (<code>{{ source(...) }}</code>, <code>{{ ref(...) }}</code>, <code>{{ config(...) }}</code>, macros) into raw SQL. Writes the compiled SQL to <code>target/compiled/</code>. <em>Does not touch the warehouse.</em></li>
-  <li><strong>Execute</strong> &mdash; wraps the compiled SQL in the right DDL (<code>CREATE OR REPLACE VIEW</code>, by default) and runs it against the warehouse.</li>
-  <li><strong>Record</strong> &mdash; writes run results, logs, and the manifest to <code>target/</code>.</li>
+<li><strong>Parse</strong> — reads every file under <code>models/</code> and builds an in-memory representation of the project.</li>
+<li><strong>Compile</strong> — expands any Jinja in your model file (<code>{{ source(...) }}</code>, <code>{{ ref(...) }}</code>, <code>{{ config(...) }}</code>, macros) into raw SQL. Writes the compiled SQL to <code>target/compiled/</code>. <em>Does not touch the warehouse.</em></li>
+<li><strong>Execute</strong> — wraps the compiled SQL in the right DDL (<code>CREATE OR REPLACE VIEW</code>, by default) and runs it against the warehouse.</li>
+<li><strong>Record</strong> — writes run results, logs, and the manifest to <code>target/</code>.</li>
 </ol>
-
 <p>So your <code>stg__customers.sql</code> ends up running as something like:</p>
-
-<pre><code class="language-sql">create or replace view dev.main_main.stg__customers as (
+<pre><code>create or replace view dev.main_main.stg__customers as (
   select
       id as customer_id,
       first_name,
@@ -100,50 +105,109 @@ from main.raw_customers
   from main.raw_customers
 );
 </code></pre>
-
 <p>(<code>dev</code> is the DuckDB database file <code>database/dev.duckdb</code>; <code>main_main</code> is the schema dbt creates for its own models.)</p>
-
 <p>You write the <em>logic</em>; dbt handles the boilerplate, the dependency order, the schema names, and the cleanup.</p>
-
 <h2>Inspecting the output</h2>
-
 <p>Two places worth peeking at after a run:</p>
 <ul>
-  <li><code>dbt_project/target/compiled/dbt_project/models/staging/stg__customers.sql</code> &mdash; the SQL dbt actually sent to DuckDB. For this hardcoded model it&rsquo;s identical to your input; once you start using <code>source()</code> and <code>ref()</code> it diverges.</li>
-  <li><code>dbt_project/target/run_results.json</code> &mdash; structured output of the last run: which nodes succeeded, how long they took, any error messages.</li>
+<li><code>dbt_project/target/compiled/dbt_project/models/staging/stg__customers.sql</code> — the SQL dbt actually sent to DuckDB. For this hardcoded model it’s identical to your input; once you start using <code>source()</code> and <code>ref()</code> it diverges.</li>
+<li><code>dbt_project/target/run_results.json</code> — structured output of the last run: which nodes succeeded, how long they took, any error messages.</li>
 </ul>
-
 <p>And of course the warehouse itself:</p>
-
-<pre><code class="language-bash">duckdb database/dev.duckdb -c "SELECT * FROM stg__customers LIMIT 3;"
+<pre><code>duckdb database/dev.duckdb -c &quot;SELECT * FROM stg__customers LIMIT 3;&quot;
 </code></pre>
-
 <h2>Compile vs run</h2>
-
 <table>
-  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><code>dbt compile</code></td>
-      <td>Parses + compiles. <strong>Does not touch the warehouse.</strong> Useful when you want to see what dbt is about to send before sending it.</td>
-    </tr>
-    <tr>
-      <td><code>dbt run</code></td>
-      <td>Parses + compiles + executes against the warehouse.</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt compile</code></td>
+<td>Parses + compiles. <strong>Does not touch the warehouse.</strong> Useful when you want to see what dbt is about to send before sending it.</td>
+</tr>
+<tr>
+<td><code>dbt run</code></td>
+<td>Parses + compiles + executes against the warehouse.</td>
+</tr>
+</tbody>
 </table>
-
 <p>When a model misbehaves, <code>dbt compile</code> + reading the file in <code>target/compiled/</code> is the fastest way to see what dbt is actually about to run.</p>
-
 <h2>Common pitfalls</h2>
 <ul>
-  <li><strong>Skipping ingestion.</strong> &mdash; <code>main.raw_customers</code> only exists if you ran <code>scripts/ingest_raw.py</code>. If you see <em>&ldquo;Relation does not exist&rdquo;</em>, go back one step.</li>
-  <li><strong>Reaching for <code>{{ source(...) }}</code> too early.</strong> &mdash; Save it for the next exercise. Without a matching <code>_sources.yml</code> declaration, the macro errors out.</li>
-  <li><strong>Writing <code>CREATE TABLE</code> in a model.</strong> &mdash; You&rsquo;re fighting the framework. dbt owns DDL; you own the <code>SELECT</code>.</li>
-  <li><strong>Putting business logic in staging.</strong> &mdash; The staging layer is for renames, casts, and light cleanup. Joins, filters that drop rows, aggregations &mdash; those belong in marts (Stage 2).</li>
+<li><strong>Skipping ingestion.</strong> — <code>main.raw_customers</code> only exists if you ran <code>scripts/ingest_raw.py</code>. If you see <em>“Relation does not exist”</em>, go back one step.</li>
+<li><strong>Reaching for <code>{{ source(...) }}</code> too early.</strong> — Save it for the next exercise. Without a matching <code>_sources.yml</code> declaration, the macro errors out.</li>
+<li><strong>Writing <code>CREATE TABLE</code> in a model.</strong> — You’re fighting the framework. dbt owns DDL; you own the <code>SELECT</code>.</li>
+<li><strong>Putting business logic in staging.</strong> — The staging layer is for renames, casts, and light cleanup. Joins, filters that drop rows, aggregations — those belong in marts (Stage 2).</li>
 </ul>
-
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, step into the project:</p>
+<pre><code class="language-bash">cd dbt_project
+</code></pre>
+<p><strong>2.</strong> Create the staging folder and the model file:</p>
+<pre><code class="language-bash">mkdir -p models/staging
+touch models/staging/stg__customers.sql
+</code></pre>
+<p><strong>3.</strong> Open <code>dbt_project/models/staging/stg__customers.sql</code> in your editor and paste:</p>
+<pre><code class="language-sql">select
+    id          as customer_id,
+    first_name,
+    last_name
+from main.raw_customers
+</code></pre>
+<p>That&rsquo;s it — pure SQL. <code>main.raw_customers</code> is the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote. We&rsquo;re hardcoding it on purpose so the very first model has zero ceremony.</p>
+<p><strong>4.</strong> Build it:</p>
+<pre><code class="language-bash">dbt run --select stg__customers
+</code></pre>
+<p>You should see one green line: <code>1 of 1 START sql view model ... [OK ...]</code>.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What <code>dbt run</code> actually did</h2>
+<p>The whole loop, in plain English:</p>
+<ol>
+<li><strong>Parsed</strong> every file under <code>models/</code>. Found one model: <code>stg__customers</code>.</li>
+<li><strong>Compiled</strong> it — expanded any Jinja into raw SQL. (Yours had none, so the compiled file is identical to your input. You can see it under <code>target/compiled/</code>.)</li>
+<li><strong>Wrapped</strong> the <code>SELECT</code> in <code>CREATE OR REPLACE VIEW dev.main_main.stg__customers AS (...)</code> and sent it to DuckDB.</li>
+<li><strong>Wrote</strong> the run result and any logs into <code>target/</code>.</li>
+</ol>
+<p>Parse → compile → execute. Every model goes through that same three-step loop, no matter how many models or how complex the SQL.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select stg__customers</code> exits 0</li>
+<li>A relation named <code>stg__customers</code> exists in <code>database/dev.duckdb</code></li>
+</ul>
+<h2>Inspecting the result</h2>
+<p>From the repo root:</p>
+<pre><code class="language-bash">duckdb database/dev.duckdb -c &quot;SELECT * FROM stg__customers LIMIT 3;&quot;
+</code></pre>
+<p>You should see customer rows with the renamed <code>customer_id</code> column.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Relation "dev"."main"."raw_customers" does not exist</code></td>
+<td>You skipped ingestion. From the repo root: <code>python scripts/ingest_raw.py</code>.</td>
+</tr>
+<tr>
+<td><code>Could not find profile named 'dbt_project'</code></td>
+<td><code>dbt_project/profiles.yml</code> is missing or has the wrong top-level key. Go back to the profiles exercise.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise upgrades this model with a proper <code>_sources.yml</code> declaration and <code>{{ source(...) }}</code> so the table joins the DAG.</p>
+<!-- walkthrough-appended -->
 </body>
+
 </html>

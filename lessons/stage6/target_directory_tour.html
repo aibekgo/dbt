@@ -195,6 +195,84 @@
 </ul>
 <p>The exercise: run <code>dbt build</code>, list <code>target/</code>, and verify the four critical artifacts are present.</p>
 <p>Press <code>n</code> to start.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From inside <code>dbt_project/</code>, run a fresh build:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt build
+</code></pre>
+<p>This refreshes everything: seeds, models, snapshots, tests. After it completes, <code>target/</code> is fully populated.</p>
+<p><strong>2.</strong> List the top-level contents of <code>target/</code>:</p>
+<pre><code class="language-bash">ls target/
+</code></pre>
+<p>You should see entries like:</p>
+<pre><code>catalog.json
+compiled
+graph.gpickle
+graph_summary.json
+manifest.json
+partial_parse.msgpack
+perf_info.json
+run
+run_results.json
+semantic_manifest.json
+</code></pre>
+<p>(Exact list varies by dbt version. The four highlighted in the lesson are the important ones.)</p>
+<p><strong>3.</strong> Peek at <code>manifest.json</code> to find one of your models. It&rsquo;s a big JSON blob, so use <code>jq</code> (or <code>python -m json.tool | grep</code>) to scope:</p>
+<pre><code class="language-bash">duckdb -c &quot;select unique_id, resource_type, depends_on::varchar from read_json('target/manifest.json', records=true)&quot; 2&gt;/dev/null | head -20
+</code></pre>
+<p>(Or simpler — open <code>target/manifest.json</code> in your editor and search for <code>fct_orders</code>.)</p>
+<p><strong>4.</strong> Inspect the compiled SQL for a model with <code>ref()</code> calls:</p>
+<pre><code class="language-bash">cat target/compiled/dbt_project/models/marts/fct_orders.sql
+</code></pre>
+<p>Notice how <code>{{ ref('stg__orders') }}</code> got replaced with <code>"main"."stg__orders"</code>. That&rsquo;s Jinja resolution.</p>
+<p><strong>5.</strong> Compare to the run-time SQL (with the <code>create or replace</code> wrapper):</p>
+<pre><code class="language-bash">cat target/run/dbt_project/models/marts/fct_orders.sql
+</code></pre>
+<p>This file has the full DDL dbt issued — <code>create or replace table ... as (select ...)</code>. The compiled version has only the inner select.</p>
+<p><strong>6.</strong> Check <code>run_results.json</code> for the latest build&rsquo;s results:</p>
+<pre><code class="language-bash">duckdb -c &quot;select unique_id, status, execution_time from read_json('target/run_results.json', records=true).results&quot; 2&gt;/dev/null | head -10
+</code></pre>
+<p>(Or just open the file.) You&rsquo;ll see one entry per node, with status <code>success</code> or <code>pass</code>.</p>
+<p><strong>7.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<p>Four <code>path_exists</code> checks:
+- <code>dbt_project/target/manifest.json</code> (the parsed project metadata)
+- <code>dbt_project/target/run_results.json</code> (latest command&rsquo;s results)
+- <code>dbt_project/target/compiled</code> (compiled SQL directory)
+- <code>dbt_project/target/run</code> (run-time SQL directory)</p>
+<p>If <code>dbt build</code> completed successfully, all four exist.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path 'dbt_project/target/manifest.json' does not exist</code></td>
+<td>dbt hasn&rsquo;t been run since the last <code>dbt clean</code>. Run <code>dbt build</code> (or just <code>dbt parse</code>, which produces <code>manifest.json</code> without running models).</td>
+</tr>
+<tr>
+<td><code>path 'dbt_project/target/run' does not exist</code></td>
+<td>The <code>run/</code> directory only appears after at least one model has been <em>run</em> (not just parsed). <code>dbt parse</code> alone doesn&rsquo;t create it; <code>dbt run</code> or <code>dbt build</code> does.</td>
+</tr>
+<tr>
+<td><code>path 'dbt_project/target/compiled' does not exist</code></td>
+<td>Same as above — needs at least one compile step. <code>dbt compile</code> alone is enough; so is <code>dbt run</code> / <code>dbt build</code>.</td>
+</tr>
+<tr>
+<td>Files exist but <code>dbt build</code> errored on a model</td>
+<td>One of the Stage 4 / Stage 5 / Stage 6 changes broke a downstream. Run <code>dbt build</code> and read the errors carefully — the verifier won&rsquo;t pass until the build is green.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>That&rsquo;s the last exercise of Stage 6. Press <code>n</code> to take the stage quiz. The final <code>progress.txt</code> line covers Stage 6&rsquo;s quiz, and you&rsquo;ve completed all six stages of the course.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

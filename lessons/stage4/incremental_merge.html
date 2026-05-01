@@ -151,6 +151,80 @@ values (source.order_id, source.customer_id, source.order_date, source.status)
 <li><strong>Forgetting <code>--full-refresh</code> after changing the schema.</strong> Adding a new column doesn&rsquo;t backfill old rows. The incremental insert applies the new schema only to new rows. To fix the historical data, force a <code>dbt build --select fct_order_events --full-refresh</code>.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/models/marts/fct_order_events.sql</code>. Replace the single-arg config block with the multi-arg version:</p>
+<pre><code class="language-sql">{{ config(
+    materialized='incremental',
+    unique_key='order_id',
+    incremental_strategy='merge'
+) }}
+
+select
+    order_id,
+    customer_id,
+    order_date,
+    status
+from {{ ref('stg__orders') }}
+
+{% if is_incremental() %}
+where order_date &gt; (select max(order_date) from {{ this }})
+{% endif %}
+</code></pre>
+<p>The <code>select</code> and <code>is_incremental()</code> block stay identical. Only the config grows.</p>
+<p>Note the syntax: <code>config(...)</code> takes keyword arguments separated by commas. Multi-line is idiomatic for readability but functionally equivalent to a single line.</p>
+<p><strong>2.</strong> Rebuild:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt build --select fct_order_events
+</code></pre>
+<p>Behind the scenes dbt is now issuing <code>MERGE INTO ... USING ... WHEN MATCHED THEN UPDATE ...</code> instead of plain <code>INSERT INTO</code>. The seed didn&rsquo;t change, so no rows match the watermark filter — but the SQL pattern dbt emits is now upsert-shaped.</p>
+<p><strong>3.</strong> Confirm the row count is unchanged at 99 and <code>order_id</code> is still unique:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from fct_order_events&quot;
+duckdb ../database/dev.duckdb -c &quot;select count(distinct order_id) from fct_order_events&quot;
+</code></pre>
+<p>Both should return <code>99</code>.</p>
+<p><strong>4.</strong> (Optional, to see the merge SQL.) Look at <code>target/run/dbt_project/models/marts/fct_order_events.sql</code> after the build:</p>
+<pre><code class="language-bash">cat target/run/dbt_project/models/marts/fct_order_events.sql | head -30
+</code></pre>
+<p>You&rsquo;ll see the rendered <code>merge into ...</code> statement that dbt generated. The <code>WHEN MATCHED THEN UPDATE</code> and <code>WHEN NOT MATCHED THEN INSERT</code> clauses make the upsert behavior explicit.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt build --select fct_order_events</code> exits 0 with all nodes succeeding.</li>
+<li>Row count is 99.</li>
+<li>Distinct <code>order_id</code> count is 99 — i.e., no duplicates.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: ... unexpected ','</code> inside the config block</td>
+<td>The multi-arg syntax has bad commas — usually trailing or missing. Each kwarg is <code>key=value</code>, separated by <code>,</code>, no trailing comma needed.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: MERGE statement not supported by this database</code></td>
+<td>Some dbt-adapter+warehouse combos don&rsquo;t support <code>merge</code>. dbt-duckdb 1.10.x does — if you see this, check <code>dbt --version</code> to confirm you&rsquo;re on the project&rsquo;s pinned versions.</td>
+</tr>
+<tr>
+<td>Duplicates appear (<code>count != count(distinct)</code>)</td>
+<td>Either the model was rebuilt with <code>append</code> (forgot the <code>incremental_strategy='merge'</code> line) or <code>unique_key</code> is wrong. Confirm the config block is the multi-arg form.</td>
+</tr>
+<tr>
+<td>Row count is <code>0</code> after the rebuild</td>
+<td>The merge probably matched-and-updated existing rows but dbt dropped the table first by accident. Try <code>dbt build --select fct_order_events --full-refresh</code> to force a clean rebuild from scratch.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The final Stage 4 exercise covers <strong>snapshots</strong> — the SCD Type 2 mechanism for tracking how a column&rsquo;s value changes over time. It&rsquo;s a different beast than incremental: snapshots <em>preserve</em> history rather than overwriting it.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

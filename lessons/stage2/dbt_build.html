@@ -72,7 +72,7 @@
 
 <body>
 <h1><code>dbt build</code> — one command, in the right order</h1>
-<p>Until now you&rsquo;ve used <code>dbt run</code> to materialize models. Most real projects use a different command for the &ldquo;I want everything refreshed and verified&rdquo; workflow: <code>dbt build</code>. It does in one shot what <code>dbt seed &amp;&amp; dbt run &amp;&amp; dbt test &amp;&amp; dbt snapshot</code> does in four — and it does them <strong>in DAG order</strong>, not in command order.</p>
+<p>Until now you’ve used <code>dbt run</code> to materialize models. Most real projects use a different command for the “I want everything refreshed and verified” workflow: <code>dbt build</code>. It does in one shot what <code>dbt seed &amp;&amp; dbt run &amp;&amp; dbt test &amp;&amp; dbt snapshot</code> does in four — and it does them <strong>in DAG order</strong>, not in command order.</p>
 <p>This exercise replaces a habit (<code>dbt run</code>) with a sturdier one (<code>dbt build</code>).</p>
 <h2>What <code>dbt build</code> actually does</h2>
 <p>A single <code>dbt build</code> invocation, on a project with seeds + models + tests + snapshots, executes resources in dependency order:</p>
@@ -83,20 +83,20 @@
 <li><strong>A mart</strong> that depends on that staging model → built only if the tests just passed.</li>
 <li>… and so on, layer by layer.</li>
 </ol>
-<p>The key word is <em>interleaved</em>. <code>dbt build</code> doesn&rsquo;t build all models, then run all tests; it builds a node, runs that node&rsquo;s tests, and only proceeds downstream if those tests pass. This is why <code>build</code> is the production-grade default — a broken upstream model can&rsquo;t silently feed a downstream one.</p>
-<h2>Why we&rsquo;re showing it now</h2>
-<p>Stage 2 doesn&rsquo;t have any tests yet — those land in Stage 3. So today, in this project, <code>dbt build</code> is functionally equivalent to <code>dbt run</code>: same nodes, same order, same output. The difference is which command you reach for. Practicing <code>dbt build</code> early means you don&rsquo;t have a <code>dbt run</code> muscle memory to unlearn the moment tests show up.</p>
+<p>The key word is <em>interleaved</em>. <code>dbt build</code> doesn’t build all models, then run all tests; it builds a node, runs that node’s tests, and only proceeds downstream if those tests pass. This is why <code>build</code> is the production-grade default — a broken upstream model can’t silently feed a downstream one.</p>
+<h2>Why we’re showing it now</h2>
+<p>Stage 2 doesn’t have any tests yet — those land in Stage 3. So today, in this project, <code>dbt build</code> is functionally equivalent to <code>dbt run</code>: same nodes, same order, same output. The difference is which command you reach for. Practicing <code>dbt build</code> early means you don’t have a <code>dbt run</code> muscle memory to unlearn the moment tests show up.</p>
 <p><code>dbt build</code> accepts the same selectors as <code>dbt run</code>:</p>
-<pre><code class="language-bash">dbt build                       # everything
+<pre><code>dbt build                       # everything
 dbt build --select fct_orders   # this model only
 dbt build --select +fct_orders  # this model + all upstream
 dbt build --select staging      # everything in the staging folder
 </code></pre>
-<h2>What you&rsquo;ll see</h2>
+<h2>What you’ll see</h2>
 <p>Run it from inside <code>dbt_project/</code>:</p>
-<pre><code class="language-bash">dbt build
+<pre><code>dbt build
 </code></pre>
-<p>Today&rsquo;s output, after Stage 2&rsquo;s models are in:</p>
+<p>Today’s output, after Stage 2’s models are in:</p>
 <pre><code>1 of 5 OK created sql view  model main.stg__customers ...
 2 of 5 OK created sql view  model main.stg__orders ...
 3 of 5 OK created sql view  model main.stg__payments ...
@@ -107,7 +107,7 @@ dbt build --select staging      # everything in the staging folder
 Done. PASS=6 WARN=0 ERROR=0 SKIP=0 TOTAL=6
 </code></pre>
 <p>Six green nodes (three staging views, two mart tables, one intermediate). No tests in this project yet, so the <code>PASS=6</code> is all model builds.</p>
-<p>After tests are added in Stage 3, the output starts to look very different — interleaved <code>model</code> and <code>test</code> lines, and any failing test stops downstream builds. That&rsquo;s the moment <code>dbt build</code> earns its keep.</p>
+<p>After tests are added in Stage 3, the output starts to look very different — interleaved <code>model</code> and <code>test</code> lines, and any failing test stops downstream builds. That’s the moment <code>dbt build</code> earns its keep.</p>
 <h2><code>run</code> vs <code>build</code> — when to use which</h2>
 <table>
 <thead>
@@ -135,21 +135,80 @@ Done. PASS=6 WARN=0 ERROR=0 SKIP=0 TOTAL=6
 </tr>
 </tbody>
 </table>
-<p>The short version: use <code>dbt run</code> for inner-loop iteration, <code>dbt build</code> for any &ldquo;is the project healthy?&rdquo; check.</p>
+<p>The short version: use <code>dbt run</code> for inner-loop iteration, <code>dbt build</code> for any “is the project healthy?” check.</p>
 <h2>The artifacts <code>dbt build</code> writes</h2>
 <p>Every <code>dbt build</code> (and every <code>dbt run</code>) refreshes a few files under <code>dbt_project/target/</code>. The two that matter:</p>
 <ul>
 <li><strong><code>target/manifest.json</code></strong> — the parsed graph. Every node, every config, every dependency. The verifier reads this to check materializations and source declarations. The docs site is built from this.</li>
 <li><strong><code>target/run_results.json</code></strong> — what just happened. One entry per node with status (<code>success</code>, <code>error</code>, <code>skipped</code>), elapsed time, the actual SQL that executed. Useful for debugging slow models. The verifier reads this to confirm every node succeeded.</li>
 </ul>
-<p>You don&rsquo;t edit these. You don&rsquo;t commit them. They are dbt&rsquo;s working memory of the last run.</p>
+<p>You don’t edit these. You don’t commit them. They are dbt’s working memory of the last run.</p>
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong>Running <code>dbt build</code> from the repo root.</strong> dbt commands need a project — <code>cd dbt_project/</code> first, or set <code>--project-dir</code>.</li>
 <li><strong>Confusing <code>--select</code> and <code>--exclude</code>.</strong> <code>dbt build --exclude fct_orders</code> builds everything <em>except</em> the fact, not the fact alone. Inverted from intuition.</li>
-<li><strong><code>dbt build --full-refresh</code> for unrelated reasons.</strong> That flag forces incremental models to rebuild from scratch. Stage 2 has no incrementals so the flag is harmless here, but it&rsquo;s an expensive accident in production.</li>
+<li><strong><code>dbt build --full-refresh</code> for unrelated reasons.</strong> That flag forces incremental models to rebuild from scratch. Stage 2 has no incrementals so the flag is harmless here, but it’s an expensive accident in production.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, change into the project:</p>
+<pre><code class="language-bash">cd dbt_project
+</code></pre>
+<p><strong>2.</strong> Run the build:</p>
+<pre><code class="language-bash">dbt build
+</code></pre>
+<p>You should see six green lines — three staging views, two intermediate / mart tables, plus <code>dim_customers</code> from Stage 1. Final summary:</p>
+<pre><code>Done. PASS=6 WARN=0 ERROR=0 SKIP=0 TOTAL=6
+</code></pre>
+<p><strong>3.</strong> Inspect what dbt just recorded:</p>
+<pre><code class="language-bash">cat target/run_results.json | python3 -m json.tool | head -30
+</code></pre>
+<p>Look for the top-level <code>"results"</code> array — one entry per node, each with a <code>"status"</code> field. They should all read <code>"success"</code>.</p>
+<pre><code class="language-bash">ls -la target/manifest.json target/run_results.json
+</code></pre>
+<p>Both files should have an <code>mtime</code> of the last few seconds — proof that this build refreshed them.</p>
+<p><strong>4.</strong> (Optional sanity check) Try a scoped build, just the path to the fact:</p>
+<pre><code class="language-bash">dbt build --select +fct_orders
+</code></pre>
+<p>Same green output, different selector. The <code>+</code> prefix means &ldquo;this and everything upstream&rdquo;; <code>dbt build --select fct_orders</code> (no plus) would only rebuild the fact and leave staging alone. Useful when you&rsquo;re iterating on one part of the DAG.</p>
+<p><strong>5.</strong> Press <code>v</code>.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt build</code> (run by the verifier itself) exits 0.</li>
+<li>Every entry in <code>target/run_results.json</code> shows <code>status=success</code>. Any single failed node fails the exercise — and the failure message names which one.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt: command not found</code></td>
+<td>Activate the venv: <code>source .venv/bin/activate</code>. Then <code>dbt --version</code> should show the duckdb plugin.</td>
+</tr>
+<tr>
+<td><code>Could not find profile named 'dbt_project'</code></td>
+<td>You&rsquo;re not running from inside <code>dbt_project/</code>. dbt looks for <code>profiles.yml</code> in the current directory by default.</td>
+</tr>
+<tr>
+<td>One model errored — <code>Compilation Error</code> somewhere</td>
+<td>A previous Stage 2 exercise&rsquo;s file isn&rsquo;t in place. The error message names the missing dependency; go back and finish that exercise.</td>
+</tr>
+<tr>
+<td><code>PASS=0 WARN=0 ERROR=0 SKIP=0 TOTAL=0</code></td>
+<td>dbt didn&rsquo;t find anything to build. Check that <code>models/</code> has files in it and <code>dbt_project.yml</code> lists <code>model-paths: ["models"]</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Last exercise of Stage 2 — generate the <code>dbt docs</code> site and skim the lineage view of everything you&rsquo;ve built.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

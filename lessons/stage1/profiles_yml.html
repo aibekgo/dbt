@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <style>
@@ -11,122 +12,203 @@
       color: #1a1a1a;
       line-height: 1.6;
     }
-    h1, h2, h3 { margin-top: 2em; }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
     code {
       background: #f0f0f0;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 0.9em;
     }
+
     pre {
       background: #f0f0f0;
       padding: 16px;
       border-radius: 6px;
       overflow-x: auto;
     }
+
     pre code {
       background: none;
       padding: 0;
     }
+
     img {
       max-width: 100%;
       border-radius: 6px;
       margin: 16px auto;
       display: block;
     }
+
     blockquote {
       border-left: 4px solid #ccc;
       margin: 0;
       padding: 4px 16px;
       color: #555;
     }
+
     table {
       border-collapse: collapse;
       width: 100%;
     }
-    th, td {
+
+    th,
+    td {
       border: 1px solid #ddd;
       padding: 8px 12px;
       text-align: left;
     }
-    th { background: #f0f0f0; }
+
+    th {
+      background: #f0f0f0;
+    }
   </style>
 </head>
+
 <body>
-<h1>profiles.yml &mdash; the connection config</h1>
-
-<p>You ran <code>dbt init</code> last exercise and got a project skeleton. The skeleton describes <em>what</em> to build &mdash; model paths, project name, defaults. It says nothing about <em>where</em> to build it. That&rsquo;s what <code>profiles.yml</code> is for.</p>
-
+<h1>profiles.yml — the connection config</h1>
+<p>You ran <code>dbt init</code> last exercise and got a project skeleton. The skeleton describes <em>what</em> to build — model paths, project name, defaults. It says nothing about <em>where</em> to build it. That’s what <code>profiles.yml</code> is for.</p>
 <h2>Two files, two responsibilities</h2>
 <table>
-  <thead><tr><th>File</th><th>Describes</th><th>Travels with</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><code>dbt_project.yml</code></td>
-      <td>The <strong>project</strong>: name, paths, model defaults, materializations.</td>
-      <td>The repo &mdash; everyone on the team uses the same one.</td>
-    </tr>
-    <tr>
-      <td><code>profiles.yml</code></td>
-      <td>The <strong>connection</strong>: which warehouse, which credentials, which schema.</td>
-      <td>Often the developer&rsquo;s machine &mdash; credentials don&rsquo;t belong in git.</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>File</th>
+<th>Describes</th>
+<th>Travels with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt_project.yml</code></td>
+<td>The <strong>project</strong>: name, paths, model defaults, materializations.</td>
+<td>The repo — everyone on the team uses the same one.</td>
+</tr>
+<tr>
+<td><code>profiles.yml</code></td>
+<td>The <strong>connection</strong>: which warehouse, which credentials, which schema.</td>
+<td>Often the developer’s machine — credentials don’t belong in git.</td>
+</tr>
+</tbody>
 </table>
-
-<p>By default dbt looks for <code>profiles.yml</code> at <code>~/.dbt/profiles.yml</code> (your home dir). For this course we override that and keep it inside <code>dbt_project/</code> so the whole project is self-contained &mdash; the verifier sets <code>DBT_PROFILES_DIR=dbt_project/</code> when it runs dbt commands for you.</p>
-
+<p>By default dbt looks for <code>profiles.yml</code> at <code>~/.dbt/profiles.yml</code> (your home dir). For this course we override that and keep it inside <code>dbt_project/</code> so the whole project is self-contained — the verifier sets <code>DBT_PROFILES_DIR=dbt_project/</code> when it runs dbt commands for you.</p>
 <blockquote>
 <p>In a real team setup the connection config lives outside the repo (env vars, a secrets manager, dbt Cloud). Bundling it inside the project is a learning convenience, not a production pattern.</p>
 </blockquote>
-
 <h2>What profiles.yml looks like</h2>
-
-<pre><code class="language-yaml">dbt_project:                          # &larr; matches the `profile:` field in dbt_project.yml
-  target: dev                         # &larr; which output to use by default
+<pre><code>dbt_project:                          # ← matches the `profile:` field in dbt_project.yml
+  target: dev                         # ← which output to use by default
   outputs:
     dev:
-      type: duckdb                    # &larr; which adapter (must match an installed dbt-&lt;adapter&gt; package)
-      path: ../database/dev.duckdb    # &larr; relative to dbt_project/ &rarr; &lt;repo-root&gt;/database/dev.duckdb
-      threads: 4                      # &larr; how many models to build in parallel
+      type: duckdb                    # ← which adapter (must match an installed dbt-&lt;adapter&gt; package)
+      path: ../database/dev.duckdb    # ← relative to dbt_project/ → &lt;repo-root&gt;/database/dev.duckdb
+      threads: 4                      # ← how many models to build in parallel
 </code></pre>
-<img src="../../images/profiles_yml/example_profile.png" alt="profiles.yml file open in an editor with the DuckDB connection config">
-
+<p><img alt="profiles.yml file open in an editor with the DuckDB connection config" src="../../images/profiles_yml/example_profile.png"></p>
 <p>The <code>path</code> is relative to wherever you run dbt from (typically <code>dbt_project/</code>), so <code>../database/dev.duckdb</code> resolves to a single shared <code>database/</code> directory at the repo root. Keeping the warehouse outside the project means <code>dbt-learn reset</code> can wipe <code>dbt_project/</code> without nuking your raw data alongside it.</p>
-
 <p>Key things to notice:</p>
 <ul>
-  <li><strong>The top-level key must match the <code>profile:</code> field</strong> inside <code>dbt_project.yml</code>. <code>dbt init</code> set both to your project name, so as long as you don&rsquo;t rename anything they line up.</li>
-  <li><strong><code>outputs</code> is a map.</strong> Real teams have <code>dev</code>, <code>ci</code>, <code>prod</code> entries side by side and switch between them with <code>--target ci</code>. We only need <code>dev</code>.</li>
-  <li><strong>Different adapters need different fields.</strong> Snowflake needs <code>account</code>, <code>user</code>, <code>password</code>, <code>warehouse</code>. BigQuery needs <code>project</code>, <code>dataset</code>, a keyfile path. DuckDB just needs a <code>path</code>.</li>
+<li><strong>The top-level key must match the <code>profile:</code> field</strong> inside <code>dbt_project.yml</code>. <code>dbt init</code> set both to your project name, so as long as you don’t rename anything they line up.</li>
+<li><strong><code>outputs</code> is a map.</strong> Real teams have <code>dev</code>, <code>ci</code>, <code>prod</code> entries side by side and switch between them with <code>--target ci</code>. We only need <code>dev</code>.</li>
+<li><strong>Different adapters need different fields.</strong> Snowflake needs <code>account</code>, <code>user</code>, <code>password</code>, <code>warehouse</code>. BigQuery needs <code>project</code>, <code>dataset</code>, a keyfile path. DuckDB just needs a <code>path</code>.</li>
 </ul>
-
-<h2><code>dbt debug</code> &mdash; the smoke test</h2>
-
+<h2><code>dbt debug</code> — the smoke test</h2>
 <p>Once <code>profiles.yml</code> is in place, <code>dbt debug</code> tells you whether dbt can:</p>
 <ol>
-  <li>Find <code>dbt_project.yml</code></li>
-  <li>Parse <code>profiles.yml</code></li>
-  <li>Match the project to a profile</li>
-  <li>Open a connection to the warehouse</li>
-  <li>Run a trivial smoke query (<code>SELECT 1</code>)</li>
+<li>Find <code>dbt_project.yml</code></li>
+<li>Parse <code>profiles.yml</code></li>
+<li>Match the project to a profile</li>
+<li>Open a connection to the warehouse</li>
+<li>Run a trivial smoke query (<code>SELECT 1</code>)</li>
 </ol>
-
 <p>If all five pass you see:</p>
 <pre><code>All checks passed!
 </code></pre>
-<img src="../../images/profiles_yml/dbt_debug.png" alt="Terminal output of dbt debug ending in 'All checks passed!'">
-
-<p>If any fail, dbt prints the exact step that broke. <code>dbt debug</code> is the first thing you run when something stops working &mdash; before <code>dbt run</code>, before reading model code, before anything else.</p>
-
+<p><img alt="Terminal output of dbt debug ending in 'All checks passed!'" src="../../images/profiles_yml/dbt_debug.png"></p>
+<p>If any fail, dbt prints the exact step that broke. <code>dbt debug</code> is the first thing you run when something stops working — before <code>dbt run</code>, before reading model code, before anything else.</p>
 <h2>Common pitfalls</h2>
 <ul>
-  <li><strong>YAML indentation.</strong> &mdash; YAML is whitespace-sensitive. Use spaces, never tabs. Two-space indent throughout.</li>
-  <li><strong>Profile name mismatch.</strong> &mdash; If <code>dbt_project.yml</code> says <code>profile: jaffle_shop</code> but <code>profiles.yml</code>&rsquo;s top-level key is <code>dbt_project</code>, dbt will say <em>&ldquo;Could not find profile named &lsquo;jaffle_shop&rsquo;.&rdquo;</em> Make them match.</li>
-  <li><strong>Forgetting <code>type:</code>.</strong> &mdash; Without it, dbt doesn&rsquo;t know which adapter to load and the error message is cryptic. Every output needs a <code>type:</code>.</li>
-  <li><strong>Putting <code>profiles.yml</code> in the repo for a real warehouse.</strong> &mdash; Fine for DuckDB on a learning project. Never do it with credentials. Use env vars (<code>{{ env_var('SNOWFLAKE_PASSWORD') }}</code>) or a secrets manager.</li>
+<li><strong>YAML indentation.</strong> — YAML is whitespace-sensitive. Use spaces, never tabs. Two-space indent throughout.</li>
+<li><strong>Profile name mismatch.</strong> — If <code>dbt_project.yml</code> says <code>profile: jaffle_shop</code> but <code>profiles.yml</code>’s top-level key is <code>dbt_project</code>, dbt will say <em>“Could not find profile named ‘jaffle_shop’.”</em> Make them match.</li>
+<li><strong>Forgetting <code>type:</code>.</strong> — Without it, dbt doesn’t know which adapter to load and the error message is cryptic. Every output needs a <code>type:</code>.</li>
+<li><strong>Putting <code>profiles.yml</code> in the repo for a real warehouse.</strong> — Fine for DuckDB on a learning project. Never do it with credentials. Use env vars (<code>{{ env_var('SNOWFLAKE_PASSWORD') }}</code>) or a secrets manager.</li>
 </ul>
-
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Background</h2>
+<p>dbt separates the <strong>project</strong> (what to build) from the <strong>connection</strong> (where to build it). The connection lives in <code>profiles.yml</code>. By default dbt looks for it in <code>~/.dbt/profiles.yml</code>, but for this course we keep it inside <code>dbt_project/</code> so the whole project is self-contained.</p>
+<p>The verifier sets <code>DBT_PROFILES_DIR=dbt_project/</code> when it runs dbt, so dbt will look there.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open a new terminal at the repo root (the directory that holds <code>dbt_project/</code>, <code>database/</code>, and <code>curriculum.yaml</code>).</p>
+<p><strong>2.</strong> Step into the project directory:</p>
+<pre><code class="language-bash">cd dbt_project
+</code></pre>
+<p><strong>3.</strong> Create an empty <code>profiles.yml</code> file in the project directory:</p>
+<pre><code class="language-bash">touch profiles.yml
+</code></pre>
+<p>You should now have <code>dbt_project/profiles.yml</code> (empty). Confirm with <code>ls profiles.yml</code>.</p>
+<p><strong>4.</strong> Open <code>dbt_project/profiles.yml</code> in your editor and paste <strong>exactly</strong> this:</p>
+<pre><code class="language-yaml">dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../database/dev.duckdb
+      threads: 4
+</code></pre>
+<p>Save the file. A few things to notice:</p>
+<ul>
+<li><strong>Top-level key <code>dbt_project</code></strong> matches the <code>profile:</code> field in <code>dbt_project.yml</code> that <code>dbt init</code> generated. They have to match — that&rsquo;s how dbt links the project to a profile.</li>
+<li><strong><code>target: dev</code></strong> picks which output below to use. Real teams often have <code>dev</code>, <code>ci</code>, <code>prod</code> outputs side by side; we only need one.</li>
+<li><strong><code>type: duckdb</code></strong> tells dbt which adapter to load. It must match the package you have installed (<code>dbt-duckdb</code>).</li>
+<li><strong><code>path: ../database/dev.duckdb</code></strong> is the location of the DuckDB file, relative to <code>dbt_project/</code>. The <code>..</code> walks up one level to the repo root, then into <code>database/</code>, where dbt creates <code>dev.duckdb</code> on its first run. Keeping the warehouse outside <code>dbt_project/</code> means <code>dbt-learn reset</code> can wipe the project without losing raw data.</li>
+<li><strong><code>threads: 4</code></strong> is how many models dbt runs in parallel. 4 is fine for a laptop.</li>
+</ul>
+<p><strong>5.</strong> Confirm dbt can read the file by running <code>dbt debug</code> from inside <code>dbt_project/</code>:</p>
+<pre><code class="language-bash">dbt debug
+</code></pre>
+<p>You should see a series of OK lines ending with <strong><code>All checks passed!</code></strong>. If you see anything else, scroll up and read the first failing line — that&rsquo;s the one that matters.</p>
+<p><strong>6.</strong> Switch back to the dbt-learn CLI and press <code>v</code> to verify. The verifier runs the same <code>dbt debug</code> for you and reports the result.</p>
+<h2>What the verifier checks</h2>
+<p>Just one rule: <code>dbt debug</code> exits 0. That single check covers parsing <code>dbt_project.yml</code>, parsing <code>profiles.yml</code>, matching the project to a profile, opening a connection to DuckDB, and running a <code>SELECT 1</code> smoke query.</p>
+<h2>What success looks like</h2>
+<pre><code>All checks passed!
+</code></pre>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Could not find profile named 'dbt_project'</code></td>
+<td>The top-level key in <code>profiles.yml</code> must match the <code>profile:</code> field in <code>dbt_project.yml</code>.</td>
+</tr>
+<tr>
+<td><code>Credentials in profile 'dbt_project', target 'dev' invalid</code></td>
+<td>Probably a missing or misspelled field — <code>type:</code> and <code>path:</code> are required.</td>
+</tr>
+<tr>
+<td><code>mapping values are not allowed in this context</code></td>
+<td>YAML indentation. Use spaces, never tabs. Two-space indent per level.</td>
+</tr>
+<tr>
+<td><code>IO Error: Cannot open file ".../database/dev.duckdb"</code></td>
+<td>Make sure the <code>database/</code> directory exists at the repo root (<code>ls database/</code> from the root).</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code> to advance — next exercise loads the raw CSVs into DuckDB.</p>
+<!-- walkthrough-appended -->
 </body>
+
 </html>

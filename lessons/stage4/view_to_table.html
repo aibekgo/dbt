@@ -106,6 +106,73 @@ select ...
 <li><strong>Forgetting to actually run <code>dbt run</code> after editing the file.</strong> Just changing the SQL doesn&rsquo;t update the warehouse — dbt doesn&rsquo;t watch for file changes. The warehouse only catches up when you re-run.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/models/intermediate/int_order_payments.sql</code>. Add a config block as the very first thing in the file:</p>
+<pre><code class="language-sql">{{ config(materialized='table') }}
+
+select
+    order_id,
+    sum(amount)              as total_amount,
+    count(*)                 as payment_count
+from {{ ref('stg__payments') }}
+group by order_id
+</code></pre>
+<p>The <code>select</code> stays exactly as it was. Only the config block at the top is new.</p>
+<p><strong>2.</strong> Re-run the model so the warehouse catches up:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select int_order_payments
+</code></pre>
+<p>You should see one green line. dbt issued <code>create or replace table main.int_order_payments as select ...</code> instead of <code>create or replace view</code>.</p>
+<p><strong>3.</strong> Confirm the warehouse object changed shape:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select table_type from information_schema.tables where table_name='int_order_payments'&quot;
+</code></pre>
+<p>Should print <code>BASE TABLE</code>. Before this exercise it printed <code>VIEW</code>.</p>
+<p><strong>4.</strong> (Optional but useful.) Inspect the manifest:</p>
+<pre><code class="language-bash">duckdb -c &quot;select * from read_json('target/manifest.json')&quot; | grep -i int_order_payments
+</code></pre>
+<p>Or open <code>target/manifest.json</code> and search for the <code>int_order_payments</code> node — <code>config.materialized</code> is now <code>"table"</code>.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select int_order_payments</code> exits 0.</li>
+<li><code>target/manifest.json</code> shows <code>int_order_payments</code> materialized as <code>table</code>.</li>
+<li><code>information_schema.tables</code> reports <code>table_type = 'BASE TABLE'</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Model 'int_order_payments' is materialized as 'view', expected 'table'</code></td>
+<td>The <code>{{ config(...) }}</code> block isn&rsquo;t being picked up. Two common causes: (a) you put it below the <code>select</code> instead of at the top of the file, or (b) the syntax has a typo (<code>materialized='table'</code> — single quotes around <code>table</code>, the <code>=</code> has no spaces in idiomatic dbt code, but spaces don&rsquo;t actually break it).</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'config' is not callable</code></td>
+<td>Spelling. Must be <code>{{ config(materialized='table') }}</code> exactly — <code>config</code>, lowercase, with parentheses.</td>
+</tr>
+<tr>
+<td><code>int_order_payments.table_type</code> is still <code>VIEW</code></td>
+<td>dbt builds against the warehouse, but you ran the verifier without re-running the model. Run <code>dbt run --select int_order_payments</code> first, then <code>v</code>.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: Table with name int_order_payments already exists!</code> (rare)</td>
+<td>Stale state — usually fixed by <code>dbt run --select int_order_payments --full-refresh</code> which forces a drop-and-recreate.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise demonstrates the <em>opposite</em> tradeoff — switching the same model to <code>ephemeral</code>, where it disappears from DuckDB entirely and gets inlined as a CTE in <code>fct_orders</code>.</p>
+<blockquote>
+<p><strong>Heads up:</strong> the next two exercises (<code>ephemeral_model</code> and Stage 6&rsquo;s <code>custom_generic_test</code>) keep changing <code>int_order_payments</code>&rsquo;s materialization. Once you&rsquo;ve moved on, don&rsquo;t press <code>p</code> to come back and re-press <code>v</code> here — the model is no longer a table, so this exercise&rsquo;s verifier would fail. Each materialization is the &ldquo;current truth&rdquo; only at the exercise that sets it.</p>
+</blockquote>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

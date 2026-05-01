@@ -205,6 +205,101 @@ dbt snapshot --select orders_snapshot      # just one
 <li><strong>Treating snapshots as regular models.</strong> Snapshots can&rsquo;t be <code>ref()</code>&lsquo;d in the same way until they exist. The first time you <code>dbt build</code> a project that includes snapshots, you have to run <code>dbt snapshot</code> first (or use <code>dbt build</code> which does both in DAG order).</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the snapshot file:</p>
+<pre><code class="language-bash">mkdir -p dbt_project/snapshots
+touch dbt_project/snapshots/orders_snapshot.sql
+</code></pre>
+<p>The <code>snapshots/</code> folder ships with the default <code>dbt init</code> scaffold, so it should already exist.</p>
+<p><strong>2.</strong> Paste this into <code>orders_snapshot.sql</code>:</p>
+<pre><code class="language-sql">{% snapshot orders_snapshot %}
+
+{{
+    config(
+        target_schema='snapshots',
+        unique_key='order_id',
+        strategy='check',
+        check_cols=['status']
+    )
+}}
+
+select * from {{ ref('stg__orders') }}
+
+{% endsnapshot %}
+</code></pre>
+<p>Three things to flag:</p>
+<ul>
+<li><strong><code>{% snapshot orders_snapshot %}</code> &hellip; <code>{% endsnapshot %}</code></strong> — these tags are mandatory for snapshot files. Different from regular models. The name inside the tag becomes the snapshot&rsquo;s name.</li>
+<li><strong><code>target_schema='snapshots'</code></strong> — the snapshot lands in a <code>snapshots</code> schema (DuckDB will auto-create it on first run). Keeps snapshots out of <code>main</code>.</li>
+<li><strong><code>check_cols=['status']</code></strong> — only <code>status</code> is watched for changes. If <code>customer_id</code> were updated for an existing order (which would never happen in real life), the snapshot wouldn&rsquo;t append a new row.</li>
+</ul>
+<p><strong>3.</strong> Run the snapshot:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt snapshot --select orders_snapshot
+</code></pre>
+<p>You should see one green line. dbt issued <code>create table snapshots.orders_snapshot as select ..., dbt_scd_id, dbt_updated_at, dbt_valid_from, dbt_valid_to from ...</code>.</p>
+<p><strong>4.</strong> Confirm the table is in the <code>snapshots</code> schema with the SCD2 columns:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select table_schema, count(*) from information_schema.tables where table_name='orders_snapshot' group by 1&quot;
+</code></pre>
+<p>Should show <code>snapshots | 1</code>.</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from information_schema.columns where table_name='orders_snapshot' and column_name in ('dbt_scd_id','dbt_updated_at','dbt_valid_from','dbt_valid_to')&quot;
+</code></pre>
+<p>Should print <code>4</code> — all four metadata columns present.</p>
+<p><strong>5.</strong> Confirm 99 rows are active:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from snapshots.orders_snapshot where dbt_valid_to is null&quot;
+</code></pre>
+<p>Should print <code>99</code>. All orders are currently in their first-ever snapshot version, so all 99 rows have <code>dbt_valid_to IS NULL</code>.</p>
+<p><strong>6.</strong> (Optional, to see the SCD2 columns at work.) Peek at the data:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select order_id, status, dbt_valid_from, dbt_valid_to from snapshots.orders_snapshot order by order_id limit 5&quot;
+</code></pre>
+<p>Five rows, each with a <code>dbt_valid_from</code> timestamp (when this snapshot ran) and <code>dbt_valid_to</code> of <code>NULL</code> (still active).</p>
+<p><strong>7.</strong> (Even more optional.) Run <code>dbt snapshot</code> a second time:</p>
+<pre><code class="language-bash">dbt snapshot --select orders_snapshot
+</code></pre>
+<p>The output reports 0 rows changed. The seed is static, so no <code>status</code> differences between runs — the snapshot is unchanged.</p>
+<p><strong>8.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt snapshot --select orders_snapshot</code> exits 0.</li>
+<li>99 rows in <code>snapshots.orders_snapshot</code> with <code>dbt_valid_to IS NULL</code>.</li>
+<li>All 4 SCD2 metadata columns (<code>dbt_scd_id</code>, <code>dbt_updated_at</code>, <code>dbt_valid_from</code>, <code>dbt_valid_to</code>) are present in the table.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: Snapshot 'orders_snapshot' must contain a {% snapshot %} ... {% endsnapshot %} block</code></td>
+<td>Missing the tag wrapper. The whole content (config block + select) goes inside <code>{% snapshot orders_snapshot %} ... {% endsnapshot %}</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: Snapshots require either a 'check' or 'timestamp' strategy</code></td>
+<td>Missing or misspelled <code>strategy='check'</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'check' strategy requires 'check_cols' to be configured</code></td>
+<td>Add <code>check_cols=['status']</code> to the config block.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: Table with name orders_snapshot does not exist!</code> (when querying without schema)</td>
+<td>The snapshot is in <code>snapshots.orders_snapshot</code>, not <code>main.orders_snapshot</code>. Either use the full <code>snapshots.orders_snapshot</code> qualifier or <code>set search_path = 'snapshots';</code> first.</td>
+</tr>
+<tr>
+<td>0 rows in the snapshot</td>
+<td>Something failed silently — check the <code>dbt snapshot</code> output. Could be a bad <code>ref()</code> (e.g. <code>ref('stg_orders')</code> single underscore) or a permissions issue creating the schema.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>That&rsquo;s the last exercise of Stage 4. Press <code>n</code> to take the stage quiz, then on to Stage 5 — Jinja, macros, state selection, and exposures.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

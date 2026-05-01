@@ -158,6 +158,76 @@
 <li><strong>Testing <code>severity: warn</code> with no actual failures.</strong> It&rsquo;s hard to <em>see</em> the difference between <code>error</code> and <code>warn</code> if the test is passing. To verify the config is working, temporarily change one of the <code>values:</code> entries to break the test — the run should warn instead of erroring. Revert before pressing <code>v</code>.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/models/staging/_models.yml</code>. Find the <code>status</code> column under <code>stg__orders</code>. Currently it looks like this:</p>
+<pre><code class="language-yaml">- name: status
+  description: &quot;Order lifecycle state.&quot;
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+</code></pre>
+<p><strong>2.</strong> Replace it with the extended form including the config block:</p>
+<pre><code class="language-yaml">- name: status
+  description: &quot;Order lifecycle state.&quot;
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+        config:
+          severity: warn
+          where: &quot;order_date &gt;= '2018-01-01'&quot;
+</code></pre>
+<p>Two things to flag:</p>
+<ul>
+<li><code>config:</code> is nested <em>under</em> <code>accepted_values:</code>, not at the test list level. Indent it to align with <code>values:</code>.</li>
+<li><code>where:</code> value is a string. Quote it as YAML expects (single quotes around the date literal because it&rsquo;s nested inside a YAML string).</li>
+</ul>
+<p><strong>3.</strong> Run the staging tests to confirm the YAML parses and the test executes:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt test --select stg__orders
+</code></pre>
+<p>You should see the tests pass cleanly. The seed data has all statuses in the allowed set, so the test doesn&rsquo;t have anything to warn about — but the config is now in place.</p>
+<p><strong>4.</strong> (Optional, to <em>see</em> the warn behavior.) Temporarily modify the <code>values:</code> list to exclude <code>returned</code>:</p>
+<pre><code class="language-yaml">values: [placed, shipped, completed, return_pending]
+</code></pre>
+<p>Re-run <code>dbt test --select stg__orders</code>. Notice the output: dbt reports a <code>WARN</code> (not <code>FAIL</code>), the run still exits 0, and you&rsquo;d see a &ldquo;1 of 4 WARN&rdquo; line. Revert the <code>values:</code> list before pressing <code>v</code>.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt test --select stg__orders</code> exits 0 (proves the YAML is valid and the test runs).</li>
+<li><code>dbt_project/models/staging/_models.yml</code> contains the literal string <code>severity: warn</code> (proves the config block is there).</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: ... unable to find configuration ... 'severity'</code></td>
+<td>The <code>severity:</code> key is at the wrong indent level. It must be inside a <code>config:</code> block, which is nested under <code>accepted_values:</code>.</td>
+</tr>
+<tr>
+<td><code>dbt test</code> errors with a YAML parse issue</td>
+<td>Indentation. The structure is: <code>tests: → - accepted_values: → values: AND config:</code> (peers). If <code>config:</code> is at the same indent as <code>tests:</code>, YAML rejects it.</td>
+</tr>
+<tr>
+<td><code>file 'dbt_project/models/staging/_models.yml' does not contain 'severity: warn'</code></td>
+<td>The string didn&rsquo;t land in the file. Check you saved the file and the line reads exactly <code>severity: warn</code> (no extra characters, lowercase <code>warn</code>).</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'placed' is not in the accepted values list</code> (after step 4 experiment)</td>
+<td>You forgot to revert the <code>values:</code> list. Add <code>returned</code> back.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise covers <strong>custom generic tests</strong> — writing your own <code>{% test %}</code> blocks for assertions that the four built-ins don&rsquo;t quite fit.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

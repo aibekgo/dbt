@@ -72,44 +72,44 @@
 
 <body>
 <h1>Intermediate models — the layer between staging and marts</h1>
-<p>You&rsquo;ve got three staging models — <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>. Next exercise builds the fact table that joins them: <code>fct_orders</code>. Before that, there&rsquo;s a piece of work that <strong>doesn&rsquo;t fit cleanly in either layer</strong>: rolling payments up to one row per order.</p>
+<p>You’ve got three staging models — <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>. Next exercise builds the fact table that joins them: <code>fct_orders</code>. Before that, there’s a piece of work that <strong>doesn’t fit cleanly in either layer</strong>: rolling payments up to one row per order.</p>
 <p>That work belongs in a third model layer: <strong>intermediate</strong>.</p>
 <h2>What an intermediate model is</h2>
 <p>An intermediate (<code>int_*</code>) model is a transformation that:</p>
 <ul>
 <li><strong>Changes the grain</strong> away from staging (e.g. payments → one row per order). Staging stays 1:1 with sources, so any aggregation already disqualifies it.</li>
-<li><strong>Doesn&rsquo;t yet answer a business question.</strong> A fact or dimension is what an analyst would actually query. An intermediate is a stepping stone that makes the fact easier to build and read.</li>
+<li><strong>Doesn’t yet answer a business question.</strong> A fact or dimension is what an analyst would actually query. An intermediate is a stepping stone that makes the fact easier to build and read.</li>
 <li><strong>Gets reused.</strong> If a piece of logic is used by more than one downstream model, lifting it into an intermediate avoids duplicating it.</li>
 </ul>
-<p>In our case: aggregating <code>stg__payments</code> (113 rows, one per payment) into one row per <code>order_id</code> is exactly that — it&rsquo;s not what an analyst queries, but it&rsquo;s the thing <code>fct_orders</code> joins to. Without an intermediate, you&rsquo;d inline the aggregation as a CTE inside <code>fct_orders.sql</code> — fine for one consumer, painful when a second one shows up.</p>
+<p>In our case: aggregating <code>stg__payments</code> (113 rows, one per payment) into one row per <code>order_id</code> is exactly that — it’s not what an analyst queries, but it’s the thing <code>fct_orders</code> joins to. Without an intermediate, you’d inline the aggregation as a CTE inside <code>fct_orders.sql</code> — fine for one consumer, painful when a second one shows up.</p>
 <h2>Where it lives</h2>
 <p>Inside <code>models/intermediate/</code> — a peer of <code>models/staging/</code> and <code>models/marts/</code>, not nested under either. The folder layout mirrors the DAG: data flows top-to-bottom from sources → staging → intermediate → marts, and the directory tree reads the same way.</p>
 <ol>
-<li><strong>It signals scope at a glance.</strong> Intermediates serve marts but aren&rsquo;t marts. Putting them in their own folder keeps that distinction obvious; nesting them under <code>marts/intermediate/</code> would put work-in-progress next to the production-facing facts and dims.</li>
+<li><strong>It signals scope at a glance.</strong> Intermediates serve marts but aren’t marts. Putting them in their own folder keeps that distinction obvious; nesting them under <code>marts/intermediate/</code> would put work-in-progress next to the production-facing facts and dims.</li>
 <li><strong>Configs stay clean.</strong> Each layer gets its own block in <code>dbt_project.yml</code> (<code>staging: view</code>, <code>intermediate: view</code>, <code>marts: table</code>) so you can change one without affecting another.</li>
 </ol>
 <blockquote>
-<p>The other common convention is <code>models/marts/intermediate/</code> nested under marts. You&rsquo;ll see it in older dbt projects. Modern dbt-labs reference projects use the peer layout, so we do too.</p>
+<p>The other common convention is <code>models/marts/intermediate/</code> nested under marts. You’ll see it in older dbt projects. Modern dbt-labs reference projects use the peer layout, so we do too.</p>
 </blockquote>
 <h2>The model itself</h2>
 <p><code>models/intermediate/int_order_payments.sql</code>:</p>
-<pre><code class="language-sql">select
+<pre><code>select
     order_id,
     sum(amount)              as total_amount,
     count(*)                 as payment_count
 from {{ ref('stg__payments') }}
 group by order_id
 </code></pre>
-<p>What&rsquo;s happening:</p>
+<p>What’s happening:</p>
 <ul>
 <li><strong><code>{{ ref('stg__payments') }}</code></strong> — depends on the staging model, <em>not</em> the source. Intermediates always sit downstream of staging.</li>
 <li><strong><code>group by order_id</code></strong> — collapses 113 payment rows down to 99 rows, one per order.</li>
 <li><strong><code>sum(amount)</code> + <code>count(*)</code></strong> — two aggregates the fact will want: the dollar total per order, and how many payment events that total represents.</li>
 </ul>
 <p>The result schema: <code>(order_id, total_amount, payment_count)</code>. Three columns, ~99 rows.</p>
-<h2>Why bother — couldn&rsquo;t this be a CTE?</h2>
+<h2>Why bother — couldn’t this be a CTE?</h2>
 <p>It could. <code>fct_orders.sql</code> could include this as a CTE:</p>
-<pre><code class="language-sql">with payments_by_order as (
+<pre><code>with payments_by_order as (
     select order_id, sum(amount) as total_amount, count(*) as payment_count
     from {{ ref('stg__payments') }}
     group by order_id
@@ -121,17 +121,89 @@ left join payments_by_order p on p.order_id = o.order_id
 <ul>
 <li><strong>A second consumer shows up.</strong> Maybe <code>fct_customer_lifetime_value</code> also wants total spend per order. With a CTE, you copy-paste; with <code>int_order_payments</code>, you <code>ref()</code> it. Two queries, same definition, no drift.</li>
 <li><strong>Tests.</strong> Generic tests (<code>unique</code>, <code>not_null</code>) attach to a model, not to a CTE. If <code>order_id</code> should be unique in the rolled-up payments, that test belongs on <code>int_order_payments</code>.</li>
-<li><strong>Materialization.</strong> A CTE always re-runs. An intermediate can be materialized as a table once and reused. For a 99-row aggregate it doesn&rsquo;t matter; for a 100M-row aggregate it&rsquo;s the difference between minutes and milliseconds.</li>
-<li><strong>Readability.</strong> When <code>fct_orders.sql</code> is 200 lines, you want it to look like joins, not aggregations. The intermediate gives you a clean noun (&ldquo;payments rolled up by order&rdquo;) that the fact&rsquo;s <code>from</code> block reads naturally.</li>
+<li><strong>Materialization.</strong> A CTE always re-runs. An intermediate can be materialized as a table once and reused. For a 99-row aggregate it doesn’t matter; for a 100M-row aggregate it’s the difference between minutes and milliseconds.</li>
+<li><strong>Readability.</strong> When <code>fct_orders.sql</code> is 200 lines, you want it to look like joins, not aggregations. The intermediate gives you a clean noun (“payments rolled up by order”) that the fact’s <code>from</code> block reads naturally.</li>
 </ul>
-<p>The rule of thumb: <strong>promote to an intermediate the second time you&rsquo;d reach for the same CTE</strong>, not the first.</p>
+<p>The rule of thumb: <strong>promote to an intermediate the second time you’d reach for the same CTE</strong>, not the first.</p>
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong>Joining to the source instead of staging.</strong> <code>from {{ source('stripe', 'raw_payments') }}</code> works but skips the cents→dollars cast you put in <code>stg__payments</code>. Always go through staging.</li>
 <li><strong>Forgetting the <code>group by</code>.</strong> Without it the model returns one row per payment with <code>sum()</code> over the whole table — DuckDB will error or produce nonsense depending on the column list.</li>
-<li><strong>Naming it <code>int_payments</code>.</strong> Naming should describe what the model <em>is</em> about, not just where it sits. <code>int_order_payments</code> says &ldquo;payments rolled up to the order grain&rdquo;; <code>int_payments</code> is ambiguous (rolled up by what?).</li>
+<li><strong>Naming it <code>int_payments</code>.</strong> Naming should describe what the model <em>is</em> about, not just where it sits. <code>int_order_payments</code> says “payments rolled up to the order grain”; <code>int_payments</code> is ambiguous (rolled up by what?).</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the intermediate folder (peer of <code>staging/</code> and <code>marts/</code>, not nested under either) and the new model file:</p>
+<pre><code class="language-bash">mkdir -p dbt_project/models/intermediate
+touch dbt_project/models/intermediate/int_order_payments.sql
+</code></pre>
+<p><strong>2.</strong> Paste this into <code>int_order_payments.sql</code>:</p>
+<pre><code class="language-sql">select
+    order_id,
+    sum(amount)              as total_amount,
+    count(*)                 as payment_count
+from {{ ref('stg__payments') }}
+group by order_id
+</code></pre>
+<p>Three things to notice:</p>
+<ul>
+<li><strong><code>{{ ref('stg__payments') }}</code></strong> — intermediates depend on staging via <code>ref()</code>, not on the source. The <code>amount / 100.0</code> cast you wrote in staging is already applied; you get dollars here, not cents.</li>
+<li><strong><code>group by order_id</code></strong> — collapses 113 payment rows to 99 unique-order rows.</li>
+<li><strong>No <code>{{ config(...) }}</code> block at the top.</strong> Without an explicit <code>intermediate:</code> entry in <code>dbt_project.yml</code>, the model defaults to <code>view</code> — which is the conventional choice for intermediates: cheap to recompute while you debug, no warehouse storage to babysit.</li>
+</ul>
+<p><strong>3.</strong> Build it:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select int_order_payments
+</code></pre>
+<p>You should see one green line. dbt automatically rebuilds <code>stg__payments</code> first if it isn&rsquo;t fresh.</p>
+<p><strong>4.</strong> Sanity-check the result:</p>
+<pre><code class="language-bash">dbt show --select int_order_payments --limit 5
+</code></pre>
+<p>Five rows, three columns, totals look like dollar amounts (e.g. <code>26.00</code>, not <code>2600</code>).</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from int_order_payments&quot;
+</code></pre>
+<p>Should print <code>99</code> — one row per distinct <code>order_id</code> from <code>raw_payments</code>.</p>
+<p><strong>5.</strong> Press <code>v</code>.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select int_order_payments</code> exits 0.</li>
+<li>The table <code>int_order_payments</code> exists in <code>dev.duckdb</code>.</li>
+<li><code>select count(*) from int_order_payments</code> returns <code>99</code> — confirming the <code>group by</code> collapsed payments to the order grain.</li>
+<li><code>select count(distinct order_id) from int_order_payments</code> also returns <code>99</code> — confirming <code>order_id</code> is unique per row.</li>
+<li><code>payment_count</code> and <code>total_amount</code> columns are present.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: Model 'int_order_payments' depends on a node named 'stg__payments' which was not found</code></td>
+<td>Either you skipped the previous exercise (<code>stg__payments</code> doesn&rsquo;t exist) or you typed <code>ref('stg_payments')</code> (single underscore). Check the model name in <code>models/staging/</code>.</td>
+</tr>
+<tr>
+<td>Row count is <code>113</code> instead of <code>99</code></td>
+<td>Missing <code>group by order_id</code>, or <code>count(*)</code> was applied at the wrong grain.</td>
+</tr>
+<tr>
+<td><code>total_amount</code> shows huge integer values</td>
+<td>The cents → dollars cast didn&rsquo;t happen — check that <code>stg__payments</code> has <code>amount / 100.0</code>. The intermediate just sums what staging gives it.</td>
+</tr>
+<tr>
+<td><code>Binder Error: column "order_id" must appear in the GROUP BY clause</code></td>
+<td>The <code>select</code> list includes a column that isn&rsquo;t aggregated and isn&rsquo;t grouped on. Either group on it or wrap it in <code>min()</code> / <code>max()</code> / <code>sum()</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Time to land the fact table — <code>fct_orders</code> will join all three staging models plus this intermediate into the one denormalized table the analyst actually queries.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

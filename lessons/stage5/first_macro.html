@@ -129,6 +129,85 @@ from {{ source('stripe', 'raw_payments') }}
 <li><strong>Forgetting the whitespace-control dashes.</strong> Without <code>-%}</code> and <code>{%-</code>, the macro expands across multiple lines and the compiled SQL has awkward gaps. Inline expressions like this one read better with whitespace stripped.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the macro file:</p>
+<pre><code class="language-bash">mkdir -p dbt_project/macros
+touch dbt_project/macros/cents_to_dollars.sql
+</code></pre>
+<p><strong>2.</strong> Paste this into <code>cents_to_dollars.sql</code>:</p>
+<pre><code class="language-jinja">{% macro cents_to_dollars(column_name, decimal_places=2) -%}
+round( 1.0 * {{ column_name }} / 100, {{ decimal_places }} )
+{%- endmacro %}
+</code></pre>
+<p>The macro:
+- Takes <code>column_name</code> (positional, required) and <code>decimal_places</code> (positional with default 2).
+- Renders to a SQL expression: <code>round( 1.0 * &lt;col&gt; / 100, &lt;decimal_places&gt; )</code>.
+- The leading <code>-%}</code> and trailing <code>{%-</code> strip whitespace so the expansion is one clean inline expression.</p>
+<p><strong>3.</strong> Open <code>dbt_project/models/staging/stg__payments.sql</code>. Replace the inline <code>amount / 100.0</code> with a macro call. The full file should read:</p>
+<pre><code class="language-sql">select
+    id                                  as payment_id,
+    order_id,
+    payment_method,
+    {{ cents_to_dollars('amount') }}    as amount
+from {{ source('stripe', 'raw_payments') }}
+</code></pre>
+<p>The first argument is the column name as a <strong>string</strong>: <code>'amount'</code>, with quotes.</p>
+<p><strong>4.</strong> Re-run the staging model to materialize against the macro:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select stg__payments
+</code></pre>
+<p>You should see one green line. Behind the scenes, dbt rendered the macro into <code>round( 1.0 * amount / 100, 2 )</code> and used that as the column expression.</p>
+<p><strong>5.</strong> Inspect the compiled SQL to confirm the macro expanded:</p>
+<pre><code class="language-bash">cat target/compiled/dbt_project/models/staging/stg__payments.sql
+</code></pre>
+<p>The <code>{{ cents_to_dollars('amount') }}</code> line is gone; in its place is <code>round( 1.0 * amount / 100, 2 )</code>.</p>
+<p><strong>6.</strong> Sanity-check the dollar values look right:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select payment_id, amount from stg__payments limit 5&quot;
+</code></pre>
+<p>Five rows, <code>amount</code> values like <code>1.00</code>, <code>26.00</code>, <code>1.50</code> — dollars, not cents.</p>
+<p><strong>7.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select stg__payments</code> exits 0.</li>
+<li><code>target/manifest.json</code> registers a macro named <code>cents_to_dollars</code>.</li>
+<li><code>select count(*) from stg__payments where amount &gt; 0 and amount &lt; 100</code> returns 113 — meaning all 113 payments are now in dollar units (not cents).</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: macro 'cents_to_dollars' is undefined</code></td>
+<td>The macro file isn&rsquo;t in <code>dbt_project/macros/</code> or its filename doesn&rsquo;t end in <code>.sql</code>. Confirm the path: <code>dbt_project/macros/cents_to_dollars.sql</code>.</td>
+</tr>
+<tr>
+<td><code>Macro</code>cents_to_dollars<code>not found in target/manifest.json</code></td>
+<td>The macro file exists but didn&rsquo;t parse — usually a syntax error in the Jinja. Common cause: missing <code>{% endmacro %}</code> or a typo like <code>{% macro %}</code> (no name).</td>
+</tr>
+<tr>
+<td><code>Compilation Error: '&lt;class ...&gt;' object has no attribute 'amount'</code> (or similar attribute error)</td>
+<td>You wrote <code>{{ cents_to_dollars(amount) }}</code> without quotes. The argument must be a string: <code>'amount'</code>.</td>
+</tr>
+<tr>
+<td><code>count(*) where amount &gt; 0 and amount &lt; 100</code> returns 0 or wrong number</td>
+<td>The cents → dollars conversion didn&rsquo;t happen. Check that the macro body has <code>/ 100</code> (not <code>* 100</code>) and that you replaced the original expression rather than adding another column.</td>
+</tr>
+<tr>
+<td>Stage 3 tests fail (e.g. <code>not_null</code> on payment_id)</td>
+<td>Unrelated — the refactor didn&rsquo;t touch the column shape. Check you didn&rsquo;t accidentally drop columns from the <code>select</code> list.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next exercise covers <strong>state selection</strong> — <code>dbt run --select state:modified+ --state ./prev_target</code> — the CI optimization that lets you rebuild only what changed.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

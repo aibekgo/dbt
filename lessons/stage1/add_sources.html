@@ -71,146 +71,202 @@
 </head>
 
 <body>
-  <h1>Sources &mdash; tell dbt about your raw tables</h1>
-
-  <p>Your <code>stg__customers</code> model already builds. So why are we doing this exercise? Because
-    <code>from main.raw_customers</code> is a black box to dbt &mdash; it has no idea that table exists, nothing to put
-    on the DAG, no way to track lineage or order builds correctly. This lesson is about fixing that.</p>
-
-  <h2>What is a source?</h2>
-
-  <p>A <strong>source</strong> in dbt is a logical name for a raw table that landed in your warehouse from
-    <em>outside</em> dbt &mdash; from Fivetran, Airbyte, a streaming pipeline, our <code>scripts/ingest_raw.py</code>.
-    You don&rsquo;t build sources with <code>dbt run</code>; you just <em>declare</em> they exist. Once declared, they
-    become first-class nodes that <code>{{ source(...) }}</code> can target and that show up on the lineage graph.</p>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Who creates it</th>
-        <th>How you reference it</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Source</strong></td>
-        <td>Something <em>outside</em> dbt (Fivetran, our ingest script, etc.)</td>
-        <td><code>{{ source('raw', 'raw_customers') }}</code></td>
-      </tr>
-      <tr>
-        <td><strong>Model</strong></td>
-        <td>dbt itself, when you run <code>dbt run</code>.</td>
-        <td><code>{{ ref('stg__customers') }}</code></td>
-      </tr>
-      <tr>
-        <td><strong>Seed</strong></td>
-        <td>dbt itself, from a CSV under <code>seeds/</code>, on <code>dbt seed</code>.</td>
-        <td><code>{{ ref('country_codes') }}</code> &mdash; same as a model</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <p>Both macros &mdash; <code>source()</code> and <code>ref()</code> &mdash; compile to a fully-qualified table name.
-    The difference is who owns the upstream: <code>source()</code> says &ldquo;I trust this table is already
-    here&rdquo;; <code>ref()</code> says &ldquo;dbt built this; build the dependency first.&rdquo;</p>
-
-  <h2>Why this matters &mdash; the DAG</h2>
-
-  <img src="../../images/first_model/dag_dbt.png"
-    alt="A dbt DAG: green source nodes feeding blue staging models, then mart models">
-
-  <p><strong>DAG</strong> stands for <em>directed acyclic graph</em>. The buzzword sounds intimidating, but the idea is
-    simple: every source, model, seed, and test in your project is a <strong>node</strong>; every
-    <code>{{ source(...) }}</code> or <code>{{ ref(...) }}</code> call is an <strong>arrow</strong> from one node to
-    another. &ldquo;Acyclic&rdquo; just means the arrows never loop back &mdash; data flows downstream only.</p>
-
-  <p>The easiest mental model: a <strong>family tree of your data</strong>. Parents are sources or upstream models,
-    children are downstream transformations. dbt builds the tree automatically from your <code>source()</code> and
-    <code>ref()</code> calls and then uses it to:</p>
-
-  <ul>
-    <li>Decide build order on <code>dbt run</code>.</li>
-    <li>Render a clickable lineage graph in the docs site (<code>dbt docs serve</code>).</li>
-    <li>Limit a run to &ldquo;everything downstream of this source&rdquo; with selectors like
-      <code>--select source:raw+</code>.</li>
-    <li>Tell you which downstream models break if you drop a column upstream.</li>
-  </ul>
-
-  <img src="../../images/first_model/dag_example.png"
-    alt="A small example DAG: raw_customers, raw_orders, raw_payments feed stg models, which feed a single mart">
-
-  <p>A hardcoded <code>FROM main.raw_customers</code> is invisible to all of that. The model still builds, but
-    dbt&rsquo;s mental model of your project is wrong &mdash; lineage breaks, selectors don&rsquo;t work, freshness
-    checks have nothing to attach to. The fix is one YAML file.</p>
-
-  <h2>Declaring a source</h2>
-
-  <p>Sources live in a YAML file inside <code>models/</code>. The convention is <code>_sources.yml</code> alongside the
-    staging models:</p>
-
-  <pre><code class="language-yaml">version: 2
+<h1>Sources — tell dbt about your raw tables</h1>
+<p>Your <code>stg__customers</code> model already builds. So why are we doing this exercise? Because
+<code>from main.raw_customers</code> is a black box to dbt — it has no idea that table exists, nothing to put
+on the DAG, no way to track lineage or order builds correctly. This lesson is about fixing that.</p>
+<h2>What is a source?</h2>
+<p>A <strong>source</strong> in dbt is a logical name for a raw table that landed in your warehouse from
+<em>outside</em> dbt — from Fivetran, Airbyte, a streaming pipeline, our <code>scripts/ingest_raw.py</code>.
+You don’t build sources with <code>dbt run</code>; you just <em>declare</em> they exist. Once declared, they
+become first-class nodes that <code>{{ source(...) }}</code> can target and that show up on the lineage graph.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Who creates it</th>
+<th>How you reference it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Source</strong></td>
+<td>Something <em>outside</em> dbt (Fivetran, our ingest script, etc.)</td>
+<td><code>{{ source('raw', 'raw_customers') }}</code></td>
+</tr>
+<tr>
+<td><strong>Model</strong></td>
+<td>dbt itself, when you run <code>dbt run</code>.</td>
+<td><code>{{ ref('stg__customers') }}</code></td>
+</tr>
+<tr>
+<td><strong>Seed</strong></td>
+<td>dbt itself, from a CSV under <code>seeds/</code>, on <code>dbt seed</code>.</td>
+<td><code>{{ ref('country_codes') }}</code> — same as a model</td>
+</tr>
+</tbody>
+</table>
+<p>Both macros — <code>source()</code> and <code>ref()</code> — compile to a fully-qualified table name.
+The difference is who owns the upstream: <code>source()</code> says “I trust this table is already
+here”; <code>ref()</code> says “dbt built this; build the dependency first.”</p>
+<h2>Why this matters — the DAG</h2>
+<p><img alt="A dbt DAG: green source nodes feeding blue staging models, then mart models" src="../../images/first_model/dag_dbt.png"></p>
+<p><strong>DAG</strong> stands for <em>directed acyclic graph</em>. The buzzword sounds intimidating, but the idea is
+simple: every source, model, seed, and test in your project is a <strong>node</strong>; every
+<code>{{ source(...) }}</code> or <code>{{ ref(...) }}</code> call is an <strong>arrow</strong> from one node to
+another. “Acyclic” just means the arrows never loop back — data flows downstream only.</p>
+<p>The easiest mental model: a <strong>family tree of your data</strong>. Parents are sources or upstream models,
+children are downstream transformations. dbt builds the tree automatically from your <code>source()</code> and
+<code>ref()</code> calls and then uses it to:</p>
+<ul>
+<li>Decide build order on <code>dbt run</code>.</li>
+<li>Render a clickable lineage graph in the docs site (<code>dbt docs serve</code>).</li>
+<li>Limit a run to “everything downstream of this source” with selectors like
+  <code>--select source:raw+</code>.</li>
+<li>Tell you which downstream models break if you drop a column upstream.</li>
+</ul>
+<p><img alt="A small example DAG: raw_customers, raw_orders, raw_payments feed stg models, which feed a single mart" src="../../images/first_model/dag_example.png"></p>
+<p>A hardcoded <code>FROM main.raw_customers</code> is invisible to all of that. The model still builds, but
+dbt’s mental model of your project is wrong — lineage breaks, selectors don’t work, freshness
+checks have nothing to attach to. The fix is one YAML file.</p>
+<h2>Declaring a source</h2>
+<p>Sources live in a YAML file inside <code>models/</code>. The convention is <code>_sources.yml</code> alongside the
+staging models:</p>
+<pre><code>version: 2
 
 sources:
-  - name: raw                              # &larr; the &quot;source&quot; argument in source('raw', ...)
-    description: "Jaffle shop raw tables landed by scripts/ingest_raw.py"
-    schema: main                           # &larr; DuckDB schema where the tables live
+  - name: raw                              # ← the &quot;source&quot; argument in source('raw', ...)
+    description: &quot;Jaffle shop raw tables landed by scripts/ingest_raw.py&quot;
+    schema: main                           # ← DuckDB schema where the tables live
     tables:
-      - name: raw_customers                # &larr; the &quot;table&quot; argument in source(..., 'raw_customers')
+      - name: raw_customers                # ← the &quot;table&quot; argument in source(..., 'raw_customers')
       - name: raw_orders
       - name: raw_payments
 </code></pre>
-
-  <p>What this does:</p>
-  <ul>
-    <li>Tells dbt: &ldquo;there&rsquo;s a logical source called <code>raw</code> living in schema
-      <code>main</code>.&rdquo;</li>
-    <li>Lists the three tables that source contains.</li>
-    <li>Lets you reference them as <code>{{ source('raw', 'raw_customers') }}</code> from any model.</li>
-  </ul>
-
-  <p>You can also attach extra metadata:</p>
-  <ul>
-    <li><strong>Descriptions and owner names</strong> &mdash; for the auto-generated docs site.</li>
-    <li><strong>Freshness thresholds</strong> &mdash; configure a <code>loaded_at_field</code> and a max age, and
-      <code>dbt source freshness</code> warns or errors if data is stale (e.g. orders haven&rsquo;t been updated in
-      &gt;24h). A health check on raw data, baked into the project.</li>
-    <li><strong>Column-level docs and tests</strong> &mdash; cataloged alongside the model layer.</li>
-  </ul>
-
-  <p>We&rsquo;ll layer those on in Stage 3. The bare-bones declaration above is the minimum dbt needs to compile
-    <code>{{ source(...) }}</code>.</p>
-
-  <h2>Refactoring the model</h2>
-
-  <p>With the source declared, change the model&rsquo;s <code>from</code> line:</p>
-
-  <pre><code class="language-sql">-- before (hardcoded)
+<p>What this does:</p>
+<ul>
+<li>Tells dbt: “there’s a logical source called <code>raw</code> living in schema
+  <code>main</code>.”</li>
+<li>Lists the three tables that source contains.</li>
+<li>Lets you reference them as <code>{{ source('raw', 'raw_customers') }}</code> from any model.</li>
+</ul>
+<p>You can also attach extra metadata:</p>
+<ul>
+<li><strong>Descriptions and owner names</strong> — for the auto-generated docs site.</li>
+<li><strong>Freshness thresholds</strong> — configure a <code>loaded_at_field</code> and a max age, and
+  <code>dbt source freshness</code> warns or errors if data is stale (e.g. orders haven’t been updated in<blockquote>
+<p>24h). A health check on raw data, baked into the project.</p>
+</blockquote>
+</li>
+<li><strong>Column-level docs and tests</strong> — cataloged alongside the model layer.</li>
+</ul>
+<p>We’ll layer those on in Stage 3. The bare-bones declaration above is the minimum dbt needs to compile
+<code>{{ source(...) }}</code>.</p>
+<h2>Refactoring the model</h2>
+<p>With the source declared, change the model’s <code>from</code> line:</p>
+<pre><code>-- before (hardcoded)
 from main.raw_customers
 
 -- after (source-aware)
 from {{ source('raw', 'raw_customers') }}
 </code></pre>
+<p>That’s the only line that changes. <code>dbt run --select stg__customers</code> behaves exactly the same way:
+green node, same view in DuckDB, same row count. What changed is dbt’s <em>understanding</em> of your project
+— the source is now a node, the dependency is now an edge, the DAG is now correct.</p>
+<h2>Common pitfalls</h2>
+<ul>
+<li><strong>Mismatched source name.</strong> — The first argument of <code>source('raw', ...)</code> must
+  equal the <code>name:</code> field in <code>_sources.yml</code>. Typos here become <em>“Found a source &hellip;
+  but no matching source declaration.”</em></li>
+<li><strong>Wrong schema.</strong> — <code>scripts/ingest_raw.py</code> writes to DuckDB’s default
+  <code>main</code> schema. <code>schema: raw</code> looks correct (it matches the source <em>name</em>), but
+  it’s wrong — <code>schema:</code> is the <em>physical</em> location, not the logical name.</li>
+<li><strong>YAML indentation.</strong> — YAML uses spaces, never tabs. Two-space indent per level.</li>
+<li><strong>Forgetting to put <code>_sources.yml</code> under <code>models/</code>.</strong> — dbt only loads
+  YAML files inside the configured model paths. <code>_sources.yml</code> at the project root or under
+  <code>seeds/</code> is silently ignored.</li>
+</ul>
+<p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> Make sure you&rsquo;re inside <code>dbt_project/</code>:</p>
+<pre><code class="language-bash">cd dbt_project   # if you're not already here
+</code></pre>
+<p><strong>2.</strong> Create <code>dbt_project/models/staging/_sources.yml</code> and paste:</p>
+<pre><code class="language-yaml">version: 2
 
-  <p>That&rsquo;s the only line that changes. <code>dbt run --select stg__customers</code> behaves exactly the same way:
-    green node, same view in DuckDB, same row count. What changed is dbt&rsquo;s <em>understanding</em> of your project
-    &mdash; the source is now a node, the dependency is now an edge, the DAG is now correct.</p>
-
-  <h2>Common pitfalls</h2>
-  <ul>
-    <li><strong>Mismatched source name.</strong> &mdash; The first argument of <code>source('raw', ...)</code> must
-      equal the <code>name:</code> field in <code>_sources.yml</code>. Typos here become <em>&ldquo;Found a source ...
-        but no matching source declaration.&rdquo;</em></li>
-    <li><strong>Wrong schema.</strong> &mdash; <code>scripts/ingest_raw.py</code> writes to DuckDB&rsquo;s default
-      <code>main</code> schema. <code>schema: raw</code> looks correct (it matches the source <em>name</em>), but
-      it&rsquo;s wrong &mdash; <code>schema:</code> is the <em>physical</em> location, not the logical name.</li>
-    <li><strong>YAML indentation.</strong> &mdash; YAML uses spaces, never tabs. Two-space indent per level.</li>
-    <li><strong>Forgetting to put <code>_sources.yml</code> under <code>models/</code>.</strong> &mdash; dbt only loads
-      YAML files inside the configured model paths. <code>_sources.yml</code> at the project root or under
-      <code>seeds/</code> is silently ignored.</li>
-  </ul>
-
-  <p>Press <code>n</code> to start the exercise.</p>
+sources:
+  - name: raw
+    description: &quot;Jaffle shop raw tables landed by scripts/ingest_raw.py&quot;
+    schema: main
+    tables:
+      - name: raw_customers
+      - name: raw_orders
+      - name: raw_payments
+</code></pre>
+<p>What this YAML does:</p>
+<ul>
+<li>Tells dbt: &ldquo;there&rsquo;s a logical source called <code>raw</code> living in DuckDB schema <code>main</code>.&rdquo;</li>
+<li>Lists the three tables you ingested.</li>
+<li>Lets you reference them as <code>{{ source('raw', 'raw_customers') }}</code> from any model.</li>
+</ul>
+<blockquote>
+<p>The leading underscore in <code>_sources.yml</code> is convention — files starting with <code>_</code> sort to the top of the folder so configs are easy to find. dbt doesn&rsquo;t care about the name.</p>
+</blockquote>
+<p><strong>3.</strong> Open <code>dbt_project/models/staging/stg__customers.sql</code> and <strong>replace</strong> the hardcoded <code>from</code> line with a <code>source()</code> call:</p>
+<pre><code class="language-sql">select
+    id          as customer_id,
+    first_name,
+    last_name
+from {{ source('raw', 'raw_customers') }}
+</code></pre>
+<p>The rest of the file stays exactly the same.</p>
+<p><strong>4.</strong> Run it:</p>
+<pre><code class="language-bash">dbt run --select stg__customers
+</code></pre>
+<p>You&rsquo;ll see the same green success line as before — but the underlying compiled SQL has changed, and dbt now knows the dependency.</p>
+<p><strong>5.</strong> Confirm the source is on the DAG:</p>
+<pre><code class="language-bash">dbt ls --resource-type source
+</code></pre>
+<p>You should see three entries:</p>
+<pre><code>dbt_project.raw.raw_customers
+dbt_project.raw.raw_orders
+dbt_project.raw.raw_payments
+</code></pre>
+<p>These are first-class DAG nodes now. Lineage, selectors (<code>--select source:raw+</code>), and <code>dbt source freshness</code> all work against them.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt_project/models/staging/_sources.yml</code> exists and is non-trivially populated.</li>
+</ul>
+<p>The verifier doesn&rsquo;t re-run dbt — <code>first_model</code> already covered that. This exercise just confirms you&rsquo;ve added the source declaration. (You should also still see green from <code>dbt run --select stg__customers</code>, which proves the model parses with the macro.)</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Found a source ... but no matching source declaration</code></td>
+<td>Either <code>_sources.yml</code> is missing, the <code>name:</code> doesn&rsquo;t match <code>source('raw', ...)</code>, or <code>raw_customers</code> isn&rsquo;t listed under <code>tables:</code>.</td>
+</tr>
+<tr>
+<td><code>Relation "dev"."raw"."raw_customers" does not exist</code></td>
+<td>Wrong <code>schema:</code> in <code>_sources.yml</code>. Should be <code>main</code> (DuckDB&rsquo;s default — that&rsquo;s where <code>ingest_raw.py</code> writes).</td>
+</tr>
+<tr>
+<td>YAML parse error (<code>mapping values are not allowed in this context</code>)</td>
+<td>YAML indentation. Use spaces, never tabs. Two-space indent per level.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The last exercise of Stage 1 sets a default materialization for everything in <code>staging/</code>.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

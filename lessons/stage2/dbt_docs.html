@@ -72,53 +72,118 @@
 
 <body>
 <h1><code>dbt docs</code> — your project as a website</h1>
-<p>dbt builds a documentation site directly from your project. Sources, models, columns, lineage, the actual compiled SQL — all browsable, all hyperlinked. The site is regenerated from the manifest each time you ask for it; nothing&rsquo;s hand-maintained.</p>
+<p>dbt builds a documentation site directly from your project. Sources, models, columns, lineage, the actual compiled SQL — all browsable, all hyperlinked. The site is regenerated from the manifest each time you ask for it; nothing’s hand-maintained.</p>
 <p>This exercise generates the docs and serves them locally.</p>
 <h2>What <code>dbt docs generate</code> does</h2>
 <p>It produces two artifacts under <code>dbt_project/target/</code>:</p>
 <ul>
-<li><strong><code>manifest.json</code></strong> — the parsed graph. Already updated by every <code>dbt run</code> / <code>dbt build</code>; <code>dbt docs generate</code> just makes sure it&rsquo;s fresh.</li>
+<li><strong><code>manifest.json</code></strong> — the parsed graph. Already updated by every <code>dbt run</code> / <code>dbt build</code>; <code>dbt docs generate</code> just makes sure it’s fresh.</li>
 <li><strong><code>catalog.json</code></strong> — column-level metadata pulled by querying the warehouse: data types, column descriptions (where given), row counts. This is the new file. Generating it requires the warehouse to be reachable, since dbt actually <code>describes</code> each table.</li>
 </ul>
 <p>The docs UI is a static site (HTML + JavaScript) shipped with dbt. When you launch it, dbt loads <code>manifest.json</code> + <code>catalog.json</code> into the page and renders the lineage graph, column tables, and SQL panes from there.</p>
-<h2>What you&rsquo;ll see</h2>
-<pre><code class="language-bash">cd dbt_project
+<h2>What you’ll see</h2>
+<pre><code>cd dbt_project
 dbt docs generate
 </code></pre>
 <p>Output ends with something like:</p>
 <pre><code>Catalog written to target/catalog.json
 </code></pre>
 <p>Then:</p>
-<pre><code class="language-bash">dbt docs serve
+<pre><code>dbt docs serve
 </code></pre>
 <p>Opens a local web server (default <code>http://localhost:8080</code>) and your browser. Three things worth clicking around to:</p>
 <ol>
-<li><strong>Lineage tab (bottom-right circle icon).</strong> All the green source nodes (<code>raw_customers</code>, <code>raw_orders</code>, <code>raw_payments</code>) flowing into blue staging models, into the intermediate, into the fact. Stage 2&rsquo;s whole shape, visualized.</li>
-<li><strong>Source page → freshness columns.</strong> Empty for now (we haven&rsquo;t configured <code>loaded_at_field</code>), but this is where <code>dbt source freshness</code> results would show up.</li>
-<li><strong>A model page → &ldquo;Compiled&rdquo; tab.</strong> The actual SQL dbt sent to DuckDB, with <code>{{ source(...) }}</code> and <code>{{ ref(...) }}</code> already expanded. Useful for sanity-checking what the macros produced.</li>
+<li><strong>Lineage tab (bottom-right circle icon).</strong> All the green source nodes (<code>raw_customers</code>, <code>raw_orders</code>, <code>raw_payments</code>) flowing into blue staging models, into the intermediate, into the fact. Stage 2’s whole shape, visualized.</li>
+<li><strong>Source page → freshness columns.</strong> Empty for now (we haven’t configured <code>loaded_at_field</code>), but this is where <code>dbt source freshness</code> results would show up.</li>
+<li><strong>A model page → “Compiled” tab.</strong> The actual SQL dbt sent to DuckDB, with <code>{{ source(...) }}</code> and <code>{{ ref(...) }}</code> already expanded. Useful for sanity-checking what the macros produced.</li>
 </ol>
 <p>Stop the server with <code>Ctrl+C</code> when done.</p>
-<h2>What docs are good for (and what they aren&rsquo;t)</h2>
+<h2>What docs are good for (and what they aren’t)</h2>
 <p><strong>Good for:</strong></p>
 <ul>
 <li><strong>Onboarding.</strong> New analyst joins the team, points them at the docs site, they see exactly which staging model feeds which fact.</li>
 <li><strong>Impact analysis.</strong> Click a source, see every downstream model that depends on it. About to drop a column? You can see who breaks.</li>
-<li><strong>Catching surprise dependencies.</strong> The lineage graph occasionally reveals a model joining to something nobody expected — the kind of thing that&rsquo;s invisible in a list view.</li>
+<li><strong>Catching surprise dependencies.</strong> The lineage graph occasionally reveals a model joining to something nobody expected — the kind of thing that’s invisible in a list view.</li>
 </ul>
 <p><strong>Not good for:</strong></p>
 <ul>
-<li><strong>Living documentation of business logic.</strong> The docs site shows what dbt sees: SQL, schemas, column types. The &ldquo;why&rdquo; behind a complex CASE statement isn&rsquo;t there unless you write a <code>description:</code> block in YAML and a <code>docs</code> block in markdown.</li>
-<li><strong>Wide-audience docs.</strong> The site assumes the reader understands dbt. For broader stakeholders, BI catalogs (Atlan, Castor, etc.) sit on top of dbt&rsquo;s manifest and add the human layer.</li>
+<li><strong>Living documentation of business logic.</strong> The docs site shows what dbt sees: SQL, schemas, column types. The “why” behind a complex CASE statement isn’t there unless you write a <code>description:</code> block in YAML and a <code>docs</code> block in markdown.</li>
+<li><strong>Wide-audience docs.</strong> The site assumes the reader understands dbt. For broader stakeholders, BI catalogs (Atlan, Castor, etc.) sit on top of dbt’s manifest and add the human layer.</li>
 </ul>
-<p>You&rsquo;ll round out descriptions and doc blocks in Stage 3 alongside tests. Stage 2&rsquo;s job is just confirming that <code>dbt docs generate</code> works and the output files land where they should.</p>
+<p>You’ll round out descriptions and doc blocks in Stage 3 alongside tests. Stage 2’s job is just confirming that <code>dbt docs generate</code> works and the output files land where they should.</p>
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong><code>dbt docs serve</code> claims port 8080 is in use.</strong> Pass a different port: <code>dbt docs serve --port 8081</code>.</li>
-<li><strong>The catalog page is empty / &ldquo;no data&rdquo;.</strong> <code>dbt docs generate</code> ran but <code>catalog.json</code> wasn&rsquo;t refreshed. Re-run <code>dbt docs generate</code> after <code>dbt build</code> so the catalog includes column types from the just-built tables.</li>
-<li><strong>Browser doesn&rsquo;t auto-open.</strong> dbt&rsquo;s serve command tries to launch a browser; if it doesn&rsquo;t, just visit <code>http://localhost:8080</code> manually.</li>
-<li><strong>Lineage looks weird (orphan nodes, missing edges).</strong> That&rsquo;s a <code>manifest.json</code> staleness issue. <code>dbt parse</code> or another <code>dbt build</code> will refresh it.</li>
+<li><strong>The catalog page is empty / “no data”.</strong> <code>dbt docs generate</code> ran but <code>catalog.json</code> wasn’t refreshed. Re-run <code>dbt docs generate</code> after <code>dbt build</code> so the catalog includes column types from the just-built tables.</li>
+<li><strong>Browser doesn’t auto-open.</strong> dbt’s serve command tries to launch a browser; if it doesn’t, just visit <code>http://localhost:8080</code> manually.</li>
+<li><strong>Lineage looks weird (orphan nodes, missing edges).</strong> That’s a <code>manifest.json</code> staleness issue. <code>dbt parse</code> or another <code>dbt build</code> will refresh it.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root:</p>
+<pre><code class="language-bash">cd dbt_project
+</code></pre>
+<p><strong>2.</strong> Generate the docs site:</p>
+<pre><code class="language-bash">dbt docs generate
+</code></pre>
+<p>Output should end with a line like:</p>
+<pre><code>Catalog written to target/catalog.json
+</code></pre>
+<p>That&rsquo;s the new file — column-level metadata pulled by introspecting your DuckDB tables. <code>target/manifest.json</code> was already up-to-date from the <code>dbt build</code> you ran in the previous exercise.</p>
+<p><strong>3.</strong> (Optional) Serve the site and browse:</p>
+<pre><code class="language-bash">dbt docs serve --port 8080
+</code></pre>
+<p>Your browser should open to <code>http://localhost:8080</code>. Click into:</p>
+<ul>
+<li>The <strong>lineage button</strong> (bottom-right of the page) — see Stage 2&rsquo;s whole DAG: two green source groups (<code>jaffle_shop</code>, <code>stripe</code>), three staging views, the intermediate, the fact.</li>
+<li>A <strong>model page</strong> like <code>fct_orders</code> — switch between the <strong>Details</strong>, <strong>Columns</strong>, and <strong>Compiled</strong> tabs. The Compiled tab shows the actual SQL dbt sent to DuckDB, with all <code>{{ source(...) }}</code> / <code>{{ ref(...) }}</code> macros expanded.</li>
+<li>A <strong>source page</strong> like <code>jaffle_shop.raw_customers</code> — column types pulled from DuckDB.</li>
+</ul>
+<p>Press <code>Ctrl+C</code> to stop the server when you&rsquo;re done.</p>
+<p><strong>4.</strong> Confirm both artifacts exist and were just touched:</p>
+<pre><code class="language-bash">ls -la target/manifest.json target/catalog.json
+</code></pre>
+<p>Both should be very recent.</p>
+<p><strong>5.</strong> Press <code>v</code>.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt docs generate</code> (run by the verifier) exits 0.</li>
+<li><code>target/manifest.json</code> exists and was regenerated by this run (mtime is current).</li>
+<li><code>target/catalog.json</code> exists and was regenerated by this run.</li>
+</ul>
+<p>If either file is missing or stale, the verifier fails — the most common cause is the warehouse being unreachable (DuckDB file deleted) or <code>dbt parse</code> choking on a YAML error.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Could not connect to database</code></td>
+<td>DuckDB file is missing or locked. Run <code>dbt build</code> first to recreate it; close any other process that has the file open.</td>
+</tr>
+<tr>
+<td><code>dbt: command not found</code></td>
+<td>Activate the venv: <code>source .venv/bin/activate</code>.</td>
+</tr>
+<tr>
+<td><code>Address already in use</code> on <code>dbt docs serve</code></td>
+<td>Another <code>dbt docs serve</code> is still running, or another app owns port 8080. Use <code>--port 8081</code>.</td>
+</tr>
+<tr>
+<td><code>catalog.json</code> missing after the run</td>
+<td><code>dbt docs generate</code> requires query access to introspect tables. If it skipped the catalog with a warning about <code>Skipping catalog generation</code>, fix the warehouse connection first.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code> for the Stage 2 lesson on naming conventions and the stage-end quiz. After the quiz you&rsquo;ve finished Stage 2 — the project now has every layer of a real dbt setup: sources, staging, intermediate, marts, and a docs site reflecting it all.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>

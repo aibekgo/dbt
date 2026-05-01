@@ -121,6 +121,88 @@ where customer_id is not null
 <li><strong>Listing values that don&rsquo;t actually exist.</strong> If your <code>status</code> column has <code>'returned'</code> but you list <code>'return'</code> in <code>accepted_values</code>, every <code>'returned'</code> row will fail the test. The lesson includes the canonical list for jaffle_shop — copy it exactly.</li>
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
+<hr>
+<h2>Exercise walkthrough</h2>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/models/staging/_models.yml</code>. Find the <code>status</code> column under <code>stg__orders</code> and replace it with this version:</p>
+<pre><code class="language-yaml">- name: status
+  description: &quot;Order lifecycle state.&quot;
+  tests:
+    - accepted_values:
+        values: [placed, shipped, completed, return_pending, returned]
+</code></pre>
+<p>The rest of the file stays as-is. Only the <code>status</code> column gets the new test attached.</p>
+<p><strong>2.</strong> Create a new file at <code>dbt_project/models/marts/_models.yml</code> with this content:</p>
+<pre><code class="language-yaml">version: 2
+
+models:
+  - name: fct_orders
+    description: &quot;One row per order, denormalized with customer attributes and payment totals.&quot;
+    columns:
+      - name: order_id
+        description: &quot;Primary key. Inherited from stg__orders.&quot;
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: &quot;Foreign key to dim_customers.&quot;
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+</code></pre>
+<p>Two things to notice:</p>
+<ul>
+<li><strong><code>to: ref('dim_customers')</code></strong> — that&rsquo;s a Jinja expression evaluated by dbt at parse time, not a string literal <code>'dim_customers'</code>. Quotes go around the model name <em>inside</em> <code>ref()</code>.</li>
+<li><strong>The new file is a peer of <code>_sources.yml</code>, not nested under it.</strong> The marts folder gets its own schema YAML.</li>
+</ul>
+<p><strong>3.</strong> From inside <code>dbt_project/</code>, run the tests scoped to the fact table:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt test --select fct_orders
+</code></pre>
+<p>You should see three tests run on <code>fct_orders</code> (its own <code>unique</code>, <code>not_null</code>, and <code>relationships</code>) plus the upstream <code>stg__orders.status</code> <code>accepted_values</code> test if you used <code>+fct_orders</code> instead. With just <code>--select fct_orders</code>, expect 3 tests.</p>
+<p><strong>4.</strong> Then test everything end-to-end:</p>
+<pre><code class="language-bash">dbt test
+</code></pre>
+<p>That runs all tests across the project — Stage 2&rsquo;s data plus the seven from <code>generic_tests</code> plus your two new ones. All pass.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt test --select fct_orders</code> exits 0 and every selected test passes.</li>
+<li><code>target/manifest.json</code> shows at least 3 tests on <code>stg__orders</code> (the existing <code>unique</code>/<code>not_null</code> plus the new <code>accepted_values</code>).</li>
+<li>At least 3 tests on <code>fct_orders</code> (<code>unique</code>, <code>not_null</code>, <code>relationships</code>).</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: 'dim_customers' is undefined</code></td>
+<td>You wrote <code>to: 'dim_customers'</code> (string) instead of <code>to: ref('dim_customers')</code> (Jinja). Add the <code>ref()</code> wrapper.</td>
+</tr>
+<tr>
+<td><code>accepted_values</code> test fails with <code>FAIL N</code></td>
+<td>An order has a status outside the five values. Run <code>select distinct status from stg__orders</code> to see what&rsquo;s actually there — the seed data in this project should produce exactly the five listed values, so a failure usually means a typo in the YAML list.</td>
+</tr>
+<tr>
+<td><code>Model</code>fct_orders<code>has 2 test(s) — expected at least 3</code></td>
+<td>The <code>relationships</code> test didn&rsquo;t attach. Double-check the YAML indentation — <code>relationships:</code> is one of the children of <code>tests: -</code>, at the same indent as <code>not_null</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: Could not find a model named 'dim_customers'</code></td>
+<td>The <code>ref()</code> argument doesn&rsquo;t match a model name. Run <code>dbt ls --resource-type model</code> to see the valid names — should be <code>dim_customers</code> (single underscore).</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise covers <strong>singular tests</strong> — the kind you write by hand when no built-in fits.</p>
+<!-- walkthrough-appended -->
 </body>
 
 </html>
