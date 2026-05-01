@@ -182,7 +182,13 @@ for csv in [&quot;raw_customers.csv&quot;, &quot;raw_orders.csv&quot;, &quot;raw
 </code></pre>
 <p><code>uv run</code> picks up the project’s virtualenv automatically — you don’t have to remember to <code>source .venv/bin/activate</code> first. If you already have the venv active, <code>python scripts/ingest_raw.py</code> works the same.</p>
 <h2>What success looks like</h2>
-<p>You should see an <code>Ingesting into database/dev.duckdb</code> header followed by row counts (<code>raw_customers: 100</code>, <code>raw_orders: 99</code>, <code>raw_payments: 113</code>) and a <code>Done.</code> line. The walkthrough below shows the exact expected output.</p>
+<p>You should see:</p>
+<pre><code>Ingesting into database/dev.duckdb
+  raw_customers: 100 rows
+  raw_orders: 99 rows
+  raw_payments: 113 rows
+Done.
+</code></pre>
 <p>You can verify by opening the file with the DuckDB CLI:</p>
 <pre><code>duckdb database/dev.duckdb -c &quot;SELECT count(*) FROM raw_customers;&quot;
 </code></pre>

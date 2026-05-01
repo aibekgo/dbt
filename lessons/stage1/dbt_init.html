@@ -117,7 +117,9 @@
 </table>
 <p>If <code>dbt init</code> doesn&rsquo;t prompt for a database (some versions skip it when only one adapter is installed), that&rsquo;s fine — it just scaffolds the project.</p>
 <h2>Delete the example models before continuing</h2>
-<p><code>dbt init</code> drops a sample <code>models/example/</code> folder with <code>my_first_dbt_model.sql</code>, <code>my_second_dbt_model.sql</code>, and a <code>schema.yml</code>. One of them emits a NULL row that fails a <code>not_null</code> test — which will break the Stage 2 <code>dbt build</code> exercise unless you remove it. The walkthrough below has the <code>rm -rf</code> step.</p>
+<p><code>dbt init</code> drops a sample <code>models/example/</code> folder with <code>my_first_dbt_model.sql</code>, <code>my_second_dbt_model.sql</code>, and a <code>schema.yml</code>. One of them emits a NULL row that fails a <code>not_null</code> test — which will break the Stage 2 <code>dbt build</code> exercise unless you remove it now:</p>
+<pre><code class="language-bash">rm -rf dbt_project/models/example
+</code></pre>
 <p>You&rsquo;ll write your own models under <code>models/staging/</code>, <code>models/intermediate/</code>, and <code>models/marts/</code> over the next few exercises.</p>
 <h2>Where the directory ends up</h2>
 <p>Run <code>dbt init dbt_project</code> from the <em>repo root</em> (the directory that contains this <code>README.md</code> and <code>curriculum.yaml</code>). dbt creates a folder named after the argument you pass, so the result is <code>&lt;repo-root&gt;/dbt_project/</code>. The verifier in the next exercise looks for <code>dbt_project/dbt_project.yml</code> at exactly that path.</p>

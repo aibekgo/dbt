@@ -81,7 +81,19 @@
 <li><strong>A regular <code>select</code> statement</strong> — what the model wants in its first-run &ldquo;true&rdquo; form</li>
 <li><strong>An <code>{% if is_incremental() %}</code> filter</strong> — narrowing the select to &ldquo;rows since last run&rdquo;</li>
 </ol>
-<p>The walkthrough below has the full file you&rsquo;ll write. The shape is: a <code>config()</code> call at the top, a plain <code>select</code> from <code>stg__orders</code>, then a Jinja-wrapped <code>where order_date &gt; (select max(order_date) from {{ this }})</code> filter.</p>
+<pre><code class="language-sql">{{ config(materialized='incremental') }}
+
+select
+    order_id,
+    customer_id,
+    order_date,
+    status
+from {{ ref('stg__orders') }}
+
+{% if is_incremental() %}
+where order_date &gt; (select max(order_date) from {{ this }})
+{% endif %}
+</code></pre>
 <p><code>is_incremental()</code> is a Jinja macro that returns <code>true</code> when <strong>all three</strong> of:</p>
 <ul>
 <li>The target table already exists in the warehouse</li>

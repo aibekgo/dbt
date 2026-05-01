@@ -77,7 +77,14 @@
 <h2>What a model is</h2>
 <p><img alt="A dbt model: a SELECT statement in a .sql file becomes a view or table in the warehouse" src="../../images/first_model/model.png"></p>
 <p>A dbt <strong>model</strong> is a single <code>.sql</code> file under <code>models/</code> that contains exactly one <code>SELECT</code> statement. No <code>CREATE TABLE</code>, no <code>INSERT</code>, no DDL of any kind — you write the query, dbt wraps it in the right DDL and runs it for you. If the view already exists, dbt drops and rebuilds it.</p>
-<p>The walkthrough below has the exact file you&rsquo;ll write — three columns, a rename, no Jinja, hardcoded against <code>main.raw_customers</code> (the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote).</p>
+<pre><code>-- models/staging/stg__customers.sql
+select
+    id          as customer_id,
+    first_name,
+    last_name
+from main.raw_customers
+</code></pre>
+<p>That’s the entire file. Three columns, a rename, no Jinja. <code>main.raw_customers</code> is the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote.</p>
 <blockquote>
 <p>Hardcoding the schema and table name like this is something you almost never do in real dbt code — production models always go through <code>{{ source(...) }}</code> or <code>{{ ref(...) }}</code>. We’re using the hardcode here on purpose, to keep the cognitive load on this very first model at zero. The <strong>add_sources</strong> exercise (next) refactors it.</p>
 </blockquote>
@@ -100,13 +107,15 @@
 </code></pre>
 <p>(<code>dev</code> is the DuckDB database file <code>database/dev.duckdb</code>; <code>main_main</code> is the schema dbt creates for its own models.)</p>
 <p>You write the <em>logic</em>; dbt handles the boilerplate, the dependency order, the schema names, and the cleanup.</p>
-<h2>Inspecting what dbt produced</h2>
+<h2>Inspecting the output</h2>
 <p>Two places worth peeking at after a run:</p>
 <ul>
 <li><code>dbt_project/target/compiled/dbt_project/models/staging/stg__customers.sql</code> — the SQL dbt actually sent to DuckDB. For this hardcoded model it’s identical to your input; once you start using <code>source()</code> and <code>ref()</code> it diverges.</li>
 <li><code>dbt_project/target/run_results.json</code> — structured output of the last run: which nodes succeeded, how long they took, any error messages.</li>
 </ul>
-<p>(The walkthrough below shows the <code>duckdb</code> command for querying the resulting view directly.)</p>
+<p>And of course the warehouse itself:</p>
+<pre><code>duckdb database/dev.duckdb -c &quot;SELECT * FROM stg__customers LIMIT 3;&quot;
+</code></pre>
 <h2>Compile vs run</h2>
 <table>
 <thead>
@@ -158,12 +167,21 @@ from main.raw_customers
 </code></pre>
 <p>You should see one green line: <code>1 of 1 START sql view model ... [OK ...]</code>.</p>
 <p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What <code>dbt run</code> actually did</h2>
+<p>The whole loop, in plain English:</p>
+<ol>
+<li><strong>Parsed</strong> every file under <code>models/</code>. Found one model: <code>stg__customers</code>.</li>
+<li><strong>Compiled</strong> it — expanded any Jinja into raw SQL. (Yours had none, so the compiled file is identical to your input. You can see it under <code>target/compiled/</code>.)</li>
+<li><strong>Wrapped</strong> the <code>SELECT</code> in <code>CREATE OR REPLACE VIEW dev.main_main.stg__customers AS (...)</code> and sent it to DuckDB.</li>
+<li><strong>Wrote</strong> the run result and any logs into <code>target/</code>.</li>
+</ol>
+<p>Parse → compile → execute. Every model goes through that same three-step loop, no matter how many models or how complex the SQL.</p>
 <h2>What the verifier checks</h2>
 <ul>
 <li><code>dbt run --select stg__customers</code> exits 0</li>
 <li>A relation named <code>stg__customers</code> exists in <code>database/dev.duckdb</code></li>
 </ul>
-<h2>Inspect the result</h2>
+<h2>Inspecting the result</h2>
 <p>From the repo root:</p>
 <pre><code class="language-bash">duckdb database/dev.duckdb -c &quot;SELECT * FROM stg__customers LIMIT 3;&quot;
 </code></pre>

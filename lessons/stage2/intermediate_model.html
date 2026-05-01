@@ -91,8 +91,16 @@
 <blockquote>
 <p>The other common convention is <code>models/marts/intermediate/</code> nested under marts. You’ll see it in older dbt projects. Modern dbt-labs reference projects use the peer layout, so we do too.</p>
 </blockquote>
-<h2>The shape of the model</h2>
-<p>The walkthrough below has the full SQL for <code>models/intermediate/int_order_payments.sql</code>. The shape is small but every piece earns its place:</p>
+<h2>The model itself</h2>
+<p><code>models/intermediate/int_order_payments.sql</code>:</p>
+<pre><code>select
+    order_id,
+    sum(amount)              as total_amount,
+    count(*)                 as payment_count
+from {{ ref('stg__payments') }}
+group by order_id
+</code></pre>
+<p>What’s happening:</p>
 <ul>
 <li><strong><code>{{ ref('stg__payments') }}</code></strong> — depends on the staging model, <em>not</em> the source. Intermediates always sit downstream of staging.</li>
 <li><strong><code>group by order_id</code></strong> — collapses 113 payment rows down to 99 rows, one per order.</li>
