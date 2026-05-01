@@ -88,30 +88,15 @@
 <li><strong>No filtering</strong> beyond obviously broken rows (nulls in primary keys, soft-deletes that should be hidden everywhere).</li>
 </ul>
 <p>If you find yourself wanting to do any of those, that’s a signal you’re already in <code>int_*</code> or <code>fct_*</code> territory.</p>
-<h2>What the new files look like</h2>
-<p><code>models/staging/stg__orders.sql</code>:</p>
-<pre><code>select
-    id          as order_id,
-    user_id     as customer_id,
-    order_date,
-    status
-from {{ source('jaffle_shop', 'raw_orders') }}
-</code></pre>
-<p>Two renames: <code>id → order_id</code> (so it matches up with <code>payment.order_id</code> downstream) and <code>user_id → customer_id</code> (so it matches <code>stg__customers.customer_id</code>). <code>order_date</code> and <code>status</code> are already well-named.</p>
-<p><code>models/staging/stg__payments.sql</code>:</p>
-<pre><code>select
-    id                       as payment_id,
-    order_id,
-    payment_method,
-    amount / 100.0           as amount
-from {{ source('stripe', 'raw_payments') }}
-</code></pre>
-<p>Two changes worth pointing out:</p>
+<h2>What the new files do</h2>
+<p>The walkthrough below has the full SQL for both <code>stg__orders.sql</code> and <code>stg__payments.sql</code>. The shape is small, but every piece earns its place.</p>
+<p><strong><code>stg__orders</code></strong> — two renames: <code>id → order_id</code> (so it matches up with <code>payment.order_id</code> downstream) and <code>user_id → customer_id</code> (so it matches <code>stg__customers.customer_id</code>). <code>order_date</code> and <code>status</code> are already well-named.</p>
+<p><strong><code>stg__payments</code></strong> — two changes:</p>
 <ul>
-<li><strong><code>id → payment_id</code></strong> — same reason as <code>stg__orders</code>, disambiguate the <code>id</code> columns at the boundary.</li>
+<li><strong><code>id → payment_id</code></strong> — same reason, disambiguate the <code>id</code> columns at the boundary.</li>
 <li><strong><code>amount / 100.0 as amount</code></strong> — Stripe stores money in cents (e.g. <code>1000</code> for $10.00). Casting once at the staging layer means every downstream query gets dollars, no surprise multiplications. Use <code>100.0</code> (with the decimal) so DuckDB returns a <code>DOUBLE</code> rather than truncated integer division.</li>
 </ul>
-<p>The <code>from</code> lines reference the new sources you just declared in <code>multi_source_split</code> — <code>jaffle_shop</code> for orders, <code>stripe</code> for payments. If you forget to update those, dbt errors out at parse time.</p>
+<p>Both files reference the new sources you just declared in <code>multi_source_split</code> — <code>jaffle_shop</code> for orders, <code>stripe</code> for payments. If you forget to update those, dbt errors out at parse time.</p>
 <h2>Why one model per source table?</h2>
 <p>Two reasons. First, <strong>discoverability</strong> — when someone wants to know “what tables are usable downstream?” they look in <code>models/staging/</code>. One file per source table makes that map obvious. Second, <strong>isolation of upstream changes</strong> — if Stripe drops the <code>payment_method</code> column, you change exactly one file (<code>stg__payments.sql</code>) and every model downstream that joins to <code>stg__payments</code> breaks loudly during testing instead of silently producing nulls.</p>
 <p>A common anti-pattern is one giant <code>stg__all_orders.sql</code> that joins customers, orders, and payments. That model is useful, but it isn’t a staging model — it’s a fact (<code>fct_orders</code>), and we’ll build one in the next exercise.</p>

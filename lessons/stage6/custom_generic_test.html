@@ -80,16 +80,7 @@
 </ul>
 <p>There&rsquo;s a fourth: <strong>custom generic tests</strong>. You write the test logic once, parameterize it on <code>model</code> and <code>column_name</code>, and apply it to as many model+column pairs as you like. They sit halfway between singular tests (project-specific) and built-ins (reusable).</p>
 <h2>What a custom generic test looks like</h2>
-<p>A custom generic test lives in <code>dbt_project/tests/generic/&lt;name&gt;.sql</code>. The shape:</p>
-<pre><code class="language-jinja">{% test non_negative(model, column_name) %}
-
-select *
-from {{ model }}
-where {{ column_name }} &lt; 0
-
-{% endtest %}
-</code></pre>
-<p>Three things to flag:</p>
+<p>A custom generic test lives in <code>dbt_project/tests/generic/&lt;name&gt;.sql</code>. The walkthrough below has the full file you&rsquo;ll write — a <code>{% test non_negative(model, column_name) %}</code> block whose body is just <code>select * from {{ model }} where {{ column_name }} &lt; 0</code>. Three things to flag about the shape:</p>
 <ul>
 <li><strong><code>{% test name(args) %}</code></strong> — same shape as <code>{% macro %}</code>, just a different keyword. The first two args are <em>always</em> <code>model</code> (the parent dbt relation) and <code>column_name</code> (the column being tested). You can add more args for parameterized tests.</li>
 <li><strong>The body is a <code>select</code> returning the bad rows</strong> — same contract as a singular test. 0 rows → pass; ≥1 rows → fail.</li>

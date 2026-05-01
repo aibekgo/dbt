@@ -90,22 +90,8 @@
 <li>If you joined directly to <code>stg__payments</code> (113 rows), you’d get 113 rows out. That’s why the intermediate exists.</li>
 </ul>
 <p>A useful sanity check: after building, <code>select count(*) from fct_orders</code> should equal <code>select count(*) from stg__orders</code>. The verifier checks this.</p>
-<h2>What the fact looks like</h2>
-<p><code>models/marts/fct_orders.sql</code>:</p>
-<pre><code>select
-    o.order_id,
-    o.customer_id,
-    c.first_name,
-    c.last_name,
-    o.order_date,
-    o.status,
-    coalesce(p.total_amount, 0)  as amount,
-    coalesce(p.payment_count, 0) as payment_count
-from {{ ref('stg__orders') }} o
-left join {{ ref('stg__customers') }}     c using (customer_id)
-left join {{ ref('int_order_payments') }} p using (order_id)
-</code></pre>
-<p>Reading it top-to-bottom:</p>
+<h2>How the fact comes together</h2>
+<p>The walkthrough below has the full SQL for <code>models/marts/fct_orders.sql</code>. Reading it top-to-bottom, here are the pieces that matter:</p>
 <ul>
 <li><strong><code>{{ ref('stg__orders') }} o</code></strong> is the driving table. Aliased <code>o</code> for readability.</li>
 <li><strong><code>left join … customers using (customer_id)</code></strong> — every order has a customer, so <code>inner join</code> would also work, but <code>left join</code> is safer: if a customer record vanishes upstream, you’d rather see the order with nulls than have it disappear from the fact silently.</li>

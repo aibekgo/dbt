@@ -125,9 +125,7 @@
 <li>Open a connection to the warehouse</li>
 <li>Run a trivial smoke query (<code>SELECT 1</code>)</li>
 </ol>
-<p>If all five pass you see:</p>
-<pre><code>All checks passed!
-</code></pre>
+<p>If all five pass you see <code>All checks passed!</code> (the walkthrough below shows the exact output to look for).</p>
 <p><img alt="Terminal output of dbt debug ending in 'All checks passed!'" src="../../images/profiles_yml/dbt_debug.png"></p>
 <p>If any fail, dbt prints the exact step that broke. <code>dbt debug</code> is the first thing you run when something stops working — before <code>dbt run</code>, before reading model code, before anything else.</p>
 <h2>Common pitfalls</h2>

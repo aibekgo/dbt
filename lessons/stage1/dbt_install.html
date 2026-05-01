@@ -101,18 +101,8 @@
 </tr>
 </tbody>
 </table>
-<p>Confirm everything is wired up:</p>
-<pre><code>dbt --version
-</code></pre>
-<p>You should see something like:</p>
+<p>Confirm everything is wired up by running <code>dbt --version</code> (the walkthrough below covers the exact command and expected output). You&rsquo;re looking for two things in the output: a <code>Core</code> section proving <code>dbt-core</code> is installed, and a <code>duckdb</code> line under <code>Plugins</code> proving the adapter is loaded.</p>
 <p><img alt="Output of dbt --version showing dbt-core and the duckdb plugin" src="../../images/dbt_install/dbt_version.png"></p>
-<pre><code>Core:
-  - installed: 1.8.x
-  - latest:    1.8.x
-
-Plugins:
-  - duckdb: 1.8.x
-</code></pre>
 <p>If <code>dbt</code> is not found, your virtualenv is not activated — run <code>source .venv/bin/activate</code> from the repo root and try again.</p>
 <h2>What you’ll do this stage</h2>
 <p>1</p>

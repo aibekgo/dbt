@@ -108,14 +108,7 @@
 ) bad_rows
 </code></pre>
 <p>(Conceptually — the actual SQL varies by test type.) The test only counts violations among rows matching the <code>where</code>.</p>
-<pre><code class="language-yaml">- name: status
-  tests:
-    - accepted_values:
-        values: [placed, shipped, completed, return_pending, returned]
-        config:
-          where: &quot;order_date &gt;= '2018-01-01'&quot;
-</code></pre>
-<p>This says: <em>&ldquo;Only check the assertion on orders from 2018 onward.&rdquo;</em> Older orders with legitimately weird statuses (a legacy <code>pending</code> value before the migration) won&rsquo;t trigger the test.</p>
+<p>A typical use is <em>&ldquo;only check the assertion on orders from 2018 onward&rdquo;</em> — older orders with legitimately weird statuses (a legacy <code>pending</code> value before the migration) won&rsquo;t trigger the test. The walkthrough below shows the exact YAML.</p>
 <p>Use cases:</p>
 <ul>
 <li><strong>Time-bound assertions.</strong> &ldquo;Status enum is enforced <em>only</em> on recent orders&rdquo; — legacy data stays untouched.</li>
@@ -124,17 +117,7 @@
 </ul>
 <p>The risk: <code>where:</code> is the easiest way to make a failing test pass by filtering away the failures. Always document <em>why</em> the where clause exists in a comment alongside the YAML. Future-you will thank you.</p>
 <h2>Combined: <code>severity: warn</code> + <code>where:</code></h2>
-<p>The two compose naturally. The test in this exercise:</p>
-<pre><code class="language-yaml">- name: status
-  description: &quot;Order lifecycle state.&quot;
-  tests:
-    - accepted_values:
-        values: [placed, shipped, completed, return_pending, returned]
-        config:
-          severity: warn
-          where: &quot;order_date &gt;= '2018-01-01'&quot;
-</code></pre>
-<p>Reads as: <em>&ldquo;Among orders from 2018 onward, warn (don&rsquo;t error) if any row&rsquo;s status isn&rsquo;t in the canonical set.&rdquo;</em> Both knobs at once — soft + scoped.</p>
+<p>The two compose naturally. The walkthrough&rsquo;s Step 2 has the full YAML — both knobs nested under <code>config:</code> on the existing <code>accepted_values</code> test for <code>stg__orders.status</code>. It reads as: <em>&ldquo;Among orders from 2018 onward, warn (don&rsquo;t error) if any row&rsquo;s status isn&rsquo;t in the canonical set.&rdquo;</em> Both knobs at once — soft + scoped.</p>
 <p>For our seed data, every order&rsquo;s status IS in the canonical set, so the test passes with no warnings either way. The exercise demonstrates the <em>syntax</em>; the runtime behavior on this dataset is silent success.</p>
 <h2>How dbt records the config in the manifest</h2>
 <p>After <code>dbt parse</code>, the test&rsquo;s manifest entry includes:</p>
