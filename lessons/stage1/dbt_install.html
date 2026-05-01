@@ -107,13 +107,14 @@
 <p><img alt="Output of dbt --version showing dbt-core and the duckdb plugin" src="../../images/dbt_install/dbt_version.png"></p>
 <p>If <code>dbt</code> is not found, your virtualenv is not activated — run <code>source .venv/bin/activate</code> from the repo root and try again.</p>
 <h2>What you’ll do this stage</h2>
-<p>Five exercises, run in order — each one builds on the previous:</p>
+<p>Six exercises, run in order — each one builds on the previous:</p>
 <ol>
 <li><strong>Run <code>dbt init dbt_project</code></strong> — scaffolds the directory tree above.</li>
 <li><strong>Write <code>profiles.yml</code></strong> — tell dbt to use DuckDB at <code>database/dev.duckdb</code> at the repo root.</li>
 <li><strong>Run <code>scripts/ingest_raw.py</code></strong> — a small Python script stands in for a data-engineering team and lands the three jaffle_shop CSVs as raw tables.</li>
-<li><strong>Write your first model</strong> — <code>stg__customers.sql</code>, a <code>SELECT</code> from <code>{{ ref('raw_customers') }}</code>.</li>
-<li><strong>Configure <code>dbt_project.yml</code></strong> — default everything in <code>staging/</code> to the <code>view</code> materialization.</li>
+<li><strong>Write your first model</strong> — <code>stg__customers.sql</code>, a <code>SELECT</code> from <code>main.raw_customers</code>.</li>
+<li><strong>Add a <code>_sources.yml</code> declaration</strong> — promote the hardcoded <code>from main.raw_customers</code> to a proper <code>{{ source('raw', 'raw_customers') }}</code> reference so the table joins the DAG.</li>
+<li><strong>Configure <code>dbt_project.yml</code></strong> — default everything in <code>staging/</code> to the <code>view</code> materialization (and <code>marts/</code> to <code>table</code>).</li>
 </ol>
 <p>Everything you build under <code>dbt_project/</code> is gitignored — the repo only ships the raw CSVs in <code>data/</code>. If you want to start over, run <code>dbt-learn reset</code>; the CLI deletes <code>dbt_project/</code> and you’re back to a blank slate.</p>
 <h2>What it’ll look like in DuckDB</h2>

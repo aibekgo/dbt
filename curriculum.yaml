@@ -140,10 +140,6 @@ stages:
   - id: stage_2_sources_and_structure
     title: "Stage 2 — Sources, Refs & Project Structure"
     items:
-      - id: naming_conventions
-        type: lesson
-        file: lessons/stage2/naming_conventions.html
-
       - id: multi_source_split
         type: exercise
         lesson:   lessons/stage2/multi_source_split.html
@@ -252,10 +248,14 @@ stages:
         original: originals/stage2/dbt_docs.md
         hints:    hints/stage2/dbt_docs.md
         verifier: dbt
-        quiz:     quiz/stage2.yaml
         dbt_checks:
           rules:
             - type: dbt_docs_generated
+
+      - id: naming_conventions
+        type: lesson
+        file: lessons/stage2/naming_conventions.html
+        quiz: quiz/stage2.yaml
 
   - id: stage_3_data_quality
     title: "Stage 3 — Data Quality: Tests, Seeds & Analyses"

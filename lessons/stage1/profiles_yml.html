@@ -137,10 +137,7 @@
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough — background</h2>
-<p>dbt separates the <strong>project</strong> (what to build) from the <strong>connection</strong> (where to build it). The connection lives in <code>profiles.yml</code>. By default dbt looks for it in <code>~/.dbt/profiles.yml</code>, but for this course we keep it inside <code>dbt_project/</code> so the whole project is self-contained.</p>
-<p>The verifier sets <code>DBT_PROFILES_DIR=dbt_project/</code> when it runs dbt, so dbt will look there.</p>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> Open a new terminal at the repo root (the directory that holds <code>dbt_project/</code>, <code>database/</code>, and <code>curriculum.yaml</code>).</p>
 <p><strong>2.</strong> Step into the project directory:</p>
 <pre><code class="language-bash">cd dbt_project
