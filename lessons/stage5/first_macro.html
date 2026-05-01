@@ -81,31 +81,13 @@
 from {{ source('stripe', 'raw_payments') }}
 </code></pre>
 <p>That&rsquo;s fine for one model. The problem starts when <em>another</em> model — say a future <code>stg__refunds</code> or <code>stg__chargebacks</code> — needs the same conversion. Copy-paste means three places to update if the rounding policy ever changes. <strong>A macro centralizes the logic so it&rsquo;s defined once and called everywhere.</strong></p>
-<h2>The macro file</h2>
-<p>Create <code>dbt_project/macros/cents_to_dollars.sql</code>:</p>
-<pre><code class="language-jinja">{% macro cents_to_dollars(column_name, decimal_places=2) -%}
-round( 1.0 * {{ column_name }} / 100, {{ decimal_places }} )
-{%- endmacro %}
-</code></pre>
-<p>Three things to flag:</p>
+<h2>How the macro and the refactor fit together</h2>
+<p>The walkthrough below has the full files. Two pieces:</p>
 <ul>
-<li><strong><code>{% macro cents_to_dollars(column_name, decimal_places=2) %}</code></strong> — declares the macro with two parameters. <code>decimal_places</code> has a default value; the second positional argument can be omitted at the call site.</li>
-<li><strong>The body is just SQL with <code>{{ column_name }}</code> and <code>{{ decimal_places }}</code> interpolated</strong> — Jinja substitutes those at parse time.</li>
-<li><strong>The <code>-%}</code> on the opening tag and <code>{%-</code> on the closing tag</strong> strip surrounding whitespace so the macro expands as a clean inline expression rather than a multi-line block.</li>
+<li>A new <code>macros/cents_to_dollars.sql</code> that wraps the body <code>round( 1.0 * {{ column_name }} / 100, {{ decimal_places }} )</code> in a <code>{% macro %}</code> block with <code>decimal_places=2</code> as the default. The opening <code>-%}</code> and closing <code>{%-</code> strip whitespace so the macro expands as a clean inline expression.</li>
+<li>An edit to <code>stg__payments.sql</code> swapping <code>amount / 100.0</code> for <code>{{ cents_to_dollars('amount') }} as amount</code>. The <code>'amount'</code> is a <strong>string</strong> — the <em>name of the column</em> the macro should operate on — which the macro drops verbatim into the rendered SQL.</li>
 </ul>
-<h2>The refactored call site</h2>
-<p><code>dbt_project/models/staging/stg__payments.sql</code>:</p>
-<pre><code class="language-sql">select
-    id                                  as payment_id,
-    order_id,
-    payment_method,
-    {{ cents_to_dollars('amount') }}    as amount
-from {{ source('stripe', 'raw_payments') }}
-</code></pre>
-<p>Note that <code>'amount'</code> is passed as a <strong>string</strong> — it&rsquo;s the <em>name of the column</em> the macro should operate on, which the macro then drops verbatim into the rendered SQL. After dbt compiles, the line reads:</p>
-<pre><code class="language-sql">round( 1.0 * amount / 100, 2 )    as amount
-</code></pre>
-<p>Same numerical result as <code>amount / 100.0</code>. The 1.0 coefficient forces float math, and <code>round(..., 2)</code> constrains decimal places. Slightly more polished than the original; functionally equivalent for the seed data.</p>
+<p>After dbt compiles, the line reads <code>round( 1.0 * amount / 100, 2 ) as amount</code>. The 1.0 coefficient forces float math, and <code>round(..., 2)</code> constrains decimal places. Slightly more polished than the original; functionally equivalent for the seed data.</p>
 <h2>What dbt does at parse time</h2>
 <p>When you run <code>dbt parse</code> (or any command that triggers parsing), dbt:</p>
 <ol>
@@ -130,8 +112,7 @@ from {{ source('stripe', 'raw_payments') }}
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> From the repo root, create the macro file:</p>
 <pre><code class="language-bash">mkdir -p dbt_project/macros
 touch dbt_project/macros/cents_to_dollars.sql

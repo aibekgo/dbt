@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <style>
@@ -11,116 +12,136 @@
       color: #1a1a1a;
       line-height: 1.6;
     }
-    h1, h2, h3 { margin-top: 2em; }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
     code {
       background: #f0f0f0;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 0.9em;
     }
+
     pre {
       background: #f0f0f0;
       padding: 16px;
       border-radius: 6px;
       overflow-x: auto;
     }
+
     pre code {
       background: none;
       padding: 0;
     }
+
     img {
       max-width: 100%;
       border-radius: 6px;
       margin: 16px auto;
       display: block;
     }
+
     blockquote {
       border-left: 4px solid #ccc;
       margin: 0;
       padding: 4px 16px;
       color: #555;
     }
+
     table {
       border-collapse: collapse;
       width: 100%;
     }
-    th, td {
+
+    th,
+    td {
       border: 1px solid #ddd;
       padding: 8px 12px;
       text-align: left;
     }
-    th { background: #f0f0f0; }
+
+    th {
+      background: #f0f0f0;
+    }
   </style>
 </head>
+
 <body>
 <h1>The Modern Data Team</h1>
-
-<p>Before dbt and cloud warehouses, data teams typically split into just two roles. Today there&rsquo;s a third role in the middle &mdash; and that&rsquo;s the role you&rsquo;re training for in this course.</p>
-
+<p>Before dbt and cloud warehouses, data teams typically split into just two roles. Today there’s a third role in the middle — and that’s the role you’re training for in this course.</p>
 <h2>Traditional data team (two roles)</h2>
 <table>
-  <thead><tr><th>Role</th><th>Owns</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><strong>Data engineer</strong></td>
-      <td>The plumbing &mdash; ingestion, ETL pipelines, warehouse infrastructure, table creation.</td>
-    </tr>
-    <tr>
-      <td><strong>Data analyst</strong></td>
-      <td>Querying the warehouse to answer business questions, building dashboards.</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Role</th>
+<th>Owns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data engineer</strong></td>
+<td>The plumbing — ingestion, ETL pipelines, warehouse infrastructure, table creation.</td>
+</tr>
+<tr>
+<td><strong>Data analyst</strong></td>
+<td>Querying the warehouse to answer business questions, building dashboards.</td>
+</tr>
+</tbody>
 </table>
 <p>This split worked when transformations happened in code outside the warehouse and only finished tables landed inside. The data engineer wrote and maintained those pipelines; the analyst just queried the output.</p>
-
 <h2>Modern data team (three roles)</h2>
 <p>Cloud warehouses + ELT + dbt blew up that split. Transformations now happen <em>inside</em> the warehouse as SQL, which means anyone fluent in SQL can build production data models. So a third role emerged.</p>
-<img src="../../images/modern_data_team/data_team_roles.png" alt="Comparison of data engineer, analytics engineer, and data analyst responsibilities">
-
+<p><img alt="Comparison of data engineer, analytics engineer, and data analyst responsibilities" src="../../images/modern_data_team/data_team_roles.png"></p>
 <table>
-  <thead><tr><th>Role</th><th>Owns the &hellip;</th><th>Day-to-day</th></tr></thead>
-  <tbody>
-    <tr>
-      <td><strong>Data engineer</strong></td>
-      <td><strong>E and L</strong></td>
-      <td>Get raw data <em>into</em> the warehouse: ingestion tools (Fivetran, Airbyte), custom connectors, streaming, infra, observability, cost management.</td>
-    </tr>
-    <tr>
-      <td><strong>Analytics engineer</strong></td>
-      <td><strong>T</strong></td>
-      <td>Turn raw warehouse data into clean, tested, documented marts using dbt. Owns the staging &rarr; intermediate &rarr; marts pipeline. Writes SQL, YAML, and tests.</td>
-    </tr>
-    <tr>
-      <td><strong>Data analyst</strong></td>
-      <td><strong>The questions</strong></td>
-      <td>Builds dashboards, runs ad-hoc analysis, partners with stakeholders. Consumes the marts the analytics engineer publishes.</td>
-    </tr>
-  </tbody>
+<thead>
+<tr>
+<th>Role</th>
+<th>Owns the …</th>
+<th>Day-to-day</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data engineer</strong></td>
+<td><strong>E and L</strong></td>
+<td>Get raw data <em>into</em> the warehouse: ingestion tools (Fivetran, Airbyte), custom connectors, streaming, infra, observability, cost management.</td>
+</tr>
+<tr>
+<td><strong>Analytics engineer</strong></td>
+<td><strong>T</strong></td>
+<td>Turn raw warehouse data into clean, tested, documented marts using dbt. Owns the staging → intermediate → marts pipeline. Writes SQL, YAML, and tests.</td>
+</tr>
+<tr>
+<td><strong>Data analyst</strong></td>
+<td><strong>The questions</strong></td>
+<td>Builds dashboards, runs ad-hoc analysis, partners with stakeholders. Consumes the marts the analytics engineer publishes.</td>
+</tr>
+</tbody>
 </table>
-
 <h2>Why the analytics engineer exists</h2>
-<img src="../../images/modern_data_team/analytics_engineer.png" alt="The analytics engineer role bridges data engineering and data analysis">
+<p><img alt="The analytics engineer role bridges data engineering and data analysis" src="../../images/modern_data_team/analytics_engineer.png"></p>
 <p>Once SQL becomes the transformation language, two problems show up:</p>
 <ol>
-  <li><strong>Analysts get blocked.</strong> Without an analytics engineer, every dashboard requires writing the same joins from raw tables again, with subtly different definitions of &ldquo;active customer&rdquo; or &ldquo;monthly revenue.&rdquo;</li>
-  <li><strong>Data engineers get distracted.</strong> They didn&rsquo;t sign up to write business logic in SQL &mdash; they want to build pipelines and infrastructure.</li>
+<li><strong>Analysts get blocked.</strong> Without an analytics engineer, every dashboard requires writing the same joins from raw tables again, with subtly different definitions of “active customer” or “monthly revenue.”</li>
+<li><strong>Data engineers get distracted.</strong> They didn’t sign up to write business logic in SQL — they want to build pipelines and infrastructure.</li>
 </ol>
 <p>The analytics engineer plugs that gap: they own the SQL transformations <em>as engineering</em>, with version control, testing, code review, CI, and documentation. dbt is the tool that makes this practical.</p>
-
 <h2>What if my team is small?</h2>
 <blockquote>
-<p>At a small company, one person often plays all three roles. As the team grows, the lines stay blurry &mdash; an analyst might write dbt models, a data engineer might build a dashboard. The roles describe responsibilities, not job titles.</p>
+<p>At a small company, one person often plays all three roles. As the team grows, the lines stay blurry — an analyst might write dbt models, a data engineer might build a dashboard. The roles describe responsibilities, not job titles.</p>
 </blockquote>
-
 <h2>Where you fit</h2>
-<p>This course is for someone who wants to <strong>own the T</strong> &mdash; the analytics engineer role, regardless of what your business card says. By the end you&rsquo;ll be able to take raw tables in a warehouse, layer staging and marts on top, test them, document them, and ship them.</p>
-
+<p>This course is for someone who wants to <strong>own the T</strong> — the analytics engineer role, regardless of what your business card says. By the end you’ll be able to take raw tables in a warehouse, layer staging and marts on top, test them, document them, and ship them.</p>
 <h2>Common pitfalls</h2>
 <ul>
-  <li><strong>Treating &ldquo;analytics engineer&rdquo; as a junior data engineer.</strong> &mdash; It&rsquo;s a different discipline. AEs need deep SQL, deep domain knowledge, and software-engineering habits (PRs, tests, CI). They don&rsquo;t need to know Kubernetes.</li>
-  <li><strong>Skipping the role and giving raw warehouse access to every analyst.</strong> &mdash; You end up with 47 versions of &ldquo;active customer&rdquo; and a Slack channel full of &ldquo;wait, why does this number not match?&rdquo;</li>
+<li><strong>Treating “analytics engineer” as a junior data engineer.</strong> — It’s a different discipline. AEs need deep SQL, deep domain knowledge, and software-engineering habits (PRs, tests, CI). They don’t need to know Kubernetes.</li>
+<li><strong>Skipping the role and giving raw warehouse access to every analyst.</strong> — You end up with 47 versions of “active customer” and a Slack channel full of “wait, why does this number not match?”</li>
 </ul>
-
-<p>Press <code>n</code> when you&rsquo;re ready for the next lesson.</p>
+<p>Press <code>n</code> when you’re ready for the next lesson.</p>
 </body>
+
 </html>

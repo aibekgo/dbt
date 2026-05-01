@@ -175,8 +175,7 @@ left join {{ ref('order_status_descriptions') }} d using (status)
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> From the repo root, create the seed file at <code>dbt_project/seeds/order_status_descriptions.csv</code> with this content:</p>
 <pre><code class="language-csv">status,description
 placed,Order has been placed but not yet shipped

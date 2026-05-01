@@ -132,41 +132,8 @@
 </table>
 <p>A promotion isn&rsquo;t just a folder move. You&rsquo;re declaring: <em>&ldquo;this SQL is now part of the analytics-engineering surface area. Here&rsquo;s what it means, who owns it, and how I want it tested.&rdquo;</em></p>
 <h2>The CTE refactor — imports → logic → final</h2>
-<p>When promoting, take the opportunity to clean up. The dbt community converged on a 3-section CTE pattern:</p>
-<pre><code class="language-sql">{{ config(materialized='table') }}
-
-with
-
--- 1. IMPORT CTEs — one per upstream ref/source. Pure passthrough.
-customers as (
-    select * from {{ ref('dim_customers') }}
-),
-
-orders as (
-    select * from {{ ref('fct_orders') }}
-),
-
--- 2. LOGICAL CTEs — joins, aggregations, transformations
-customer_revenue as (
-    select
-        c.customer_id,
-        c.first_name,
-        c.last_name,
-        sum(o.amount) as lifetime_revenue,
-        count(o.order_id) as lifetime_orders
-    from customers c
-    left join orders o on c.customer_id = o.customer_id
-    group by c.customer_id, c.first_name, c.last_name
-),
-
--- 3. FINAL CTE — the row shape that gets exposed
-final as (
-    select * from customer_revenue
-    order by lifetime_revenue desc
-)
-
-select * from final
-</code></pre>
+<p>When promoting, take the opportunity to clean up. The dbt community converged on a 3-section CTE pattern: <strong>import CTEs</strong> at the top (one per upstream <code>ref</code>/<code>source</code>, pure passthrough), <strong>logical CTEs</strong> in the middle (joins, aggregations, transformations), and a <strong><code>final</code> CTE</strong> at the bottom whose body is <code>select * from final</code>.</p>
+<p>The walkthrough below has the full SQL — <code>customers</code> and <code>orders</code> as import CTEs over <code>dim_customers</code> and <code>fct_orders</code>, a <code>customer_revenue</code> logical CTE that does the join + group-by, and a <code>final</code> CTE that orders the result.</p>
 <p>Why this shape:</p>
 <ul>
 <li><strong>Import CTEs at the top</strong> make every dependency visible at a glance. Reviewers can see what&rsquo;s coming in without scanning the body.</li>
@@ -175,26 +142,7 @@ select * from final
 </ul>
 <p>The pattern scales. A 5-line model uses one logical CTE; a 200-line model has fifteen. The shape is always the same.</p>
 <h2>YAML metadata — <code>description</code>, <code>meta</code>, <code>tags</code></h2>
-<p>Once the model exists, declare it in <code>_models.yml</code> with rich metadata:</p>
-<pre><code class="language-yaml">- name: mart_customer_revenue
-  description: &quot;Customer-grain lifetime revenue and order count, derived from fct_orders + dim_customers.&quot;
-  config:
-    meta:
-      owner: data_eng
-      pii: false
-    tags:
-      - revenue
-      - finance
-  columns:
-    - name: customer_id
-      description: &quot;Stable customer identifier.&quot;
-      tests:
-        - unique
-        - not_null
-    - name: lifetime_revenue
-      description: &quot;Sum of fct_orders.amount across all orders for this customer.&quot;
-</code></pre>
-<p>The three knobs:</p>
+<p>Once the model exists, declare it in <code>_models.yml</code> with rich metadata. The walkthrough&rsquo;s Step 2 has the full YAML — a <code>description:</code> field, a <code>config:</code> block holding <code>meta:</code> (owner/pii) and <code>tags:</code> (revenue, finance), plus column-level <code>description:</code> and <code>tests:</code>. The three knobs:</p>
 <ul>
 <li><strong><code>description:</code></strong> — human prose. Shows up in the dbt docs site, in BI tools that read dbt metadata, and in the manifest. Write it for the next person who&rsquo;ll touch the model.</li>
 <li><strong><code>meta:</code></strong> — structured key/value pairs. Common keys: <code>owner</code> (who maintains it), <code>pii</code> (does this contain personal data?), <code>team</code>, <code>business_critical</code>, <code>slack_channel</code>. The schema is yours — dbt doesn&rsquo;t enforce one — but every tool that reads the manifest can act on it.</li>
@@ -210,8 +158,7 @@ select * from final
 </ul>
 <p>Press <code>n</code> after you&rsquo;ve promoted the analysis.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> Create <code>dbt_project/models/marts/mart_customer_revenue.sql</code> with the CTE-structured SQL:</p>
 <pre><code class="language-sql">{{ config(materialized='table') }}
 

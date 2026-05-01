@@ -158,14 +158,7 @@ snapshot-paths: [&quot;snapshots&quot;]
 <p>You don’t need to remember the syntactic details of incremental or ephemeral right now — just know they exist. The two you’ll use 95% of the time are <strong><code>view</code> for staging</strong> (cheap, recompute-on-read) and <strong><code>table</code> for marts</strong> (paid once, fast forever).</p>
 <h2>Folder-level config in practice</h2>
 <p>The whole reason <code>dbt_project.yml</code> has a <code>models:</code> block is so a 200-model project can say “everything in <code>staging/</code> is a view, everything in <code>marts/</code> is a table” in five lines — instead of pasting <code>{{ config(materialized='...') }}</code> at the top of every file.</p>
-<pre><code>models:
-  dbt_project:
-    staging:
-      +materialized: view
-    marts:
-      +materialized: table
-</code></pre>
-<p>That’s the convention you’ll set up in the exercise. To prove it works, you’ll add a second model — <code>dim_customers</code> — under <code>models/marts/</code>, and watch dbt build it as a <em>table</em> instead of a view, with no <code>config()</code> block in the SQL file.</p>
+<p>That&rsquo;s the convention you&rsquo;ll set up in the exercise (the walkthrough&rsquo;s Step 4 has the exact YAML — <code>staging: { +materialized: view }</code> peered with <code>marts: { +materialized: table }</code> under your project name). To prove it works, you&rsquo;ll add a second model — <code>dim_customers</code> — under <code>models/marts/</code>, and watch dbt build it as a <em>table</em> instead of a view, with no <code>config()</code> block in the SQL file.</p>
 <h2>Three places to set materialization</h2>
 <p>For completeness — dbt resolves materialization in increasing specificity. Most specific wins.</p>
 <ol>
@@ -189,8 +182,7 @@ snapshot-paths: [&quot;snapshots&quot;]
 </ul>
 <p>Press <code>n</code> to start the exercise — the last one in Stage 1.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> Make sure you&rsquo;re inside <code>dbt_project/</code>:</p>
 <pre><code class="language-bash">cd dbt_project   # if you're not already here
 </code></pre>

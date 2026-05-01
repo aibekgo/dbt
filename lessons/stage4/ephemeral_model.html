@@ -116,8 +116,7 @@ select ... from __dbt__cte__int_order_payments p ...
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> Open <code>dbt_project/models/intermediate/int_order_payments.sql</code>. Change the config block&rsquo;s value from <code>table</code> to <code>ephemeral</code>:</p>
 <pre><code class="language-sql">{{ config(materialized='ephemeral') }}
 

@@ -103,62 +103,13 @@
 </tbody>
 </table>
 <p>The cost is one extra YAML block. Always worth it once you have more than one upstream system.</p>
-<h2>Today’s <code>_sources.yml</code> — single source</h2>
-<p>This is what Stage 1 left behind:</p>
-<pre><code>version: 2
-
-sources:
-  - name: raw
-    description: &quot;Jaffle shop raw tables landed by scripts/ingest_raw.py&quot;
-    schema: main
-    tables:
-      - name: raw_customers
-      - name: raw_orders
-      - name: raw_payments
-</code></pre>
-<p>One source named <code>raw</code>, three tables under it. From SQL you reference them as <code>{{ source('raw', 'raw_customers') }}</code>.</p>
-<h2>After the split</h2>
-<p>You’ll change the file to declare two sources:</p>
-<pre><code>version: 2
-
-sources:
-  - name: jaffle_shop
-    description: &quot;Application data from the Jaffle Shop app database&quot;
-    schema: main
-    tables:
-      - name: raw_customers
-      - name: raw_orders
-
-  - name: stripe
-    description: &quot;Payment data landed from the Stripe payment processor&quot;
-    schema: main
-    tables:
-      - name: raw_payments
-</code></pre>
-<p>Three things change:</p>
-<ol>
-<li><strong>Two top-level entries under <code>sources:</code></strong> instead of one.</li>
-<li><strong><code>raw_customers</code> and <code>raw_orders</code> move under <code>jaffle_shop</code></strong>, since the app emits both.</li>
-<li><strong><code>raw_payments</code> moves under <code>stripe</code></strong> — payments come from a different system entirely.</li>
-</ol>
+<h2>What changes in <code>_sources.yml</code></h2>
+<p>Stage 1 left you with one source block named <code>raw</code> that owned all three tables. The walkthrough below has the full replacement YAML — two top-level source blocks, with <code>raw_customers</code> and <code>raw_orders</code> moving under <code>jaffle_shop</code> and <code>raw_payments</code> moving under <code>stripe</code>.</p>
 <p>The <code>schema: main</code> field stays the same in both because, in this course, <code>scripts/ingest_raw.py</code> happens to land all three CSVs in DuckDB’s <code>main</code> schema. In a real warehouse the two sources would usually live in different schemas (e.g. <code>raw.app_db</code> vs <code>raw.stripe</code>), and you’d reflect that here.</p>
 <h2>The <code>source()</code> call has to follow</h2>
-<p><code>stg__customers.sql</code> references the old source by name:</p>
-<pre><code>from {{ source('raw', 'raw_customers') }}
-</code></pre>
-<p>Once you delete the <code>raw</code> source declaration, that line stops compiling — the macro can’t find a source called <code>raw</code>. Update it to:</p>
-<pre><code>from {{ source('jaffle_shop', 'raw_customers') }}
-</code></pre>
-<p>The first argument always matches the source’s <code>name:</code> field. If you forget this edit, <code>dbt run --select stg__customers</code> fails with a <em>“Found a source… but no matching source declaration”</em> error — the verifier surfaces this.</p>
+<p>Once you rename the source block, the model that referenced the old name stops compiling — the macro can’t find a source called <code>raw</code>. The walkthrough&rsquo;s Step 2 shows the matching update to <code>stg__customers.sql</code> (just swap the first argument of <code>source(...)</code> from <code>'raw'</code> to <code>'jaffle_shop'</code>). If you forget this edit, <code>dbt run --select stg__customers</code> fails with a <em>“Found a source… but no matching source declaration”</em> error — the verifier surfaces it.</p>
 <h2>What you can do once it’s done</h2>
-<pre><code>dbt ls --resource-type source
-</code></pre>
-<p>Should now print two groups:</p>
-<pre><code>dbt_project.jaffle_shop.raw_customers
-dbt_project.jaffle_shop.raw_orders
-dbt_project.stripe.raw_payments
-</code></pre>
-<p>And selectors like <code>dbt ls --select source:stripe+</code> will return only the payments-side downstream models — useful in the next exercise when you start building <code>stg__payments</code>.</p>
+<p>The selector <code>dbt ls --select source:stripe+</code> will return only the payments-side downstream models — useful in the next exercise when you start building <code>stg__payments</code>. (The walkthrough&rsquo;s Step 4 shows <code>dbt ls --resource-type source</code> listing the two new groups.)</p>
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong>Forgetting to update the <code>source()</code> call in <code>stg__customers.sql</code>.</strong> The YAML edit alone leaves the model broken — the macro looks up source <code>raw</code>, doesn’t find it, and the run fails. Update both files together.</li>
@@ -167,8 +118,7 @@ dbt_project.stripe.raw_payments
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> From the repo root, open <code>dbt_project/models/staging/_sources.yml</code> and replace its contents with:</p>
 <pre><code class="language-yaml">version: 2
 

@@ -152,8 +152,7 @@ values (source.order_id, source.customer_id, source.order_date, source.status)
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> Open <code>dbt_project/models/marts/fct_order_events.sql</code>. Replace the single-arg config block with the multi-arg version:</p>
 <pre><code class="language-sql">{{ config(
     materialized='incremental',

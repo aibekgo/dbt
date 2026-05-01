@@ -172,8 +172,7 @@ dbt build --target prod    # uses prod
 <li><strong>Sharing credentials across targets.</strong> Don&rsquo;t put your real prod password in <code>profiles.yml</code> if the file is committed. Use environment variables: <code>password: "{{ env_var('DBT_PROD_PASSWORD') }}"</code>.</li>
 </ul>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> Open <code>dbt_project/profiles.yml</code>. It currently looks like this:</p>
 <pre><code class="language-yaml">dbt_project:
   target: dev

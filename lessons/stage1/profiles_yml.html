@@ -125,9 +125,7 @@
 <li>Open a connection to the warehouse</li>
 <li>Run a trivial smoke query (<code>SELECT 1</code>)</li>
 </ol>
-<p>If all five pass you see:</p>
-<pre><code>All checks passed!
-</code></pre>
+<p>If all five pass you see <code>All checks passed!</code> (the walkthrough below shows the exact output to look for).</p>
 <p><img alt="Terminal output of dbt debug ending in 'All checks passed!'" src="../../images/profiles_yml/dbt_debug.png"></p>
 <p>If any fail, dbt prints the exact step that broke. <code>dbt debug</code> is the first thing you run when something stops working — before <code>dbt run</code>, before reading model code, before anything else.</p>
 <h2>Common pitfalls</h2>
@@ -139,8 +137,7 @@
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Background</h2>
+<h2>Exercise walkthrough — background</h2>
 <p>dbt separates the <strong>project</strong> (what to build) from the <strong>connection</strong> (where to build it). The connection lives in <code>profiles.yml</code>. By default dbt looks for it in <code>~/.dbt/profiles.yml</code>, but for this course we keep it inside <code>dbt_project/</code> so the whole project is self-contained.</p>
 <p>The verifier sets <code>DBT_PROFILES_DIR=dbt_project/</code> when it runs dbt, so dbt will look there.</p>
 <h2>Steps</h2>

@@ -75,23 +75,7 @@
 <p>Imagine an <code>orders</code> table where <code>status</code> flips from <code>placed</code> → <code>shipped</code> → <code>completed</code>. Your warehouse only sees the <em>current</em> status. The <code>placed</code> state is gone the moment shipping happens. If a stakeholder asks <em>&ldquo;how long did orders typically sit in <code>placed</code> before shipping?&rdquo;</em>, you can&rsquo;t answer — the data was overwritten.</p>
 <p>Snapshots are dbt&rsquo;s solution. They convert a mutable source table into a <strong>slowly-changing-dimension Type 2</strong> history: every time a tracked column changes, a new row gets appended with <code>valid_from</code> and <code>valid_to</code> timestamps. The previous row&rsquo;s <code>valid_to</code> is closed off. Querying <em>&ldquo;what was order #42&rsquo;s status on 2024-03-15?&rdquo;</em> becomes a <code>where dbt_valid_from &lt;= '2024-03-15' and (dbt_valid_to is null or dbt_valid_to &gt; '2024-03-15')</code> lookup.</p>
 <h2>What a snapshot looks like</h2>
-<p>A snapshot is a <code>.sql</code> file under <code>snapshots/</code>. The shape is unusual — it uses <code>{% snapshot %}</code> and <code>{% endsnapshot %}</code> tags that wrap a config block plus a <code>select</code>:</p>
-<pre><code class="language-sql">{% snapshot orders_snapshot %}
-
-{{
-    config(
-        target_schema='snapshots',
-        unique_key='order_id',
-        strategy='check',
-        check_cols=['status']
-    )
-}}
-
-select * from {{ ref('stg__orders') }}
-
-{% endsnapshot %}
-</code></pre>
-<p>Three things to flag:</p>
+<p>A snapshot is a <code>.sql</code> file under <code>snapshots/</code>. The shape is unusual — it uses <code>{% snapshot %}</code> and <code>{% endsnapshot %}</code> tags that wrap a config block plus a <code>select</code>. The walkthrough below has the full file you&rsquo;ll write. Three pieces of the config block worth flagging:</p>
 <ul>
 <li><strong><code>target_schema='snapshots'</code></strong> — the snapshot lands in a separate schema (created automatically). Default is whatever <code>profiles.yml</code> says, but a dedicated schema for snapshots keeps them organized.</li>
 <li><strong><code>unique_key='order_id'</code></strong> — same idea as incremental&rsquo;s unique key: how dbt identifies &ldquo;the same logical row across runs.&rdquo;</li>
@@ -206,8 +190,7 @@ dbt snapshot --select orders_snapshot      # just one
 </ul>
 <p>Press <code>n</code> to start the exercise.</p>
 <hr>
-<h2>Exercise walkthrough</h2>
-<h2>Steps</h2>
+<h2>Steps — exercise walkthrough</h2>
 <p><strong>1.</strong> From the repo root, create the snapshot file:</p>
 <pre><code class="language-bash">mkdir -p dbt_project/snapshots
 touch dbt_project/snapshots/orders_snapshot.sql
