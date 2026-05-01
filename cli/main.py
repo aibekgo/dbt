@@ -363,9 +363,48 @@ def interactive_session() -> None:
 
 # --- Typer commands ---
 
+def _resolve_target(target: str) -> CurriculumItem | None:
+    """Look up a curriculum item by 1-based position (e.g. '49') or by id (e.g. 'welcome')."""
+    if target.isdigit():
+        idx = int(target) - 1
+        if 0 <= idx < len(CURRICULUM):
+            return CURRICULUM[idx]
+        return None
+    return get_item(target)
+
+
+def _jump_to(target: str) -> None:
+    """Update progress to start at the given lesson, then fall through to interactive_session."""
+    item = _resolve_target(target)
+    if item is None:
+        console.print(
+            f"\n[red]No lesson at '{target}'.[/] "
+            f"Run [bold]{COURSE_NAME} list[/] to see valid positions and ids.\n"
+        )
+        raise typer.Exit(1)
+    state = load_state()
+    state["current"] = item.id
+    save_state(state)
+    idx = get_index(item.id)
+    console.print(
+        f"\n[green]→ Jumped to[/] [cyan]{idx + 1}. {item.title}[/] "
+        f"[dim]({item.id})[/]\n"
+    )
+
+
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
+def main(
+    ctx: typer.Context,
+    go: str | None = typer.Option(
+        None,
+        "--go",
+        "-g",
+        help="Jump to a specific item by 1-based position or id (e.g. --go 49 or --go welcome).",
+    ),
+) -> None:
     if ctx.invoked_subcommand is None:
+        if go is not None:
+            _jump_to(go)
         interactive_session()
 
 
