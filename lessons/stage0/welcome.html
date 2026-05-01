@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <style>
@@ -11,90 +12,149 @@
       color: #1a1a1a;
       line-height: 1.6;
     }
-    h1, h2, h3 { margin-top: 2em; }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
     code {
       background: #f0f0f0;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 0.9em;
     }
+
     pre {
       background: #f0f0f0;
       padding: 16px;
       border-radius: 6px;
       overflow-x: auto;
     }
+
     pre code {
       background: none;
       padding: 0;
     }
+
     img {
       max-width: 100%;
       border-radius: 6px;
       margin: 16px auto;
       display: block;
     }
+
     blockquote {
       border-left: 4px solid #ccc;
       margin: 0;
       padding: 4px 16px;
       color: #555;
     }
+
     table {
       border-collapse: collapse;
       width: 100%;
     }
-    th, td {
+
+    th,
+    td {
       border: 1px solid #ddd;
       padding: 8px 12px;
       text-align: left;
     }
-    th { background: #f0f0f0; }
+
+    th {
+      background: #f0f0f0;
+    }
   </style>
 </head>
+
 <body>
-<h1>Welcome to dbt-learn</h1>
-<img src="../../images/welcome/dbt_overview.png" alt="dbt: from raw data to BI, ML, and operational analytics">
-<p>This is a hands-on dbt learning environment for analytics engineers and data engineers. No slides, no videos &mdash; just SQL, a terminal, and real dbt running locally against an embedded DuckDB warehouse.</p>
-
-<h2>Who this is for</h2>
-<p>You can write SQL and you are comfortable on the command line. You may have heard of dbt, used it briefly in someone else&rsquo;s project, or you are starting fresh. Either way, the goal is the same: understand dbt well enough to ship reliable transformations in production &mdash; not just copy-paste it.</p>
-
-<h2>How it works</h2>
-<p>The curriculum is a mix of <strong>lessons</strong> and <strong>exercises</strong>.</p>
-<p><strong>Lessons</strong> open in your browser. Read them, then press <code>n</code> to advance.</p>
-<p><strong>Exercises</strong> are SQL and YAML files inside a real dbt project. Open the file the CLI points you to, follow the instructions in the comments, then press <code>v</code>. The verifier runs <code>dbt</code> against DuckDB for real and tells you exactly what passed or failed.</p>
-
-<h2>Why DuckDB?</h2>
-<img src="../../images/welcome/duckdb.png" alt="DuckDB logo">
-<p>dbt itself is the same regardless of which warehouse you run against. We use <strong>DuckDB</strong> as the warehouse for this course because it is free, embedded (no server, no Docker, no cloud account), and fast enough that <code>dbt build</code> finishes in seconds even on a laptop. Everything you learn maps 1:1 to Snowflake, BigQuery, Redshift, or Databricks &mdash; the only thing that changes is the connection profile.</p>
-
-<h2>Key commands</h2>
-<table>
-  <thead><tr><th>Key</th><th>Action</th></tr></thead>
-  <tbody>
-    <tr><td><code>l</code></td><td>Open the current lesson in your browser</td></tr>
-    <tr><td><code>v</code></td><td>Verify your current exercise (runs dbt for real)</td></tr>
-    <tr><td><code>h</code></td><td>Show progressive hints</td></tr>
-    <tr><td><code>n</code></td><td>Advance to the next item (must pass verification first)</td></tr>
-    <tr><td><code>x</code></td><td>Reset the current exercise back to its scaffold</td></tr>
-    <tr><td><code>q</code></td><td>Quit (your progress is saved)</td></tr>
-  </tbody>
-</table>
-
-<h2>Learning path</h2>
-<pre><code>Stage 0 &mdash; Foundations                    &larr; you are here
-Stage 1 &mdash; Your First dbt Project
-Stage 2 &mdash; Sources, Refs &amp; Project Structure
-Stage 3 &mdash; Tests, Seeds &amp; Analyses
-Stage 4 &mdash; Materializations
-Stage 5 &mdash; Jinja, Macros &amp; State
-Stage 6 &mdash; Advanced Testing, Deployment, Tooling &amp; Artifacts
+  <h1>Welcome to dbt-learn</h1>
+  <p><img alt="dbt: from raw data to BI, ML, and operational analytics" src="../../images/welcome/dbt_overview.png"></p>
+  <p>This is a hands-on dbt learning environment for analytics engineers and data engineers. No slides, no videos
+    &mdash; just SQL, a terminal, and real dbt running locally against an embedded DuckDB warehouse.</p>
+  <h2>Before you start</h2>
+  <p>dbt revolutionized the transformation layer of the modern data stack. It took analytics out of the world of
+    scattered, one-off SQL scripts and brought software-engineering best practices to it: version control, branches and
+    pull requests, modular models, automated tests, lineage, and CI/CD. To get the most out of this course you should
+    already be comfortable with the workflows dbt is built around &mdash; if any of the points below feel shaky, brush
+    up first or you&rsquo;ll spend more time fighting the tooling than learning dbt itself.</p>
+  <ul>
+    <li><strong>Git</strong> &mdash; you can clone a repo, create a branch, commit, push, and open a pull request
+      without looking up the commands every time. dbt projects live in version control and every change is reviewed like
+      application code.</li>
+    <li><strong>SQL</strong> &mdash; confident with <code>JOIN</code>s (inner / left / right / full),
+      <code>GROUP BY</code> aggregations, CTEs, and window functions (<code>ROW_NUMBER</code>, <code>RANK</code>,
+      <code>LAG</code>/<code>LEAD</code>, partitioned aggregates). This course teaches dbt mechanics, not SQL
+      fundamentals.</li>
+  </ul>
+  <h2>Who this is for</h2>
+  <p>You can write SQL and you are comfortable on the command line. You may have heard of dbt, used it briefly in
+    someone else&rsquo;s project, or you are starting fresh. Either way, the goal is the same: understand dbt well
+    enough to ship reliable transformations in production &mdash; not just copy-paste it.</p>
+  <h2>How it works</h2>
+  <p>The curriculum is a mix of <strong>lessons</strong> and <strong>exercises</strong>.</p>
+  <p><strong>Lessons</strong> open in your browser. Read them, then press <code>n</code> to advance.</p>
+  <p><strong>Exercises</strong> are SQL and YAML files inside a real dbt project. Open the file the CLI points you to,
+    follow the instructions in the comments, then press <code>v</code>. The verifier runs <code>dbt</code> against
+    DuckDB for real and tells you exactly what passed or failed.</p>
+  <h2>Why DuckDB?</h2>
+  <p><img alt="DuckDB logo" src="../../images/welcome/duckdb.png"></p>
+  <p>dbt itself is the same regardless of which warehouse you run against. We use <strong>DuckDB</strong> as the
+    warehouse for this course because it is free, embedded (no server, no Docker, no cloud account), and fast enough
+    that <code>dbt build</code> finishes in seconds even on a laptop. Everything you learn maps 1:1 to Snowflake,
+    BigQuery, Redshift, or Databricks &mdash; the only thing that changes is the connection profile.</p>
+  <h2>Key commands</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>l</code></td>
+        <td>Open the current lesson in your browser</td>
+      </tr>
+      <tr>
+        <td><code>v</code></td>
+        <td>Verify your current exercise (runs dbt for real)</td>
+      </tr>
+      <tr>
+        <td><code>h</code></td>
+        <td>Show progressive hints</td>
+      </tr>
+      <tr>
+        <td><code>n</code></td>
+        <td>Advance to the next item (must pass verification first)</td>
+      </tr>
+      <tr>
+        <td><code>x</code></td>
+        <td>Reset the current exercise back to its scaffold</td>
+      </tr>
+      <tr>
+        <td><code>q</code></td>
+        <td>Quit (your progress is saved)</td>
+      </tr>
+    </tbody>
+  </table>
+  <h2>Learning path</h2>
+  <pre><code>Stage 0 — Foundations                    ← you are here
+Stage 1 — Your First dbt Project
+Stage 2 — Sources, Refs &amp; Project Structure
+Stage 3 — Tests, Seeds &amp; Analyses
+Stage 4 — Materializations
+Stage 5 — Jinja, Macros &amp; State
+Stage 6 — Advanced Testing, Deployment, Tooling &amp; Artifacts
 </code></pre>
-
-<h2>Before you continue</h2>
-<p>Stage 0 is concept-only &mdash; just five short lessons covering ETL vs ELT, the modern data team, cloud warehouses, what dbt actually is, and the three flavors of dbt (Core / Cloud / Fusion). You won&rsquo;t write any SQL until Stage 1, and you don&rsquo;t need a dbt project set up yet.</p>
-
-<p>When you are ready, press <code>n</code> to continue.</p>
+  <h2>Before you continue</h2>
+  <p>Stage 0 is concept-only &mdash; just five short lessons covering ETL vs ELT, the modern data team, cloud
+    warehouses, what dbt actually is, and the three flavors of dbt (Core / Cloud / Fusion). You won&rsquo;t write any
+    SQL until Stage 1, and you don&rsquo;t need a dbt project set up yet.</p>
+  <p>When you are ready, press <code>n</code> to continue.</p>
 </body>
+
 </html>

@@ -2,6 +2,24 @@
 
 An interactive, rustlings-style CLI for learning dbt — hands-on exercises with instant feedback against an embedded DuckDB warehouse. No cloud account, no Docker.
 
+## Before you start
+
+dbt revolutionized the transformation layer of the modern data stack. It took
+analytics out of the world of scattered, one-off SQL scripts and brought
+software-engineering best practices to it: version control, branches and pull
+requests, modular models, automated tests, lineage, and CI/CD. The course
+assumes you're comfortable with the workflows dbt is built around — if any of
+the points below feel shaky, brush up first or you'll spend more time fighting
+the tooling than learning dbt itself.
+
+- **Git** — you can clone a repo, create a branch, commit, push, and open a
+  pull request without looking up the commands every time. dbt projects live
+  in version control and every change is reviewed like application code.
+- **SQL** — confident with `JOIN`s (inner / left / right / full),
+  `GROUP BY` aggregations, CTEs, and window functions (`ROW_NUMBER`, `RANK`,
+  `LAG`/`LEAD`, partitioned aggregates). This course teaches dbt mechanics,
+  not SQL fundamentals.
+
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
@@ -47,7 +65,7 @@ Once inside, navigate with single-key commands:
 **Lessons:**
 
 | Key | Action |
-|-----|--------|
+| --- | --- |
 | `l` | Open the lesson in browser |
 | `n` | Advance to next item |
 | `p` | Go back to the previous item |
@@ -57,7 +75,7 @@ Once inside, navigate with single-key commands:
 **Exercises:**
 
 | Key | Action |
-|-----|--------|
+| --- | --- |
 | `l` | Open the associated lesson in browser |
 | `v` | Verify your solution (output is shown inline) |
 | `h` | Show hints |
