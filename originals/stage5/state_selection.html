@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Use <code>state:modified+</code> to rebuild only what changed</h1>
+<h2>Goal</h2>
+<p>Simulate the production CI pattern: snapshot the current <code>target/</code> as a &ldquo;previous state,&rdquo; modify a model, then run <code>dbt run --select state:modified+ --state ../state_initial</code> so dbt rebuilds <em>only</em> the changed model and its downstream.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> First, build the project so <code>target/</code> reflects the current state:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt build
+</code></pre>
+<p>You should see all models, the snapshot, the seed, and tests run cleanly.</p>
+<p><strong>2.</strong> Snapshot <code>target/</code> to <code>state_initial/</code> at the repo root (peer of <code>dbt_project/</code>, not inside it):</p>
+<pre><code class="language-bash">cp -R target ../state_initial
+</code></pre>
+<p>After this, <code>state_initial/manifest.json</code> exists at the repo root and captures the current state of every node.</p>
+<p><strong>3.</strong> Modify <code>dim_customers.sql</code> by adding a marker comment — this is the change dbt&rsquo;s state diff will detect:</p>
+<pre><code class="language-bash">echo &quot;-- state-selection-marker&quot; &gt;&gt; models/marts/dim_customers.sql
+</code></pre>
+<p>(Or open <code>dbt_project/models/marts/dim_customers.sql</code> in your editor and add a line containing the string <code>state-selection-marker</code> at the bottom. Either approach works.)</p>
+<p><strong>4.</strong> Run dbt&rsquo;s state-aware selector. dbt will detect that <code>dim_customers.sql</code> differs from the snapshot and rebuild only it:</p>
+<pre><code class="language-bash">dbt run --select state:modified+ --state ../state_initial
+</code></pre>
+<p>Expected output:</p>
+<pre><code>... 1 of 1 START sql table model main.dim_customers
+... 1 of 1 OK created sql table model main.dim_customers
+Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+</code></pre>
+<p>One model. Not all 7. That&rsquo;s the whole point.</p>
+<p><strong>5.</strong> (Optional, to compare.) Try running with no state selector — <code>dbt run</code> from inside <code>dbt_project/</code> will rebuild every model (5 of them at least). This is the wasteful pattern state selection avoids.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>state_initial/manifest.json</code> exists (proves you took the snapshot).</li>
+<li><code>models/marts/dim_customers.sql</code> contains the string <code>state-selection-marker</code> (proves you modified the file).</li>
+<li><code>dbt run --select state:modified+ --state ../state_initial</code> runs cleanly — at minimum exits 0 (the verifier itself runs this command).</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path 'state_initial/manifest.json' does not exist</code></td>
+<td>You skipped step 2, or the snapshot landed in the wrong place. From inside <code>dbt_project/</code>, <code>cp -R target ../state_initial</code> puts it at the repo root, peer of dbt_project.</td>
+</tr>
+<tr>
+<td><code>file 'dbt_project/models/marts/dim_customers.sql' does not contain 'state-selection-marker'</code></td>
+<td>The marker comment didn&rsquo;t land in the file. Check the file content with <code>cat dbt_project/models/marts/dim_customers.sql</code> — last line should contain <code>state-selection-marker</code>.</td>
+</tr>
+<tr>
+<td><code>state:modified+</code> selects 0 models</td>
+<td>dbt thinks nothing changed. Two common causes: (a) you snapshotted <em>after</em> modifying, so the snapshot already has the marker — re-snapshot before modifying, or (b) the marker line you added is identical to something already in the snapshot.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: Could not find state path</code></td>
+<td>The <code>--state</code> value is wrong. From inside <code>dbt_project/</code>, the path to <code>state_initial/</code> is <code>../state_initial</code>.</td>
+</tr>
+<tr>
+<td><code>Encountered an error: state-related selector specified, but no</code>&ndash;state<code>flag was passed</code></td>
+<td>You ran <code>dbt run --select state:modified+</code> without <code>--state ../state_initial</code>. State selectors need both pieces.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise covers <strong>exposures</strong> — the lineage extension that documents which BI dashboards or notebooks depend on your fct/dim models.</p>
+</body>
+
+</html>

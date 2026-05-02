@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Install <code>dbt_utils</code> and use <code>generate_surrogate_key</code></h1>
+<h2>Goal</h2>
+<p>Install the <code>dbt_utils</code> package via <code>packages.yml</code> + <code>dbt deps</code>. Add an <code>order_key</code> column to <code>fct_orders</code> using <code>dbt_utils.generate_surrogate_key</code>.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create <code>dbt_project/packages.yml</code>:</p>
+<pre><code class="language-bash">touch dbt_project/packages.yml
+</code></pre>
+<p>Paste this:</p>
+<pre><code class="language-yaml">packages:
+  - package: dbt-labs/dbt_utils
+    version: [&quot;&gt;=1.1.0&quot;, &quot;&lt;2.0.0&quot;]
+</code></pre>
+<p>The version range pins to the 1.x line — won&rsquo;t accidentally pull in 2.x breaking changes when they ship.</p>
+<p><strong>2.</strong> Install the package:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt deps
+</code></pre>
+<p>You should see one green line confirming the package was installed. After this, <code>dbt_project/dbt_packages/dbt_utils/</code> exists and contains the package&rsquo;s macros.</p>
+<p><strong>3.</strong> Open <code>dbt_project/models/marts/fct_orders.sql</code>. Add a new column at the end of the <code>select</code> list using the <code>generate_surrogate_key</code> macro. The full file should read:</p>
+<pre><code class="language-sql">select
+    o.order_id,
+    o.customer_id,
+    c.first_name,
+    c.last_name,
+    o.order_date,
+    o.status,
+    coalesce(p.total_amount, 0)  as amount,
+    coalesce(p.payment_count, 0) as payment_count,
+    {{ dbt_utils.generate_surrogate_key(['o.order_id', 'o.customer_id']) }} as order_key
+from {{ ref('stg__orders') }} o
+left join {{ ref('stg__customers') }}     c using (customer_id)
+left join {{ ref('int_order_payments') }} p using (order_id)
+</code></pre>
+<p>The macro takes a list of column references and returns an MD5-hashed surrogate key. Note the column names are passed as <strong>strings inside a Python-style list</strong> — <code>['o.order_id', 'o.customer_id']</code>. The strings can include table aliases.</p>
+<p><strong>4.</strong> Rebuild fct_orders:</p>
+<pre><code class="language-bash">dbt run --select fct_orders
+</code></pre>
+<p>You should see one green line.</p>
+<p><strong>5.</strong> Confirm the new column lands and is unique:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(distinct order_key) from fct_orders&quot;
+</code></pre>
+<p>Should return <code>99</code>.</p>
+<p><strong>6.</strong> Peek at the actual values:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select order_id, order_key from fct_orders limit 3&quot;
+</code></pre>
+<p>Three rows, each with <code>order_id</code> (an integer) and <code>order_key</code> (a 32-character MD5 hash like <code>c4ca4238a0b923820dcc509a6f75849b</code>).</p>
+<p><strong>7.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt_project/dbt_packages/dbt_utils/</code> exists (proves <code>dbt deps</code> ran).</li>
+<li><code>dbt run --select fct_orders</code> exits 0 (proves the model parses and runs with the new macro call).</li>
+<li><code>select count(distinct order_key) from fct_orders</code> returns <code>99</code> (proves the surrogate key is unique across all 99 orders).</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path 'dbt_project/dbt_packages/dbt_utils' does not exist</code></td>
+<td>You skipped <code>dbt deps</code>. Run <code>cd dbt_project &amp;&amp; dbt deps</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'dbt_utils' is undefined</code></td>
+<td>The package didn&rsquo;t install correctly, or you&rsquo;re calling the macro without the prefix. Check <code>dbt_project/dbt_packages/dbt_utils/</code> exists and your call is <code>{{ dbt_utils.generate_surrogate_key(...) }}</code> with the prefix.</td>
+</tr>
+<tr>
+<td><code>count(distinct order_key)</code> returns less than 99</td>
+<td>Two rows hashed to the same key — usually means the column list is too narrow. <code>['o.order_id']</code> alone would still be unique here, but something like <code>['o.status']</code> would collide (since orders share statuses). Verify the column list is <code>['o.order_id', 'o.customer_id']</code>.</td>
+</tr>
+<tr>
+<td><code>Error: Module 'dbt-labs/dbt_utils' not found</code></td>
+<td><code>packages.yml</code> syntax issue. The key is <code>package:</code> (singular under each list item), not <code>name:</code> or anything else.</td>
+</tr>
+<tr>
+<td>Stage 4&rsquo;s <code>incremental_merge</code> exercise&rsquo;s verifier breaks</td>
+<td>Unrelated — the new <code>order_key</code> column is on <code>fct_orders</code>, not <code>fct_order_events</code>. Should not interfere.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>That&rsquo;s the last exercise of Stage 5. Press <code>n</code> to take the stage quiz. Stage 6 (advanced testing, deployment, the dbt CLI surface) is the next planning session.</p>
+</body>
+
+</html>

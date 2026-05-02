@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Add a reference seed</h1>
+<h2>Goal</h2>
+<p>Add a small reference CSV (<code>order_status_descriptions.csv</code>) under <code>dbt_project/seeds/</code>, run <code>dbt seed</code>, and confirm the table lands in DuckDB. This is the canonical use case for seeds: a slow-changing lookup table versioned alongside your dbt code.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the seed file at <code>dbt_project/seeds/order_status_descriptions.csv</code> with this content:</p>
+<pre><code class="language-csv">status,description
+placed,Order has been placed but not yet shipped
+shipped,Order has shipped to the customer
+completed,Order delivered and confirmed received
+return_pending,Customer has indicated a return; awaiting receipt
+returned,Item has been returned to the warehouse
+</code></pre>
+<p>Five rows. The <code>status</code> column matches the values the <code>accepted_values</code> test from the previous exercise constrains <code>stg__orders.status</code> to.</p>
+<p><strong>2.</strong> Run the seed loader:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt seed --select order_status_descriptions
+</code></pre>
+<p>You should see one green line:</p>
+<pre><code>1 of 1 OK loaded seed file main.order_status_descriptions
+</code></pre>
+<p>The <code>--select</code> is optional — bare <code>dbt seed</code> would load every CSV in <code>seeds/</code>. Scoping is just faster while developing.</p>
+<p><strong>3.</strong> Confirm the table exists in DuckDB:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from order_status_descriptions&quot;
+</code></pre>
+<p>Should print <code>5</code>.</p>
+<p><strong>4.</strong> Peek at the data:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select * from order_status_descriptions&quot;
+</code></pre>
+<p>Five rows with the descriptions you wrote. Notice DuckDB inferred <code>status</code> and <code>description</code> as <code>VARCHAR</code> automatically — <code>dbt seed</code> reads the CSV header for column names and the first batch of rows for types.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt seed --select order_status_descriptions</code> exits 0.</li>
+<li>Table <code>order_status_descriptions</code> exists in <code>dev.duckdb</code>.</li>
+<li><code>select count(*) from order_status_descriptions</code> returns exactly <code>5</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Encountered an error: Could not find any seeds named like 'order_status_descriptions'</code></td>
+<td>The CSV isn&rsquo;t where dbt expects. Confirm the path is exactly <code>dbt_project/seeds/order_status_descriptions.csv</code> (the filename minus <code>.csv</code> becomes the seed name).</td>
+</tr>
+<tr>
+<td>Row count is <code>6</code> not <code>5</code></td>
+<td>One too many rows in the CSV — the header row counts as a row in the file but not in the table. Five status descriptions = 5 data rows + 1 header line = 6 lines total.</td>
+</tr>
+<tr>
+<td>Row count is <code>4</code></td>
+<td>Missing one of the five statuses, or an extra blank line. CSVs with trailing whitespace lines silently drop the last data row in some parsers.</td>
+</tr>
+<tr>
+<td><code>column "status" mentioned in CHECK constraint does not exist</code></td>
+<td>The column header doesn&rsquo;t match. Confirm the first line of the CSV reads exactly <code>status,description</code> with no spaces around the comma.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The last exercise of Stage 3 covers <strong>analyses</strong> — SQL files that compile but don&rsquo;t materialize, useful for one-off audits and training queries.</p>
+</body>
+
+</html>

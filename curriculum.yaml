@@ -47,8 +47,8 @@ stages:
       - id: dbt_install
         type: exercise
         lesson:   lessons/stage1/dbt_install.html
-        exercise: exercises/stage1/dbt_install.md
-        original: originals/stage1/dbt_install.md
+        exercise: exercises/stage1/dbt_install.html
+        original: originals/stage1/dbt_install.html
         hints:    hints/stage1/dbt_install.md
         verifier: dbt
         dbt_checks:
@@ -58,8 +58,8 @@ stages:
       - id: dbt_init
         type: exercise
         lesson:   lessons/stage1/dbt_init.html
-        exercise: exercises/stage1/dbt_init.md
-        original: originals/stage1/dbt_init.md
+        exercise: exercises/stage1/dbt_init.html
+        original: originals/stage1/dbt_init.html
         hints:    hints/stage1/dbt_init.md
         verifier: file
         file_checks:
@@ -69,8 +69,8 @@ stages:
       - id: profiles_yml
         type: exercise
         lesson:   lessons/stage1/profiles_yml.html
-        exercise: exercises/stage1/profiles_yml.md
-        original: originals/stage1/profiles_yml.md
+        exercise: exercises/stage1/profiles_yml.html
+        original: originals/stage1/profiles_yml.html
         hints:    hints/stage1/profiles_yml.md
         verifier: dbt
         dbt_checks:
@@ -80,8 +80,8 @@ stages:
       - id: ingestion
         type: exercise
         lesson:   lessons/stage1/ingestion.html
-        exercise: exercises/stage1/ingestion.md
-        original: originals/stage1/ingestion.md
+        exercise: exercises/stage1/ingestion.html
+        original: originals/stage1/ingestion.html
         hints:    hints/stage1/ingestion.md
         verifier: dbt
         dbt_checks:
@@ -96,8 +96,8 @@ stages:
       - id: first_model
         type: exercise
         lesson:   lessons/stage1/first_model.html
-        exercise: exercises/stage1/first_model.md
-        original: originals/stage1/first_model.md
+        exercise: exercises/stage1/first_model.html
+        original: originals/stage1/first_model.html
         hints:    hints/stage1/first_model.md
         verifier: dbt
         dbt_checks:
@@ -110,8 +110,8 @@ stages:
       - id: add_sources
         type: exercise
         lesson:   lessons/stage1/add_sources.html
-        exercise: exercises/stage1/add_sources.md
-        original: originals/stage1/add_sources.md
+        exercise: exercises/stage1/add_sources.html
+        original: originals/stage1/add_sources.html
         hints:    hints/stage1/add_sources.md
         verifier: file
         file_checks:
@@ -121,8 +121,8 @@ stages:
       - id: project_yml
         type: exercise
         lesson:   lessons/stage1/project_yml.html
-        exercise: exercises/stage1/project_yml.md
-        original: originals/stage1/project_yml.md
+        exercise: exercises/stage1/project_yml.html
+        original: originals/stage1/project_yml.html
         hints:    hints/stage1/project_yml.md
         verifier: dbt
         quiz:     quiz/stage1.yaml
@@ -143,8 +143,8 @@ stages:
       - id: multi_source_split
         type: exercise
         lesson:   lessons/stage2/multi_source_split.html
-        exercise: exercises/stage2/multi_source_split.md
-        original: originals/stage2/multi_source_split.md
+        exercise: exercises/stage2/multi_source_split.html
+        original: originals/stage2/multi_source_split.html
         hints:    hints/stage2/multi_source_split.md
         verifier: dbt
         dbt_checks:
@@ -161,8 +161,8 @@ stages:
       - id: more_staging
         type: exercise
         lesson:   lessons/stage2/more_staging.html
-        exercise: exercises/stage2/more_staging.md
-        original: originals/stage2/more_staging.md
+        exercise: exercises/stage2/more_staging.html
+        original: originals/stage2/more_staging.html
         hints:    hints/stage2/more_staging.md
         verifier: dbt
         dbt_checks:
@@ -185,8 +185,8 @@ stages:
       - id: intermediate_model
         type: exercise
         lesson:   lessons/stage2/intermediate_model.html
-        exercise: exercises/stage2/intermediate_model.md
-        original: originals/stage2/intermediate_model.md
+        exercise: exercises/stage2/intermediate_model.html
+        original: originals/stage2/intermediate_model.html
         hints:    hints/stage2/intermediate_model.md
         verifier: dbt
         dbt_checks:
@@ -211,8 +211,8 @@ stages:
       - id: fact_model
         type: exercise
         lesson:   lessons/stage2/fact_model.html
-        exercise: exercises/stage2/fact_model.md
-        original: originals/stage2/fact_model.md
+        exercise: exercises/stage2/fact_model.html
+        original: originals/stage2/fact_model.html
         hints:    hints/stage2/fact_model.md
         verifier: dbt
         dbt_checks:
@@ -233,8 +233,8 @@ stages:
       - id: dbt_build
         type: exercise
         lesson:   lessons/stage2/dbt_build.html
-        exercise: exercises/stage2/dbt_build.md
-        original: originals/stage2/dbt_build.md
+        exercise: exercises/stage2/dbt_build.html
+        original: originals/stage2/dbt_build.html
         hints:    hints/stage2/dbt_build.md
         verifier: dbt
         dbt_checks:
@@ -244,8 +244,8 @@ stages:
       - id: dbt_docs
         type: exercise
         lesson:   lessons/stage2/dbt_docs.html
-        exercise: exercises/stage2/dbt_docs.md
-        original: originals/stage2/dbt_docs.md
+        exercise: exercises/stage2/dbt_docs.html
+        original: originals/stage2/dbt_docs.html
         hints:    hints/stage2/dbt_docs.md
         verifier: dbt
         dbt_checks:
@@ -267,8 +267,8 @@ stages:
       - id: generic_tests
         type: exercise
         lesson:   lessons/stage3/generic_tests.html
-        exercise: exercises/stage3/generic_tests.md
-        original: originals/stage3/generic_tests.md
+        exercise: exercises/stage3/generic_tests.html
+        original: originals/stage3/generic_tests.html
         hints:    hints/stage3/generic_tests.md
         verifier: dbt
         dbt_checks:
@@ -291,8 +291,8 @@ stages:
       - id: accepted_values_relationships
         type: exercise
         lesson:   lessons/stage3/accepted_values_relationships.html
-        exercise: exercises/stage3/accepted_values_relationships.md
-        original: originals/stage3/accepted_values_relationships.md
+        exercise: exercises/stage3/accepted_values_relationships.html
+        original: originals/stage3/accepted_values_relationships.html
         hints:    hints/stage3/accepted_values_relationships.md
         verifier: dbt
         dbt_checks:
@@ -311,8 +311,8 @@ stages:
       - id: singular_test
         type: exercise
         lesson:   lessons/stage3/singular_test.html
-        exercise: exercises/stage3/singular_test.md
-        original: originals/stage3/singular_test.md
+        exercise: exercises/stage3/singular_test.html
+        original: originals/stage3/singular_test.html
         hints:    hints/stage3/singular_test.md
         verifier: dbt
         dbt_checks:
@@ -323,8 +323,8 @@ stages:
       - id: seed_basics
         type: exercise
         lesson:   lessons/stage3/seed_basics.html
-        exercise: exercises/stage3/seed_basics.md
-        original: originals/stage3/seed_basics.md
+        exercise: exercises/stage3/seed_basics.html
+        original: originals/stage3/seed_basics.html
         hints:    hints/stage3/seed_basics.md
         verifier: dbt
         dbt_checks:
@@ -341,8 +341,8 @@ stages:
       - id: analyses_intro
         type: exercise
         lesson:   lessons/stage3/analyses_intro.html
-        exercise: exercises/stage3/analyses_intro.md
-        original: originals/stage3/analyses_intro.md
+        exercise: exercises/stage3/analyses_intro.html
+        original: originals/stage3/analyses_intro.html
         hints:    hints/stage3/analyses_intro.md
         verifier: dbt
         quiz:     quiz/stage3.yaml
@@ -362,8 +362,8 @@ stages:
       - id: view_to_table
         type: exercise
         lesson:   lessons/stage4/view_to_table.html
-        exercise: exercises/stage4/view_to_table.md
-        original: originals/stage4/view_to_table.md
+        exercise: exercises/stage4/view_to_table.html
+        original: originals/stage4/view_to_table.html
         hints:    hints/stage4/view_to_table.md
         verifier: dbt
         dbt_checks:
@@ -381,8 +381,8 @@ stages:
       - id: ephemeral_model
         type: exercise
         lesson:   lessons/stage4/ephemeral_model.html
-        exercise: exercises/stage4/ephemeral_model.md
-        original: originals/stage4/ephemeral_model.md
+        exercise: exercises/stage4/ephemeral_model.html
+        original: originals/stage4/ephemeral_model.html
         hints:    hints/stage4/ephemeral_model.md
         verifier: dbt
         dbt_checks:
@@ -400,8 +400,8 @@ stages:
       - id: incremental_basic
         type: exercise
         lesson:   lessons/stage4/incremental_basic.html
-        exercise: exercises/stage4/incremental_basic.md
-        original: originals/stage4/incremental_basic.md
+        exercise: exercises/stage4/incremental_basic.html
+        original: originals/stage4/incremental_basic.html
         hints:    hints/stage4/incremental_basic.md
         verifier: dbt
         dbt_checks:
@@ -419,8 +419,8 @@ stages:
       - id: incremental_merge
         type: exercise
         lesson:   lessons/stage4/incremental_merge.html
-        exercise: exercises/stage4/incremental_merge.md
-        original: originals/stage4/incremental_merge.md
+        exercise: exercises/stage4/incremental_merge.html
+        original: originals/stage4/incremental_merge.html
         hints:    hints/stage4/incremental_merge.md
         verifier: dbt
         dbt_checks:
@@ -439,8 +439,8 @@ stages:
       - id: snapshot_scd2
         type: exercise
         lesson:   lessons/stage4/snapshot_scd2.html
-        exercise: exercises/stage4/snapshot_scd2.md
-        original: originals/stage4/snapshot_scd2.md
+        exercise: exercises/stage4/snapshot_scd2.html
+        original: originals/stage4/snapshot_scd2.html
         hints:    hints/stage4/snapshot_scd2.md
         verifier: dbt
         quiz:     quiz/stage4.yaml
@@ -467,8 +467,8 @@ stages:
       - id: first_macro
         type: exercise
         lesson:   lessons/stage5/first_macro.html
-        exercise: exercises/stage5/first_macro.md
-        original: originals/stage5/first_macro.md
+        exercise: exercises/stage5/first_macro.html
+        original: originals/stage5/first_macro.html
         hints:    hints/stage5/first_macro.md
         verifier: dbt
         dbt_checks:
@@ -485,8 +485,8 @@ stages:
       - id: state_selection
         type: exercise
         lesson:   lessons/stage5/state_selection.html
-        exercise: exercises/stage5/state_selection.md
-        original: originals/stage5/state_selection.md
+        exercise: exercises/stage5/state_selection.html
+        original: originals/stage5/state_selection.html
         hints:    hints/stage5/state_selection.md
         verifier: dbt
         dbt_checks:
@@ -503,8 +503,8 @@ stages:
       - id: exposures
         type: exercise
         lesson:   lessons/stage5/exposures.html
-        exercise: exercises/stage5/exposures.md
-        original: originals/stage5/exposures.md
+        exercise: exercises/stage5/exposures.html
+        original: originals/stage5/exposures.html
         hints:    hints/stage5/exposures.md
         verifier: dbt
         dbt_checks:
@@ -517,8 +517,8 @@ stages:
       - id: dbt_utils_install
         type: exercise
         lesson:   lessons/stage5/dbt_utils_install.html
-        exercise: exercises/stage5/dbt_utils_install.md
-        original: originals/stage5/dbt_utils_install.md
+        exercise: exercises/stage5/dbt_utils_install.html
+        original: originals/stage5/dbt_utils_install.html
         hints:    hints/stage5/dbt_utils_install.md
         verifier: dbt
         quiz:     quiz/stage5.yaml
@@ -543,8 +543,8 @@ stages:
       - id: severity_warn
         type: exercise
         lesson:   lessons/stage6/severity_warn.html
-        exercise: exercises/stage6/severity_warn.md
-        original: originals/stage6/severity_warn.md
+        exercise: exercises/stage6/severity_warn.html
+        original: originals/stage6/severity_warn.html
         hints:    hints/stage6/severity_warn.md
         verifier: dbt
         dbt_checks:
@@ -558,8 +558,8 @@ stages:
       - id: custom_generic_test
         type: exercise
         lesson:   lessons/stage6/custom_generic_test.html
-        exercise: exercises/stage6/custom_generic_test.md
-        original: originals/stage6/custom_generic_test.md
+        exercise: exercises/stage6/custom_generic_test.html
+        original: originals/stage6/custom_generic_test.html
         hints:    hints/stage6/custom_generic_test.md
         verifier: dbt
         dbt_checks:
@@ -575,8 +575,8 @@ stages:
       - id: dbt_expectations_install
         type: exercise
         lesson:   lessons/stage6/dbt_expectations_install.html
-        exercise: exercises/stage6/dbt_expectations_install.md
-        original: originals/stage6/dbt_expectations_install.md
+        exercise: exercises/stage6/dbt_expectations_install.html
+        original: originals/stage6/dbt_expectations_install.html
         hints:    hints/stage6/dbt_expectations_install.md
         verifier: dbt
         dbt_checks:
@@ -592,8 +592,8 @@ stages:
       - id: dbt_show_command
         type: exercise
         lesson:   lessons/stage6/dbt_show_command.html
-        exercise: exercises/stage6/dbt_show_command.md
-        original: originals/stage6/dbt_show_command.md
+        exercise: exercises/stage6/dbt_show_command.html
+        original: originals/stage6/dbt_show_command.html
         hints:    hints/stage6/dbt_show_command.md
         verifier: dbt
         dbt_checks:
@@ -609,8 +609,8 @@ stages:
       - id: target_directory_tour
         type: exercise
         lesson:   lessons/stage6/target_directory_tour.html
-        exercise: exercises/stage6/target_directory_tour.md
-        original: originals/stage6/target_directory_tour.md
+        exercise: exercises/stage6/target_directory_tour.html
+        original: originals/stage6/target_directory_tour.html
         hints:    hints/stage6/target_directory_tour.md
         verifier: dbt
         quiz:     quiz/stage6.yaml
@@ -635,8 +635,8 @@ stages:
       - id: multi_target_profile
         type: exercise
         lesson:   lessons/stage7/multi_target_profile.html
-        exercise: exercises/stage7/multi_target_profile.md
-        original: originals/stage7/multi_target_profile.md
+        exercise: exercises/stage7/multi_target_profile.html
+        original: originals/stage7/multi_target_profile.html
         hints:    hints/stage7/multi_target_profile.md
         verifier: dbt
         dbt_checks:
@@ -650,8 +650,8 @@ stages:
       - id: analysis_to_model
         type: exercise
         lesson:   lessons/stage7/analysis_to_model.html
-        exercise: exercises/stage7/analysis_to_model.md
-        original: originals/stage7/analysis_to_model.md
+        exercise: exercises/stage7/analysis_to_model.html
+        original: originals/stage7/analysis_to_model.html
         hints:    hints/stage7/analysis_to_model.md
         verifier: dbt
         dbt_checks:

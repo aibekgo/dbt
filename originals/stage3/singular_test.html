@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Write a singular test</h1>
+<h2>Goal</h2>
+<p>Add a custom singular test that asserts <code>int_order_payments.total_amount</code> is never negative. The file lives at <code>dbt_project/tests/assert_no_negative_payment_totals.sql</code>.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the test file:</p>
+<pre><code class="language-bash">mkdir -p dbt_project/tests
+touch dbt_project/tests/assert_no_negative_payment_totals.sql
+</code></pre>
+<p>The <code>tests/</code> folder may already exist (it&rsquo;s part of the default <code>dbt init</code> scaffold) — <code>mkdir -p</code> is harmless either way.</p>
+<p><strong>2.</strong> Paste this into <code>assert_no_negative_payment_totals.sql</code>:</p>
+<pre><code class="language-sql">-- A singular test passes when this query returns 0 rows.
+-- We're asserting that no order has a negative total_amount.
+select order_id, total_amount
+from {{ ref('int_order_payments') }}
+where total_amount &lt; 0
+</code></pre>
+<p>Three things to notice:</p>
+<ul>
+<li><strong><code>select</code> finds the bad rows, not the good ones.</strong> The query returns rows that <em>violate</em> the assertion. 0 rows = test passes.</li>
+<li><strong><code>{{ ref('int_order_payments') }}</code> not raw table name.</strong> This wires the test into the DAG so dbt builds the model before running the test in <code>dbt build</code>.</li>
+<li><strong><code>where total_amount &lt; 0</code></strong> — strict inequality. Zero is allowed (a refunded order can sum to 0); only <em>negative</em> amounts are violations.</li>
+</ul>
+<p><strong>3.</strong> Run just the singular tests:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt test --select test_type:singular
+</code></pre>
+<p>You should see one test execute and pass:</p>
+<pre><code>Completed successfully
+
+Done. PASS=1 WARN=0 ERROR=0 SKIP=0 TOTAL=1
+</code></pre>
+<p><strong>4.</strong> Confirm it shows up in the manifest:</p>
+<pre><code class="language-bash">dbt ls --resource-type test --select test_type:singular
+</code></pre>
+<p>One line: <code>dbt_project.assert_no_negative_payment_totals</code>.</p>
+<p><strong>5.</strong> (Optional, just to see the failure path.) Temporarily flip the predicate to <code>where total_amount &gt; 0</code> and re-run <code>dbt test --select test_type:singular</code>. You should see a <code>FAIL</code> with the count of rows the test found. Flip it back to <code>&lt; 0</code> before pressing <code>v</code>.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt test --select test_type:singular</code> exits 0 with at least one test running and passing.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: dbt found 0 tests of type singular</code></td>
+<td>The file isn&rsquo;t in <code>tests/</code>, or it doesn&rsquo;t end in <code>.sql</code>. Confirm path is exactly <code>dbt_project/tests/assert_no_negative_payment_totals.sql</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'int_order_payments' is undefined</code></td>
+<td>You wrote <code>from int_order_payments</code> (raw name) instead of <code>from {{ ref('int_order_payments') }}</code>. The <code>ref()</code> is required.</td>
+</tr>
+<tr>
+<td>Test reports <code>FAIL N</code></td>
+<td>Either the predicate is inverted (<code>&gt; 0</code> instead of <code>&lt; 0</code> — finds the <em>good</em> rows) or the upstream data legitimately has a negative total (shouldn&rsquo;t happen with the seed data).</td>
+</tr>
+<tr>
+<td><code>Database Error: Catalog Error: Table with name int_order_payments does not exist!</code></td>
+<td>The intermediate model isn&rsquo;t built yet. Run <code>dbt run --select int_order_payments</code> first, or use <code>dbt build --select int_order_payments+</code> to build the chain <em>and</em> run the test together.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next up: <strong>seeds</strong> — small reference CSVs committed to git, contrasted with Stage 1&rsquo;s Python ingestion of the raw CSVs.</p>
+</body>
+
+</html>

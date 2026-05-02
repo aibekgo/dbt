@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Configure <code>dbt_project.yml</code></h1>
+<h2>Goal</h2>
+<p>Use folder-level config in <code>dbt_project.yml</code> to materialize <strong>staging models as views</strong> (cheap, recompute-on-read) and <strong>marts as tables</strong> (paid once, fast forever) — without touching any SQL file.</p>
+<p>To prove it works you&rsquo;ll add a second model — <code>dim_customers</code> under <code>models/marts/</code> — and watch dbt build it as a <em>table</em> even though the SQL has no <code>{{ config() }}</code> block.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Make sure you&rsquo;re inside <code>dbt_project/</code>:</p>
+<pre><code class="language-bash">cd dbt_project   # if you're not already here
+</code></pre>
+<p><strong>2.</strong> Create the marts folder and a new model called <code>dim_customers</code>:</p>
+<pre><code class="language-bash">mkdir -p models/marts
+touch models/marts/dim_customers.sql
+</code></pre>
+<p><strong>3.</strong> Paste this into <code>models/marts/dim_customers.sql</code>:</p>
+<pre><code class="language-sql">select
+    customer_id,
+    first_name,
+    last_name
+from {{ ref('stg__customers') }}
+</code></pre>
+<p>Two things to notice:</p>
+<ul>
+<li><strong>No <code>{{ config(materialized='table') }}</code> at the top.</strong> The materialization will come entirely from <code>dbt_project.yml</code> in the next step.</li>
+<li><code>{{ ref('stg__customers') }}</code> — marts depend on staging models via <code>ref()</code>, the same way staging depends on raw via <code>source()</code>. dbt will build <code>stg__customers</code> first, then <code>dim_customers</code>.</li>
+</ul>
+<p><strong>4.</strong> Open <code>dbt_project/dbt_project.yml</code>. Scroll to the bottom — <code>dbt init</code> left you a <code>models:</code> block that points at the demo <code>example/</code> folder:</p>
+<pre><code class="language-yaml">models:
+  dbt_project:
+    example:
+      +materialized: view
+</code></pre>
+<p>Replace it with two folder configs — one for the <code>staging/</code> folder, one for the new <code>marts/</code> folder. <strong>The key change is <code>+materialized: table</code> on the marts block — that&rsquo;s what flips <code>dim_customers</code> from a view (the default) to a table.</strong></p>
+<pre><code class="language-yaml">models:
+  dbt_project:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+</code></pre>
+<p>What this YAML says:</p>
+<ul>
+<li><code>models:</code> — top-level config block</li>
+<li><code>dbt_project:</code> — your project name (must match the <code>name:</code> field at the top of the same file)</li>
+<li><code>staging:</code> and <code>marts:</code> — folders under <code>models/</code> that the configs apply to</li>
+<li><code>+materialized: &lt;view|table&gt;</code> — the leading <code>+</code> marks the line as a config, not a sub-folder. Without <code>+</code>, dbt looks for a folder called <code>materialized/</code> containing <code>view.sql</code> and silently no-ops.</li>
+</ul>
+<p><strong>5.</strong> Build everything:</p>
+<pre><code class="language-bash">dbt run
+</code></pre>
+<p>You should see two green nodes — <code>stg__customers</code> (view) and <code>dim_customers</code> (table). Look closely at the log:</p>
+<pre><code>1 of 2 OK created sql view  model main.stg__customers ...
+2 of 2 OK created sql table model main.dim_customers ...
+</code></pre>
+<p>The words <code>view</code> and <code>table</code> come from the folder-level config you just set.</p>
+<p><strong>6.</strong> Sanity check the materializations actually differ in the warehouse:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;
+  select table_name, table_type
+  from information_schema.tables
+  where table_schema = 'main_main'
+  order by table_name;
+&quot;
+</code></pre>
+<p>Expected:</p>
+<pre><code>┌────────────────┬────────────┐
+│   table_name   │ table_type │
+├────────────────┼────────────┤
+│ dim_customers  │ BASE TABLE │
+│ stg__customers │ VIEW       │
+└────────────────┴────────────┘
+</code></pre>
+<p><strong>7.</strong> Press <code>v</code>.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select +dim_customers</code> exits 0 (the <code>+</code> prefix means &ldquo;this and all upstream&rdquo;).</li>
+<li><code>target/manifest.json</code> reports <code>dim_customers</code> resolved to <code>materialized: table</code>.</li>
+<li><code>target/manifest.json</code> reports <code>stg__customers</code> is still <code>materialized: view</code>.</li>
+</ul>
+<p>If both materializations come out right, your folder-level config is wired correctly.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: Model 'dim_customers' depends on a node named 'stg__customers' which was not found</code></td>
+<td>The staging model wasn&rsquo;t built yet. Run <code>dbt run</code> (no select) — <code>+dim_customers</code> covers it but full <code>dbt run</code> is foolproof.</td>
+</tr>
+<tr>
+<td><code>dim_customers</code> shows up as <code>VIEW</code> in DuckDB</td>
+<td>Either your <code>marts:</code> block is missing the <code>+</code> on <code>materialized</code>, or it&rsquo;s nested under the wrong project name. Re-check the YAML against step 4.</td>
+</tr>
+<tr>
+<td>YAML parse error / <code>Could not run dbt</code></td>
+<td>Indentation. Two spaces per level, no tabs.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code> for the Stage 1 quiz. After that — Stage 2.</p>
+</body>
+
+</html>

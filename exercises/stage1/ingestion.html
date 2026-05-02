@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Ingest the raw CSVs</h1>
+<h2>Goal</h2>
+<p>Load the three jaffle_shop CSVs into the local DuckDB warehouse so dbt has something to model. In a real company a data engineer wires this up with Fivetran/Airbyte; for the course we ship a tiny Python script that does the same job.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Get back to the repo root. (The previous exercise left you inside <code>dbt_project/</code>.)</p>
+<pre><code class="language-bash">cd ..        # only if you're still inside dbt_project/
+pwd          # should end in /learn_dbt
+</code></pre>
+<p><strong>2.</strong> Make sure your virtualenv is active:</p>
+<pre><code class="language-bash">source .venv/bin/activate
+</code></pre>
+<p><strong>3.</strong> Run the ingestion script:</p>
+<pre><code class="language-bash">python scripts/ingest_raw.py
+</code></pre>
+<p>You should see:</p>
+<pre><code>Ingesting into database/dev.duckdb
+  raw_customers: 100 rows
+  raw_orders: 99 rows
+  raw_payments: 113 rows
+Done.
+</code></pre>
+<p><strong>4.</strong> (Optional) Open the warehouse and poke around:</p>
+<pre><code class="language-bash">duckdb database/dev.duckdb -c &quot;SHOW TABLES;&quot;
+duckdb database/dev.duckdb -c &quot;SELECT * FROM raw_customers LIMIT 5;&quot;
+</code></pre>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>raw_customers</code>, <code>raw_orders</code>, and <code>raw_payments</code> all exist somewhere in <code>database/dev.duckdb</code>&rsquo;s schemas.</li>
+</ul>
+<p>The verifier doesn&rsquo;t care <em>how</em> they got there — only that they&rsquo;re present. Re-running the script is idempotent (<code>CREATE OR REPLACE TABLE</code>), so feel free to run it as many times as you like.</p>
+<h2>If it fails</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ModuleNotFoundError: No module named 'duckdb'</code></td>
+<td>venv not active. Run <code>source .venv/bin/activate</code>.</td>
+</tr>
+<tr>
+<td><code>error: Failed to spawn: scripts/ingest_raw.py</code> (or <code>python: can't open file 'scripts/ingest_raw.py'</code>)</td>
+<td>You&rsquo;re inside <code>dbt_project/</code>. Run <code>cd ..</code> first.</td>
+</tr>
+<tr>
+<td><code>FileNotFoundError: Missing CSV: data/raw_customers.csv</code></td>
+<td>You&rsquo;re not in the repo root. <code>cd</code> to the directory that contains <code>data/</code>, <code>scripts/</code>, and <code>database/</code>.</td>
+</tr>
+<tr>
+<td><code>IO Error: Could not set lock on file ... dev.duckdb</code></td>
+<td>Another process (probably dbt) has the warehouse open. Close it and re-run.</td>
+</tr>
+</tbody>
+</table>
+<h2>Why this isn&rsquo;t <code>dbt seed</code></h2>
+<p><code>dbt seed</code> is dbt&rsquo;s built-in CSV loader — it would technically work for these files. We&rsquo;re avoiding it on purpose:</p>
+<ul>
+<li><code>dbt seed</code> is for <strong>lookup tables</strong> that ship with the code (country codes, plan-tier mappings). It&rsquo;s the wrong abstraction for &ldquo;raw operational data.&rdquo;</li>
+<li>A later exercise uses <code>dbt seed</code> for what it&rsquo;s actually good at — a small reference table — and we want that lesson to stay clean.</li>
+</ul>
+<p>For now, treat <code>scripts/ingest_raw.py</code> as your stand-in for the data-engineering team.</p>
+<h2>After you pass</h2>
+<p>Press <code>n</code> — next you&rsquo;ll write your first dbt model on top of these raw tables.</p>
+</body>
+
+</html>

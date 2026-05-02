@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Promote an analysis to a tested mart</h1>
+<h2>Goal</h2>
+<p>Take the existing <code>analyses/top_customers_by_revenue.sql</code> (one-off SQL that compiles but doesn&rsquo;t materialize) and promote it to a real mart at <code>models/marts/mart_customer_revenue.sql</code>. The new model uses the imports → logic → final CTE pattern, materializes as a table, and gets a <code>_models.yml</code> entry with <code>description</code>, <code>meta</code>, <code>tags</code>, and tests on the primary key.</p>
+<p>The original analysis stays in place — it&rsquo;s the audit trail showing what the mart is meant to compute.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Create <code>dbt_project/models/marts/mart_customer_revenue.sql</code> with the CTE-structured SQL:</p>
+<pre><code class="language-sql">{{ config(materialized='table') }}
+
+with
+
+customers as (
+    select * from {{ ref('dim_customers') }}
+),
+
+orders as (
+    select * from {{ ref('fct_orders') }}
+),
+
+customer_revenue as (
+    select
+        c.customer_id,
+        c.first_name,
+        c.last_name,
+        sum(o.amount) as lifetime_revenue,
+        count(o.order_id) as lifetime_orders
+    from customers c
+    left join orders o on c.customer_id = o.customer_id
+    group by c.customer_id, c.first_name, c.last_name
+),
+
+final as (
+    select * from customer_revenue
+    order by lifetime_revenue desc
+)
+
+select * from final
+</code></pre>
+<p>Three things to flag:</p>
+<ul>
+<li>The <code>with</code> keyword starts the CTE block.</li>
+<li><code>customers</code> and <code>orders</code> are pure import CTEs — they pass-through <code>dim_customers</code> and <code>fct_orders</code> unchanged.</li>
+<li>The <code>final</code> CTE wraps the result. The bottom is always <code>select * from final</code>, never the logic CTE directly. The verifier checks for <code>final as (</code> to confirm you used the imports → logic → final pattern.</li>
+</ul>
+<p><strong>2.</strong> Open <code>dbt_project/models/marts/_models.yml</code> and add a new entry under <code>models:</code> for <code>mart_customer_revenue</code>:</p>
+<pre><code class="language-yaml">- name: mart_customer_revenue
+  description: &quot;Customer-grain lifetime revenue and order count, derived from fct_orders + dim_customers.&quot;
+  config:
+    meta:
+      owner: data_eng
+      pii: false
+    tags:
+      - revenue
+      - finance
+  columns:
+    - name: customer_id
+      description: &quot;Stable customer identifier.&quot;
+      tests:
+        - unique
+        - not_null
+    - name: lifetime_revenue
+      description: &quot;Sum of fct_orders.amount across all orders for this customer.&quot;
+</code></pre>
+<p>Things to watch:</p>
+<ul>
+<li>The new entry is a sibling of the existing <code>fct_orders</code> block (same indent under <code>models:</code>).</li>
+<li><code>config:</code> is nested under the model name. Inside it: <code>meta:</code> (a dict of key/value pairs) and <code>tags:</code> (a list of strings).</li>
+<li>Two tests on <code>customer_id</code>: <code>unique</code> and <code>not_null</code>. These prove the model is correctly grain-keyed.</li>
+</ul>
+<p><strong>3.</strong> From inside <code>dbt_project/</code>, build and test the new model:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select mart_customer_revenue
+dbt test --select mart_customer_revenue
+</code></pre>
+<p>Both should exit cleanly. The model materializes as a table; the tests confirm <code>customer_id</code> is unique and not null.</p>
+<p><strong>4.</strong> (Optional, to <em>use</em> the new tags.) Try <code>dbt build --select tag:finance</code> from inside <code>dbt_project/</code>. It should rebuild your new mart (and any other models tagged <code>finance</code>) — your first taste of tag-based selection.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt_project/models/marts/mart_customer_revenue.sql</code> exists.</li>
+<li>That file contains <code>final as (</code> (proves you used the imports → logic → final CTE pattern, not a flat select).</li>
+<li><code>dbt run --select mart_customer_revenue</code> exits 0.</li>
+<li>The manifest shows ≥2 tests on <code>mart_customer_revenue</code> (the <code>unique</code> + <code>not_null</code> on <code>customer_id</code>).</li>
+<li><code>dbt_project/models/marts/_models.yml</code> contains both <code>meta:</code> and <code>tags:</code> markers.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path 'dbt_project/models/marts/mart_customer_revenue.sql' does not exist</code></td>
+<td>The file isn&rsquo;t where the verifier expects. Path is <code>models/marts/</code>, not <code>models/</code>.</td>
+</tr>
+<tr>
+<td><code>file 'dbt_project/models/marts/mart_customer_revenue.sql' does not contain 'final as ('</code></td>
+<td>The model is a flat <code>select</code> without the imports→logic→final pattern. Wrap the result in a <code>final</code> CTE and end with <code>select * from final</code>.</td>
+</tr>
+<tr>
+<td><code>dbt run --select mart_customer_revenue</code> errors with <code>relation "dim_customers" does not exist</code></td>
+<td>A previous exercise&rsquo;s <code>--target prod</code> build doesn&rsquo;t matter — <code>dbt run</code> defaults to <code>--target dev</code>. If <code>dev.duckdb</code> is missing, run <code>dbt build</code> (no flags) first.</td>
+</tr>
+<tr>
+<td><code>manifest_test_count: model 'mart_customer_revenue' has 0 tests, expected ≥2</code></td>
+<td>The YAML entry didn&rsquo;t attach. Check that <code>name: mart_customer_revenue</code> matches the model file name exactly, and that <code>tests:</code> is nested under <code>customer_id</code>&rsquo;s entry (not the model&rsquo;s).</td>
+</tr>
+<tr>
+<td><code>file ... does not contain 'meta:'</code> or <code>'tags:'</code></td>
+<td>Your <code>_models.yml</code> entry skipped the <code>config:</code> block. Both <code>meta:</code> and <code>tags:</code> must be under a <code>config:</code> key in the model entry.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next item is <code>tooling_landscape</code> — a concept tour of the dbt ecosystem (MCP, Fusion, MetricFlow, audit_helper, dbt Mesh) before you graduate.</p>
+</body>
+
+</html>

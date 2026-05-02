@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Add an analysis</h1>
+<h2>Goal</h2>
+<p>Write <code>dbt_project/analyses/top_customers_by_revenue.sql</code> — a top-10 customers query joining <code>fct_orders</code> and <code>dim_customers</code>. Run <code>dbt compile</code> and confirm the rendered SQL lands in <code>target/compiled/</code>.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the analysis file:</p>
+<pre><code class="language-bash">mkdir -p dbt_project/analyses
+touch dbt_project/analyses/top_customers_by_revenue.sql
+</code></pre>
+<p>The <code>analyses/</code> folder ships with the default <code>dbt init</code> scaffold but is empty by default — <code>mkdir -p</code> is harmless if it already exists.</p>
+<p><strong>2.</strong> Paste this into <code>top_customers_by_revenue.sql</code>:</p>
+<pre><code class="language-sql">-- Top 10 customers by lifetime order revenue.
+-- Compiled-only — not materialized, but lives in target/compiled/ and is
+-- versioned alongside the rest of the project.
+select
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    count(o.order_id) as order_count,
+    sum(o.amount)     as lifetime_revenue
+from {{ ref('fct_orders') }} o
+join {{ ref('dim_customers') }} c using (customer_id)
+group by 1, 2, 3
+order by lifetime_revenue desc
+limit 10
+</code></pre>
+<p>Key things:</p>
+<ul>
+<li><strong>No <code>{{ config(...) }}</code>.</strong> Analyses don&rsquo;t materialize; a config block here is a smell.</li>
+<li><strong>Two <code>ref()</code> calls.</strong> Both <code>fct_orders</code> and <code>dim_customers</code> are existing models. The analysis depends on them at compile time — dbt knows it can only render after parsing those models.</li>
+<li><strong><code>group by 1, 2, 3</code></strong> — positional grouping. Equivalent to <code>group by c.customer_id, c.first_name, c.last_name</code>. Either form works.</li>
+</ul>
+<p><strong>3.</strong> Compile the analysis:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt compile --select top_customers_by_revenue
+</code></pre>
+<p>You should see one log line confirming it compiled. Unlike <code>dbt run</code>, nothing changes in DuckDB — analyses are compile-only.</p>
+<p><strong>4.</strong> Inspect the rendered output:</p>
+<pre><code class="language-bash">cat target/compiled/dbt_project/analyses/top_customers_by_revenue.sql
+</code></pre>
+<p>The <code>{{ ref(...) }}</code> calls have been replaced with <code>"main"."fct_orders"</code> and <code>"main"."dim_customers"</code>. That&rsquo;s the file you&rsquo;d paste into a BI tool or DuckDB shell.</p>
+<p><strong>5.</strong> (Optional, just to see it work end-to-end.) Pipe the rendered SQL into DuckDB:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb &lt; target/compiled/dbt_project/analyses/top_customers_by_revenue.sql
+</code></pre>
+<p>Ten rows, sorted by <code>lifetime_revenue</code> descending.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt compile --select top_customers_by_revenue</code> exits 0.</li>
+<li>The compiled artifact exists at <code>target/compiled/&lt;project&gt;/analyses/top_customers_by_revenue.sql</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: 'fct_orders' is undefined</code></td>
+<td>The <code>ref()</code> argument doesn&rsquo;t match a model name. Run <code>dbt ls --resource-type model</code> to see valid names — should be <code>fct_orders</code> (single underscore).</td>
+</tr>
+<tr>
+<td><code>dbt compile --select top_customers_by_revenue</code> reports <code>Found 0 nodes</code></td>
+<td>The file is in the wrong folder. Confirm path is exactly <code>dbt_project/analyses/top_customers_by_revenue.sql</code> (plural <code>analyses</code>, not <code>analysis</code>).</td>
+</tr>
+<tr>
+<td><code>Compiled artifact 'analyses/top_customers_by_revenue.sql' not found under target/compiled/</code></td>
+<td>The compile may have errored silently. Re-run <code>dbt compile --select top_customers_by_revenue</code> and read the full log; or just <code>dbt compile</code> (no select) and grep the output.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: Table with name fct_orders does not exist!</code></td>
+<td>Only happens if you try to <em>run</em> the compiled SQL against DuckDB before the upstream models exist. <code>dbt compile</code> itself just renders Jinja — it doesn&rsquo;t execute anything against the database. Run <code>dbt build</code> first if you want to actually query the result.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>That&rsquo;s the last exercise of Stage 3. Press <code>n</code> to take the stage quiz, then on to Stage 4 — materializations, incremental models, and snapshots.</p>
+</body>
+
+</html>

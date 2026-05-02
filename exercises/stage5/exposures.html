@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Declare a downstream <code>orders_dashboard</code> exposure</h1>
+<h2>Goal</h2>
+<p>Create <code>dbt_project/models/_exposures.yml</code> declaring an <code>orders_dashboard</code> exposure that depends on <code>fct_orders</code> and <code>dim_customers</code>. Re-run <code>dbt docs generate</code> so the manifest + docs catalog include it.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the new YAML file:</p>
+<pre><code class="language-bash">touch dbt_project/models/_exposures.yml
+</code></pre>
+<p><strong>2.</strong> Paste this into <code>_exposures.yml</code>:</p>
+<pre><code class="language-yaml">version: 2
+
+exposures:
+  - name: orders_dashboard
+    label: &quot;Orders Operational Dashboard&quot;
+    type: dashboard
+    maturity: high
+    url: https://example.com/dashboards/orders
+    description: &quot;Daily order volume, revenue, and status breakdown for the operations team.&quot;
+    depends_on:
+      - ref('fct_orders')
+      - ref('dim_customers')
+    owner:
+      name: Data Team
+      email: data@example.com
+</code></pre>
+<p>Notice the <code>depends_on:</code> list uses <code>ref(...)</code> calls (Jinja expressions evaluated at parse time), <em>not</em> string literals. That&rsquo;s how dbt establishes the lineage edge from the upstream models to the exposure.</p>
+<p><strong>3.</strong> Refresh the manifest + catalog so the docs site picks up the new exposure:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt docs generate
+</code></pre>
+<p>You should see the regular generate output, plus the manifest now contains the exposure node.</p>
+<p><strong>4.</strong> Confirm the exposure landed:</p>
+<pre><code class="language-bash">dbt ls --resource-type exposure
+</code></pre>
+<p>Should print one line: <code>dbt_project.orders_dashboard</code>.</p>
+<p><strong>5.</strong> (Optional, to see it in the docs UI.) Run <code>dbt docs serve</code> and open the lineage view — <code>fct_orders</code> and <code>dim_customers</code> should now have an arrow pointing to a new <code>orders_dashboard</code> node colored differently from the model nodes.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt docs generate</code> exits 0 and refreshes both <code>manifest.json</code> and <code>catalog.json</code>.</li>
+<li><code>target/manifest.json</code> contains an exposure named <code>orders_dashboard</code>.</li>
+<li>That exposure&rsquo;s <code>depends_on.nodes</code> lists both <code>fct_orders</code> and <code>dim_customers</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Exposure 'orders_dashboard' not found in target/manifest.json</code></td>
+<td>The YAML file isn&rsquo;t in the right place or didn&rsquo;t parse. The path must be exactly <code>dbt_project/models/_exposures.yml</code> (any <code>.yml</code> under <code>models/</code> works, but <code>_exposures.yml</code> is the convention).</td>
+</tr>
+<tr>
+<td><code>Compilation Error: Invalid version 'version' for ...</code></td>
+<td>Missing <code>version: 2</code> at the top of the YAML.</td>
+</tr>
+<tr>
+<td><code>Exposure 'orders_dashboard' does not depend on model 'fct_orders'</code></td>
+<td>The <code>depends_on:</code> entries are strings instead of <code>ref()</code> calls. Change <code>'fct_orders'</code> to <code>ref('fct_orders')</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'dashboard' must be one of ...</code></td>
+<td>The <code>type:</code> value is misspelled. Allowed: <code>dashboard</code>, <code>notebook</code>, <code>analysis</code>, <code>ml</code>, <code>application</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'owner' must contain a 'name'</code></td>
+<td>The <code>owner:</code> block is missing the <code>name:</code> key. <code>email:</code> is optional but <code>name:</code> is required.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The last Stage 5 exercise covers <code>dbt_utils</code> — installing the community package and using one of its macros.</p>
+</body>
+
+</html>

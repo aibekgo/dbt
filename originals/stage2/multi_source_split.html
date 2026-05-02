@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Split <code>raw</code> into <code>jaffle_shop</code> and <code>stripe</code></h1>
+<h2>Goal</h2>
+<p>Refactor <code>models/staging/_sources.yml</code> so it declares two sources — <code>jaffle_shop</code> (application data) and <code>stripe</code> (payment processor) — instead of the catch-all <code>raw</code> source from Stage 1. Update <code>stg__customers.sql</code> to point at the new source name.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, open <code>dbt_project/models/staging/_sources.yml</code> and replace its contents with:</p>
+<pre><code class="language-yaml">version: 2
+
+sources:
+  - name: jaffle_shop
+    description: &quot;Application data from the Jaffle Shop app database&quot;
+    schema: main
+    tables:
+      - name: raw_customers
+      - name: raw_orders
+
+  - name: stripe
+    description: &quot;Payment data landed from the Stripe payment processor&quot;
+    schema: main
+    tables:
+      - name: raw_payments
+</code></pre>
+<p>Notice what changed: two top-level source blocks, customers + orders under <code>jaffle_shop</code>, payments under <code>stripe</code>. The <code>schema:</code> field stays as <code>main</code> because that&rsquo;s where <code>scripts/ingest_raw.py</code> lands the CSVs.</p>
+<p><strong>2.</strong> Open <code>dbt_project/models/staging/stg__customers.sql</code>. Update the <code>from</code> line so it references the new source:</p>
+<pre><code class="language-sql">select
+    id          as customer_id,
+    first_name,
+    last_name
+from {{ source('jaffle_shop', 'raw_customers') }}
+</code></pre>
+<p>The first argument of <code>source()</code> must match the <code>name:</code> field of the source block. Keep everything else the same.</p>
+<p><strong>3.</strong> Sanity-check the project parses and runs:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select stg__customers
+</code></pre>
+<p>You should see the same green success message as in Stage 1. The compiled SQL still resolves to <code>main.raw_customers</code> — only dbt&rsquo;s <em>understanding</em> of where that table came from has changed.</p>
+<p><strong>4.</strong> List the new sources to confirm both are on the DAG:</p>
+<pre><code class="language-bash">dbt ls --resource-type source
+</code></pre>
+<p>Three lines, grouped by source:</p>
+<pre><code>dbt_project.jaffle_shop.raw_customers
+dbt_project.jaffle_shop.raw_orders
+dbt_project.stripe.raw_payments
+</code></pre>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li>Source <code>jaffle_shop</code> is declared in <code>target/manifest.json</code> with both <code>raw_customers</code> and <code>raw_orders</code>.</li>
+<li>Source <code>stripe</code> is declared with <code>raw_payments</code>.</li>
+<li><code>dbt run --select stg__customers</code> still exits 0 — proving the SQL edit kept the model parseable.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Found a source named 'raw' but there is no matching source declaration</code></td>
+<td>You updated the YAML but forgot the SQL — <code>stg__customers.sql</code> still references <code>source('raw', ...)</code>. Change the first argument to <code>'jaffle_shop'</code>.</td>
+</tr>
+<tr>
+<td><code>Source 'jaffle_shop' not found in target/manifest.json</code></td>
+<td>The YAML edit didn&rsquo;t land — confirm the file was saved at <code>dbt_project/models/staging/_sources.yml</code> and the top-level key is <code>sources:</code> (plural).</td>
+</tr>
+<tr>
+<td><code>Compilation Error: duplicate source name 'jaffle_shop'</code></td>
+<td>You have two <code>- name: jaffle_shop</code> blocks. Each <code>name:</code> must be unique.</td>
+</tr>
+<tr>
+<td>YAML parse error</td>
+<td>Indentation. YAML uses spaces (two per level), never tabs.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise fans out the staging layer — building <code>stg__orders</code> and <code>stg__payments</code> against your new sources.</p>
+</body>
+
+</html>

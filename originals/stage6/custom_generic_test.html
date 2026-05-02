@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Write a <code>non_negative</code> custom generic test</h1>
+<h2>Goal</h2>
+<p>Create <code>dbt_project/tests/generic/non_negative.sql</code> defining a custom generic test that asserts a column&rsquo;s values are zero or positive (no negative values). Attach it to the numeric columns in <code>int_order_payments</code> via a new <code>_models.yml</code> schema file.</p>
+<blockquote>
+<p><strong>First, undo Stage 4&rsquo;s ephemeral switch.</strong> In Stage 4 you set <code>int_order_payments</code> to <code>materialized='ephemeral'</code>. Ephemeral models don&rsquo;t have a warehouse object, so dbt can&rsquo;t attach generic tests to them — the test query needs a real relation to query. This exercise first switches the materialization back to <code>view</code> (the dbt default for the <code>intermediate/</code> folder).</p>
+</blockquote>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/models/intermediate/int_order_payments.sql</code> and remove the <code>{{ config(materialized='ephemeral') }}</code> line — leaving just the <code>select</code>. Without an explicit override, it falls back to the dbt default for the folder, which is <code>view</code>.</p>
+<p>The file should now read:</p>
+<pre><code class="language-sql">select
+    order_id,
+    sum(amount)              as total_amount,
+    count(*)                 as payment_count
+from {{ ref('stg__payments') }}
+group by order_id
+</code></pre>
+<p>Re-run it so the warehouse rebuilds it as a view:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select int_order_payments
+</code></pre>
+<p><strong>2.</strong> From the repo root, create the <code>tests/generic/</code> folder and the test file:</p>
+<pre><code class="language-bash">mkdir -p dbt_project/tests/generic
+touch dbt_project/tests/generic/non_negative.sql
+</code></pre>
+<p><strong>3.</strong> Paste this into <code>non_negative.sql</code>:</p>
+<pre><code class="language-jinja">{% test non_negative(model, column_name) %}
+
+select *
+from {{ model }}
+where {{ column_name }} &lt; 0
+
+{% endtest %}
+</code></pre>
+<p>The structure:
+- <code>{% test non_negative(model, column_name) %}</code> opens the test definition.
+- The body is a <code>select</code> returning the <strong>bad rows</strong> — values where the assertion fails (i.e., <code>&lt; 0</code>).
+- <code>{% endtest %}</code> closes the block.</p>
+<p>(Note: <code>&lt; 0</code> not <code>&lt;= 0</code> — zero is a legitimate value for a refunded order with <code>total_amount = 0</code>.)</p>
+<p><strong>4.</strong> Create <code>dbt_project/models/intermediate/_models.yml</code> (this folder didn&rsquo;t have a schema YAML before):</p>
+<pre><code class="language-yaml">version: 2
+
+models:
+  - name: int_order_payments
+    description: &quot;Per-order rollup of payment events from stg__payments.&quot;
+    columns:
+      - name: order_id
+        description: &quot;Primary key.&quot;
+        tests:
+          - unique
+          - not_null
+      - name: total_amount
+        description: &quot;Sum of all payment amounts (in dollars) for the order. Refunds can sum to 0.&quot;
+        tests:
+          - non_negative
+      - name: payment_count
+        description: &quot;Number of payment events that rolled up into this order.&quot;
+        tests:
+          - non_negative
+</code></pre>
+<p>Three tests on <code>int_order_payments</code>: <code>unique</code>+<code>not_null</code> on <code>order_id</code>, plus the new <code>non_negative</code> test on both numeric columns.</p>
+<p><strong>5.</strong> Run the tests:</p>
+<pre><code class="language-bash">dbt test --select int_order_payments
+</code></pre>
+<p>You should see four tests run and pass:</p>
+<pre><code>Done. PASS=4 WARN=0 ERROR=0 SKIP=0 TOTAL=4
+</code></pre>
+<p>(<code>unique</code>, <code>not_null</code>, plus two <code>non_negative</code> calls.)</p>
+<p><strong>6.</strong> Confirm the new tests show up in the manifest:</p>
+<pre><code class="language-bash">dbt ls --resource-type test --select int_order_payments
+</code></pre>
+<p>You should see lines like:</p>
+<pre><code>dbt_project.unique_int_order_payments_order_id
+dbt_project.not_null_int_order_payments_order_id
+dbt_project.non_negative_int_order_payments_total_amount
+dbt_project.non_negative_int_order_payments_payment_count
+</code></pre>
+<p>The naming pattern matches the built-ins.</p>
+<p><strong>7.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt_project/tests/generic/non_negative.sql</code> exists.</li>
+<li>The file contains the literal string <code>{% test non_negative</code>.</li>
+<li><code>dbt test --select int_order_payments</code> exits 0 with all tests passing.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path 'dbt_project/tests/generic/non_negative.sql' does not exist</code></td>
+<td>The file is in the wrong folder. It must be under <code>tests/generic/</code>, not <code>tests/</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'non_negative' is undefined</code></td>
+<td>Two possibilities: (a) the file is in <code>tests/</code> instead of <code>tests/generic/</code> — dbt parses singular tests differently; (b) the <code>{% test ... %}</code> block has a syntax error and didn&rsquo;t register. Run <code>dbt parse</code> to see the exact error.</td>
+</tr>
+<tr>
+<td><code>dbt test</code> errors with <em>&ldquo;compiled SQL is not a valid select&rdquo;</em></td>
+<td>The body of the test isn&rsquo;t a <code>select</code> statement. The body must be a query returning rows; nothing else.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: macro 'non_negative' is undefined</code> (in YAML)</td>
+<td>Means dbt couldn&rsquo;t find the test. Check the file path again, and confirm <code>dbt parse</code> succeeds.</td>
+</tr>
+<tr>
+<td>Test reports <code>FAIL</code></td>
+<td>The data violates the assertion. Run <code>select * from int_order_payments where total_amount &lt;= 0</code> to see what&rsquo;s actually there — shouldn&rsquo;t happen on the seed data, but if it does, the test is doing its job.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise installs the <code>dbt_expectations</code> package — bringing in tests like <code>expect_column_values_to_be_between</code> for richer statistical assertions.</p>
+</body>
+
+</html>

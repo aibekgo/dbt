@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise 11 — <code>dbt init</code></h1>
+<h2>Goal</h2>
+<p>Scaffold a fresh dbt project at <code>&lt;repo&gt;/dbt_project/</code> using the dbt CLI&rsquo;s project generator.</p>
+<h2>Steps</h2>
+<p>From the repo root (where this file lives), run:</p>
+<pre><code class="language-bash">dbt init dbt_project
+</code></pre>
+<p>dbt will prompt you with a couple of questions. Use these answers:</p>
+<table>
+<thead>
+<tr>
+<th>Prompt</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Which database would you like to use?</code></td>
+<td><code>1</code> (or whichever number is next to <strong>duckdb</strong>)</td>
+</tr>
+<tr>
+<td>Profile-related prompts (path, threads, etc.)</td>
+<td>press Enter to accept defaults — we&rsquo;ll overwrite <code>profiles.yml</code> properly in the next exercise anyway</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>dbt init</code> doesn&rsquo;t prompt for a database (some versions skip it when only one adapter is installed), that&rsquo;s fine — it&rsquo;ll just scaffold the project.</p>
+<p>If dbt asks whether to overwrite an existing <code>~/.dbt/profiles.yml</code>, answer <code>n</code> (we won&rsquo;t use that one — this course keeps <code>profiles.yml</code> inside the project).</p>
+<h2>What success looks like</h2>
+<p>After it finishes you should have a new directory tree:</p>
+<pre><code class="language-text">dbt_project/
+├── dbt_project.yml
+├── analyses/
+├── macros/
+├── models/
+│   └── example/        ← sample models dbt drops in — delete in the next step
+├── seeds/
+├── snapshots/
+└── tests/
+</code></pre>
+<p>The CLI may also create or update <code>~/.dbt/profiles.yml</code> in your home directory. Ignore it — we won&rsquo;t use that one. The next exercise has you write <code>dbt_project/profiles.yml</code> instead.</p>
+<h2>Remove the example models</h2>
+<p><code>dbt init</code> ships sample models at <code>dbt_project/models/example/</code> (<code>my_first_dbt_model.sql</code>, <code>my_second_dbt_model.sql</code>, plus <code>schema.yml</code>). One of them returns a NULL row that fails a <code>not_null</code> test, which will break the Stage 2 <code>dbt build</code> exercise. Delete the folder now:</p>
+<pre><code class="language-bash">rm -rf dbt_project/models/example
+</code></pre>
+<p>You&rsquo;ll write your own models under <code>models/staging/</code> (Stage 1) and <code>models/marts/</code> / <code>models/intermediate/</code> (Stage 2).</p>
+<h2>How verification works</h2>
+<p>Press <code>v</code> and the verifier will check that <code>dbt_project/dbt_project.yml</code> exists and is non-empty. It does <strong>not</strong> care about the contents yet; it just confirms <code>dbt init</code> ran.</p>
+<h2>If you mess up</h2>
+<p>Run <code>dbt-learn reset</code> to delete <code>dbt_project/</code> entirely and start over.</p>
+<h2>After you pass</h2>
+<p>Press <code>n</code> to advance to the next exercise where you&rsquo;ll configure the DuckDB connection.</p>
+</body>
+
+</html>

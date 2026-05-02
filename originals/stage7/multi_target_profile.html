@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Add a <code>prod</code> target to <code>profiles.yml</code></h1>
+<h2>Goal</h2>
+<p>Extend <code>dbt_project/profiles.yml</code> to declare a second target — <code>prod</code> — alongside the existing <code>dev</code> target. Re-run ingestion against the prod warehouse, then run <code>dbt build --target prod</code> to materialize the whole DAG into a separate <code>prod.duckdb</code> file. The point: see the multi-target mechanic concretely. Same SQL, different destination, separate ingestion.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/profiles.yml</code>. It currently looks like this:</p>
+<pre><code class="language-yaml">dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../database/dev.duckdb
+      threads: 4
+</code></pre>
+<p><strong>2.</strong> Add a <code>prod:</code> block as a sibling of <code>dev:</code>. Both targets are DuckDB; they differ only in the <code>path:</code>. The final shape:</p>
+<pre><code class="language-yaml">dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../database/dev.duckdb
+      threads: 4
+    prod:
+      type: duckdb
+      path: ../database/prod.duckdb
+      threads: 4
+</code></pre>
+<p>Things to watch:</p>
+<ul>
+<li><code>prod:</code> is at the same indent level as <code>dev:</code> (both are children of <code>outputs:</code>).</li>
+<li>The <code>target: dev</code> line at the top doesn&rsquo;t change. It&rsquo;s the <em>default</em> target; <code>--target prod</code> overrides it.</li>
+</ul>
+<p><strong>3.</strong> Re-run ingestion against the prod warehouse. The <code>scripts/ingest_raw.py</code> script accepts a target name and routes the raw CSVs to <code>database/&lt;target&gt;.duckdb</code>:</p>
+<pre><code class="language-bash">python scripts/ingest_raw.py prod
+</code></pre>
+<p>This is the production reality you&rsquo;d never bypass: dbt only sees data the ingestion layer landed in the warehouse. For the prod warehouse to have raw tables, ingestion has to run <em>against prod</em>. Same script you ran in Stage 1, different destination.</p>
+<p><strong>4.</strong> From inside <code>dbt_project/</code>, build the project against the prod target:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt build --target prod
+</code></pre>
+<p>This re-runs every seed, model, test, and snapshot in the project, but the output lands at <code>database/prod.duckdb</code> instead of <code>database/dev.duckdb</code>. Expect the build to take ~30s (the same as a normal <code>dbt build</code>).</p>
+<p><strong>5.</strong> Confirm the file landed:</p>
+<pre><code class="language-bash">ls ../database/
+# should show: dev.duckdb  prod.duckdb  README.md
+</code></pre>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt_project/profiles.yml</code> contains the literal string <code>prod:</code> (proves you added the target).</li>
+<li><code>database/prod.duckdb</code> exists (proves you ran <code>dbt build --target prod</code> to populate it).</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Credentials in profile "dbt_project", target "prod" invalid: ...</code></td>
+<td>The <code>prod:</code> block is malformed. Check indentation — it must be a child of <code>outputs:</code>, not <code>dbt_project:</code>.</td>
+</tr>
+<tr>
+<td><code>dbt build --target prod</code> errors with &ldquo;target not found&rdquo;</td>
+<td>The target name is misspelled or the indent is wrong. The block name <code>prod:</code> should appear directly under <code>outputs:</code>.</td>
+</tr>
+<tr>
+<td><code>dbt build --target prod</code> errors with <code>Catalog Error: Table "raw_customers" does not exist</code></td>
+<td>You skipped step 3. The prod warehouse needs raw tables before dbt can build models. Run <code>python scripts/ingest_raw.py prod</code> first.</td>
+</tr>
+<tr>
+<td><code>path 'database/prod.duckdb' does not exist</code></td>
+<td>You added <code>prod:</code> to profiles.yml but didn&rsquo;t run <code>dbt build --target prod</code>. Run it from inside <code>dbt_project/</code>.</td>
+</tr>
+<tr>
+<td><code>dbt build</code> (without <code>--target</code>) is using prod</td>
+<td>You changed the top-level <code>target:</code> line. Leave it as <code>target: dev</code> so the default stays unchanged.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise is <code>analysis_to_model</code> — promoting your Stage 3 analysis (<code>top_customers_by_revenue.sql</code>) to a real, tested mart with description, meta, and tags.</p>
+</body>
+
+</html>

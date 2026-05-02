@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Add generic tests + descriptions to the staging models</h1>
+<h2>Goal</h2>
+<p>Create <code>dbt_project/models/staging/_models.yml</code> declaring <code>unique</code> and <code>not_null</code> on the primary keys of all three staging models, plus <code>not_null</code> on the foreign-key columns. Add descriptions on the way through — the YAML file is the natural home for both.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create a new file at <code>dbt_project/models/staging/_models.yml</code> with this content:</p>
+<pre><code class="language-yaml">version: 2
+
+models:
+  - name: stg__customers
+    description: &quot;One row per customer from the Jaffle Shop application database.&quot;
+    columns:
+      - name: customer_id
+        description: &quot;Surrogate primary key from raw_customers.id.&quot;
+        tests:
+          - unique
+          - not_null
+      - name: first_name
+      - name: last_name
+
+  - name: stg__orders
+    description: &quot;One row per order placed in the Jaffle Shop app.&quot;
+    columns:
+      - name: order_id
+        description: &quot;Primary key, renamed from raw_orders.id in staging.&quot;
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: &quot;Foreign key to stg__customers.customer_id.&quot;
+        tests:
+          - not_null
+      - name: status
+        description: &quot;Order lifecycle state. Constrained to a known set in the next exercise.&quot;
+
+  - name: stg__payments
+    description: &quot;One row per payment event from Stripe (cents converted to dollars in staging).&quot;
+    columns:
+      - name: payment_id
+        description: &quot;Primary key, renamed from raw_payments.id in staging.&quot;
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: &quot;Foreign key to stg__orders.order_id.&quot;
+        tests:
+          - not_null
+</code></pre>
+<p><strong>2.</strong> From inside <code>dbt_project/</code>, run the tests:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt test --select staging
+</code></pre>
+<p>You should see seven tests run and pass:</p>
+<pre><code>Completed successfully
+
+Done. PASS=7 WARN=0 ERROR=0 SKIP=0 TOTAL=7
+</code></pre>
+<p>(Three <code>unique</code> tests on the three primary keys, plus four <code>not_null</code> tests on <code>customer_id</code>/<code>order_id</code>/<code>payment_id</code>/<code>stg__orders.customer_id</code>.)</p>
+<p><strong>3.</strong> Sanity-check that the manifest sees the tests:</p>
+<pre><code class="language-bash">dbt ls --resource-type test --select staging
+</code></pre>
+<p>You should see seven lines like <code>dbt_project.unique_stg__customers_customer_id</code>, etc.</p>
+<p><strong>4.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt test --select staging</code> exits 0 and every test passes.</li>
+<li><code>target/manifest.json</code> shows at least 2 tests on <code>stg__customers</code> (specifically <code>unique</code> and <code>not_null</code>).</li>
+<li>At least 2 tests on <code>stg__orders</code>.</li>
+<li>At least 2 tests on <code>stg__payments</code>.</li>
+</ul>
+<p>The verifier is checking the <strong>tests are declared</strong>, not just that the YAML file exists. If you put the tests at the wrong YAML level (e.g. directly under the model instead of under a column), the count check will fail with a clear message.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: Invalid version 'version' for</code>models.yml``</td>
+<td>Missing <code>version: 2</code> at the top. Required for every schema YAML.</td>
+</tr>
+<tr>
+<td><code>Model</code>stg__customers<code>has 0 test(s) — expected at least 2</code></td>
+<td>The YAML loaded but tests didn&rsquo;t attach. Check that <code>tests:</code> is nested under a <code>columns: - name: customer_id</code> block, not at the model level.</td>
+</tr>
+<tr>
+<td><code>Model</code>stg__customers<code>has tests but none of type</code>unique``</td>
+<td>You added <code>not_null</code> but forgot <code>unique</code> (or vice versa). Both go under the same column.</td>
+</tr>
+<tr>
+<td><code>dbt test</code> reports <code>FAIL N</code> on a test</td>
+<td>The data actually violates the assertion. Run the failing test manually with <code>dbt show --select &lt;test_name&gt;</code> to see the bad rows. (Shouldn&rsquo;t happen here — staging is 1:1 with the deterministic seed CSVs.)</td>
+</tr>
+<tr>
+<td><code>relationships test failed</code> on <code>customer_id</code></td>
+<td>You added a <code>relationships</code> test in this exercise. That comes in the next one — only do <code>unique</code> and <code>not_null</code> here.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next exercise extends <code>_models.yml</code> with <code>accepted_values</code> for <code>status</code> and adds a <code>relationships</code> test on <code>fct_orders</code> — the two remaining built-in generic tests.</p>
+</body>
+
+</html>

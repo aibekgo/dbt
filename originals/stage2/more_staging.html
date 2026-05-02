@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Build <code>stg__orders</code> and <code>stg__payments</code></h1>
+<h2>Goal</h2>
+<p>Round out the staging layer by adding one model per remaining source table:</p>
+<ul>
+<li><code>dbt_project/models/staging/stg__orders.sql</code> — selects from <code>source('jaffle_shop', 'raw_orders')</code>.</li>
+<li><code>dbt_project/models/staging/stg__payments.sql</code> — selects from <code>source('stripe', 'raw_payments')</code>.</li>
+</ul>
+<p>Both are light: rename ambiguous columns, cast Stripe&rsquo;s cents to dollars. No joins, no business logic.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Create <code>dbt_project/models/staging/stg__orders.sql</code> with these contents:</p>
+<pre><code class="language-sql">select
+    id          as order_id,
+    user_id     as customer_id,
+    order_date,
+    status
+from {{ source('jaffle_shop', 'raw_orders') }}
+</code></pre>
+<p>Two renames:</p>
+<ul>
+<li><code>id → order_id</code> — disambiguates against the <code>id</code> in <code>raw_payments</code> and <code>raw_customers</code>.</li>
+<li><code>user_id → customer_id</code> — matches the column name in <code>stg__customers</code>, so joins downstream read naturally.</li>
+</ul>
+<p><strong>2.</strong> Create <code>dbt_project/models/staging/stg__payments.sql</code>:</p>
+<pre><code class="language-sql">select
+    id                       as payment_id,
+    order_id,
+    payment_method,
+    amount / 100.0           as amount
+from {{ source('stripe', 'raw_payments') }}
+</code></pre>
+<ul>
+<li><code>id → payment_id</code> — same disambiguation rule.</li>
+<li><code>amount / 100.0</code> — Stripe stores money in cents. Dividing once here means every downstream model already gets dollars. Use <code>100.0</code> (decimal) so DuckDB casts to <code>DOUBLE</code> and you don&rsquo;t get integer truncation.</li>
+</ul>
+<p><strong>3.</strong> Build everything in the staging folder:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select staging
+</code></pre>
+<p>You should see three green lines — <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code> — plus a &ldquo;Done&rdquo; summary.</p>
+<p><strong>4.</strong> Sanity-check the new tables exist with the expected columns:</p>
+<pre><code class="language-bash">dbt show --select stg__orders --limit 3
+dbt show --select stg__payments --limit 3
+</code></pre>
+<p>You should see <code>order_id</code> and <code>customer_id</code> in the orders preview, and <code>payment_id</code> plus a decimal <code>amount</code> in the payments preview.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select staging</code> exits 0 — confirms both new files compile and execute.</li>
+<li><code>stg__orders</code> and <code>stg__payments</code> exist as objects in <code>dev.duckdb</code>.</li>
+<li>A small SELECT against each table returns a row, proving the renamed columns landed.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: 'raw' is not a source declared in this project</code></td>
+<td>You&rsquo;re still using <code>source('raw', ...)</code>. Update to <code>source('jaffle_shop', ...)</code> or <code>source('stripe', ...)</code>.</td>
+</tr>
+<tr>
+<td><code>Binder Error: Referenced column "user_id" not found</code></td>
+<td>Misspelled column name. Check <code>data/raw_orders.csv</code> — the column is <code>user_id</code>.</td>
+</tr>
+<tr>
+<td>Payment amounts are huge integers (e.g. <code>1000</code> for $10)</td>
+<td>You forgot the <code>/ 100.0</code> cast, or used <code>100</code> instead of <code>100.0</code> (integer division).</td>
+</tr>
+<tr>
+<td><code>model 'stg__payments' references unknown source 'jaffle_shop.raw_payments'</code></td>
+<td>Wrong source. Payments belong to <code>stripe</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next we&rsquo;ll start a new model layer — intermediates — by aggregating payments per order in <code>int_order_payments</code>.</p>
+</body>
+
+</html>

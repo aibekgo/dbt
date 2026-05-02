@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Install <code>dbt_expectations</code> and add a range test</h1>
+<h2>Goal</h2>
+<p>Extend the existing <code>packages.yml</code> (from Stage 5) with <code>calogica/dbt_expectations</code>. Run <code>dbt deps</code>. Add <code>dbt_expectations.expect_column_values_to_be_between</code> on <code>fct_orders.amount</code> to assert all values fall in <code>[0, 100]</code>.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/packages.yml</code>. Add the new package as a second entry. The full file should read:</p>
+<pre><code class="language-yaml">packages:
+  - package: dbt-labs/dbt_utils
+    version: [&quot;&gt;=1.1.0&quot;, &quot;&lt;2.0.0&quot;]
+  - package: calogica/dbt_expectations
+    version: [&quot;&gt;=0.10.0&quot;, &quot;&lt;0.11.0&quot;]
+</code></pre>
+<p>Note: the org is <code>calogica</code>, not <code>dbt-labs</code>.</p>
+<p><strong>2.</strong> Install the new package:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt deps
+</code></pre>
+<p>You should see two packages installed (or &ldquo;up to date&rdquo; for <code>dbt_utils</code>, &ldquo;installed&rdquo; for <code>dbt_expectations</code>). After this, <code>dbt_packages/dbt_expectations/</code> exists.</p>
+<p><strong>3.</strong> Open <code>dbt_project/models/marts/_models.yml</code>. Find the <code>fct_orders</code> block. Replace it with this version that adds an <code>amount</code> column entry with the new test:</p>
+<pre><code class="language-yaml">version: 2
+
+models:
+  - name: fct_orders
+    description: &quot;One row per order, denormalized with customer attributes and payment totals.&quot;
+    columns:
+      - name: order_id
+        description: &quot;Primary key. Inherited from stg__orders.&quot;
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: &quot;Foreign key to dim_customers.&quot;
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+      - name: amount
+        description: &quot;Total dollar amount paid across all payments for this order.&quot;
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+</code></pre>
+<p>The new column entry has <code>dbt_expectations.expect_column_values_to_be_between</code> as its test, with <code>min_value</code> and <code>max_value</code> arguments.</p>
+<p><strong>4.</strong> Run the tests:</p>
+<pre><code class="language-bash">dbt test --select fct_orders
+</code></pre>
+<p>You should see all four tests pass: <code>unique</code>, <code>not_null</code>, <code>relationships</code>, and the new <code>expect_column_values_to_be_between</code>.</p>
+<pre><code>Done. PASS=4 WARN=0 ERROR=0 SKIP=0 TOTAL=4
+</code></pre>
+<p><strong>5.</strong> Confirm the new test count in the manifest:</p>
+<pre><code class="language-bash">dbt ls --resource-type test --select fct_orders
+</code></pre>
+<p>Four lines, including one starting with <code>dbt_expectations_expect_column_values_to_be_between_fct_orders_amount</code>.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt_project/dbt_packages/dbt_expectations/</code> exists (proves <code>dbt deps</code> ran successfully).</li>
+<li><code>dbt test --select fct_orders</code> exits 0 with all tests passing.</li>
+<li><code>target/manifest.json</code> shows <code>fct_orders</code> has at least 4 tests.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path 'dbt_project/dbt_packages/dbt_expectations' does not exist</code></td>
+<td>You skipped <code>dbt deps</code>. Run it from inside <code>dbt_project/</code>.</td>
+</tr>
+<tr>
+<td><code>Encountered an error: package_name 'dbt-labs/dbt_expectations' not found</code></td>
+<td>The package is published under <code>calogica/dbt_expectations</code>, not <code>dbt-labs/</code>. Fix the org prefix.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: macro 'expect_column_values_to_be_between' is undefined</code></td>
+<td>You forgot the <code>dbt_expectations.</code> prefix. Tests in packages need the package name as a prefix.</td>
+</tr>
+<tr>
+<td>Test reports <code>FAIL</code></td>
+<td>The data violates the bounds. Run <code>select max(amount), min(amount) from fct_orders</code> to see the actual range — adjust <code>min_value</code> / <code>max_value</code> if needed. With the seed data, max should be under $100 and min should be 0.</td>
+</tr>
+<tr>
+<td><code>Model 'fct_orders' has 3 test(s) — expected at least 4</code></td>
+<td>The new test didn&rsquo;t attach. Check the YAML indent — <code>dbt_expectations.expect_column_values_to_be_between:</code> is under <code>tests: -</code>, with <code>min_value:</code> and <code>max_value:</code> nested under that.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next is the <strong>dbt CLI tour</strong> — <code>dbt show</code>, <code>dbt parse</code>, <code>dbt ls</code>, and the rest of the day-to-day commands you&rsquo;ll use as a senior dbt practitioner.</p>
+</body>
+
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Make <code>int_order_payments</code> ephemeral</h1>
+<h2>Goal</h2>
+<p>Change <code>int_order_payments</code> from <code>table</code> (set in the previous exercise) to <code>ephemeral</code>. After this change, <code>int_order_payments</code> is no longer a queryable warehouse object — its SQL gets inlined as a CTE in <code>fct_orders</code> whenever the fact is rebuilt. <code>fct_orders</code> still has the same 99 rows.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Open <code>dbt_project/models/intermediate/int_order_payments.sql</code>. Change the config block&rsquo;s value from <code>table</code> to <code>ephemeral</code>:</p>
+<pre><code class="language-sql">{{ config(materialized='ephemeral') }}
+
+select
+    order_id,
+    sum(amount)              as total_amount,
+    count(*)                 as payment_count
+from {{ ref('stg__payments') }}
+group by order_id
+</code></pre>
+<p>That&rsquo;s the only edit — one word change. The <code>select</code> stays as-is.</p>
+<p><strong>2.</strong> Rebuild the marts chain with <code>--full-refresh</code> so the leftover <code>int_order_payments</code> table gets dropped and <code>fct_orders</code> is rebuilt with the inlined CTE:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select +fct_orders --full-refresh
+</code></pre>
+<p>The <code>+</code> selector means &ldquo;this model and everything upstream&rdquo;; <code>--full-refresh</code> forces dbt to drop and recreate. The output should show <code>int_order_payments</code> skipped (it&rsquo;s ephemeral, nothing to materialize) and <code>fct_orders</code> rebuilt as a table.</p>
+<p><strong>3.</strong> Confirm <code>fct_orders</code> still has 99 rows — proving the inlining works:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from fct_orders&quot;
+</code></pre>
+<p>Should print <code>99</code>.</p>
+<p><strong>4.</strong> (Optional, for the visual win.) Look at the compiled <code>fct_orders</code> SQL and find the inlined CTE:</p>
+<pre><code class="language-bash">cat target/compiled/dbt_project/models/marts/fct_orders.sql | head -25
+</code></pre>
+<p>You&rsquo;ll see a <code>with __dbt__cte__int_order_payments as (...)</code> block at the top — that&rsquo;s the ephemeral&rsquo;s query, inlined verbatim.</p>
+<p><strong>5.</strong> (Also optional but reinforcing.) Confirm <code>int_order_payments</code> is no longer a queryable table:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select * from int_order_payments limit 1&quot;
+</code></pre>
+<p>Should error with <em>&ldquo;Catalog Error: Table with name int_order_payments does not exist!&rdquo;</em> — exactly the point of <code>ephemeral</code>.</p>
+<p><strong>6.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select +fct_orders</code> exits 0.</li>
+<li><code>target/manifest.json</code> reports <code>int_order_payments</code> as <code>materialized: ephemeral</code>.</li>
+<li><code>select count(*) from fct_orders</code> returns <code>99</code> — proving the ephemeral inlining produced correct totals.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Model 'int_order_payments' is materialized as 'table', expected 'ephemeral'</code></td>
+<td>The config block still says <code>table</code>. Change it to <code>ephemeral</code>.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: ephemeral model has tests attached</code></td>
+<td>If you added tests to <code>int_order_payments</code> somewhere (you didn&rsquo;t in this stage, but worth knowing), generic tests on ephemerals are forbidden. Move the model to <code>view</code> or remove the tests.</td>
+</tr>
+<tr>
+<td><code>fct_orders has 0 rows</code></td>
+<td>The full-refresh didn&rsquo;t run, or <code>fct_orders</code> never got rebuilt against the new ephemeral. Re-run <code>dbt run --select +fct_orders --full-refresh</code>.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: Table with name int_order_payments does not exist!</code> (when running queries against it directly)</td>
+<td>This is <strong>expected</strong> for an ephemeral — there&rsquo;s no warehouse object. Verifier doesn&rsquo;t assert the table doesn&rsquo;t exist (since the leftover may persist), but the <em>correct</em> state is that the table is gone.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next two exercises shift to <strong>incremental</strong> materializations — the most operationally important one for production dbt projects. You&rsquo;ll build <code>fct_order_events</code> from scratch.</p>
+</body>
+
+</html>

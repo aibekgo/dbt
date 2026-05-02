@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Build <code>fct_orders</code></h1>
+<h2>Goal</h2>
+<p>Build the first fact table in the project. <code>fct_orders</code> has <strong>one row per order</strong>, joins in customer attributes from <code>stg__customers</code>, and rolls in payment totals from <code>int_order_payments</code>. After this, an analyst could query <code>fct_orders</code> directly to answer &ldquo;who spent how much, on what, when.&rdquo;</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> Create <code>dbt_project/models/marts/fct_orders.sql</code>:</p>
+<pre><code class="language-sql">select
+    o.order_id,
+    o.customer_id,
+    c.first_name,
+    c.last_name,
+    o.order_date,
+    o.status,
+    coalesce(p.total_amount, 0)  as amount,
+    coalesce(p.payment_count, 0) as payment_count
+from {{ ref('stg__orders') }} o
+left join {{ ref('stg__customers') }}     c using (customer_id)
+left join {{ ref('int_order_payments') }} p using (order_id)
+</code></pre>
+<p>Things to look at while you&rsquo;re typing:</p>
+<ul>
+<li><strong><code>stg__orders</code> is the driving table.</strong> It sets the grain (one row per order). Both other models are <code>left join</code>-ed in.</li>
+<li><strong><code>coalesce(…, 0)</code></strong> — defensive defaults so analyst-facing queries don&rsquo;t have to handle nulls.</li>
+<li><strong><code>using (customer_id)</code> / <code>using (order_id)</code></strong> — works because Stage 2&rsquo;s renames made the column names line up across staging models. If they didn&rsquo;t, you&rsquo;d write <code>on o.customer_id = c.customer_id</code> instead.</li>
+<li>No materialization block — <code>models/marts/</code> inherits <code>+materialized: table</code> from <code>dbt_project.yml</code>.</li>
+</ul>
+<p><strong>2.</strong> Build the whole chain:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt run --select +fct_orders
+</code></pre>
+<p>The <code>+</code> prefix means &ldquo;this model and everything upstream&rdquo; — dbt will rebuild any staging or intermediate models that aren&rsquo;t fresh, in the right order, before building the fact.</p>
+<p>You should see four green nodes: <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>, <code>int_order_payments</code>, then <code>fct_orders</code>.</p>
+<p><strong>3.</strong> Sanity-check the grain matches <code>stg__orders</code>:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;
+  select
+    (select count(*) from stg__orders)   as orders_count,
+    (select count(*) from fct_orders)    as fact_count;
+&quot;
+</code></pre>
+<p>Both should be <code>99</code>. If <code>fact_count</code> is bigger, a join fanned out (likely you used <code>stg__payments</code> instead of <code>int_order_payments</code>). If smaller, an <code>inner join</code> filtered rows out.</p>
+<p><strong>4.</strong> Spot-check a few rows look right:</p>
+<pre><code class="language-bash">dbt show --select fct_orders --limit 5
+</code></pre>
+<p>Each row should have a customer name, an <code>amount</code> in dollars (e.g. <code>26.00</code>), and a <code>payment_count</code> between 1 and 3 for orders with payments.</p>
+<p><strong>5.</strong> Press <code>v</code>.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select +fct_orders</code> exits 0, building all dependencies in DAG order.</li>
+<li>The table <code>fct_orders</code> exists in <code>dev.duckdb</code>.</li>
+<li><code>select count(*) from fct_orders</code> equals <code>select count(*) from stg__orders</code> — proving no fan-out, no row loss.</li>
+<li>The schema has the columns: <code>order_id</code>, <code>customer_id</code>, <code>first_name</code>, <code>last_name</code>, <code>order_date</code>, <code>status</code>, <code>amount</code>, <code>payment_count</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: Model 'fct_orders' depends on a node named 'int_order_payments' which was not found</code></td>
+<td>Previous exercise didn&rsquo;t ship — go back to <code>intermediate_model</code>.</td>
+</tr>
+<tr>
+<td><code>select count(*) from fct_orders</code> is 113 instead of 99</td>
+<td>You joined directly to <code>stg__payments</code>. Use the intermediate (<code>int_order_payments</code>) — that&rsquo;s why we built it.</td>
+</tr>
+<tr>
+<td><code>select count(*) from fct_orders</code> is less than 99</td>
+<td>Inner join filtered rows. Switch to <code>left join</code> for the customer / payments joins.</td>
+</tr>
+<tr>
+<td><code>Binder Error: Reference to column "customer_id" is ambiguous</code></td>
+<td><code>using (customer_id)</code> requires the column to have the same name in both tables. If you wrote <code>o.user_id</code> instead of <code>o.customer_id</code>, switch to <code>on o.user_id = c.customer_id</code> or fix the staging rename.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. You&rsquo;ve finished the model layer for Stage 2. The remaining two exercises are dbt CLI tooling: <code>dbt build</code> (the unified build command) and <code>dbt docs</code> (the lineage site).</p>
+</body>
+
+</html>

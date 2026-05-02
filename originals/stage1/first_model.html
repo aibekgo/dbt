@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Your first dbt model</h1>
+<h2>Goal</h2>
+<p>Write the simplest possible dbt model — one SQL file with a hardcoded <code>from</code> clause — and run <code>dbt run</code> to see the build loop work end-to-end. No Jinja, no YAML, no source declaration. The next exercise upgrades it.</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, step into the project:</p>
+<pre><code class="language-bash">cd dbt_project
+</code></pre>
+<p><strong>2.</strong> Create the staging folder and the model file:</p>
+<pre><code class="language-bash">mkdir -p models/staging
+touch models/staging/stg__customers.sql
+</code></pre>
+<p><strong>3.</strong> Open <code>dbt_project/models/staging/stg__customers.sql</code> in your editor and paste:</p>
+<pre><code class="language-sql">select
+    id          as customer_id,
+    first_name,
+    last_name
+from main.raw_customers
+</code></pre>
+<p>That&rsquo;s it — pure SQL. <code>main.raw_customers</code> is the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote. We&rsquo;re hardcoding it on purpose so the very first model has zero ceremony.</p>
+<p><strong>4.</strong> Build it:</p>
+<pre><code class="language-bash">dbt run --select stg__customers
+</code></pre>
+<p>You should see one green line: <code>1 of 1 START sql view model ... [OK ...]</code>.</p>
+<p><strong>5.</strong> Press <code>v</code> to verify.</p>
+<h2>What <code>dbt run</code> actually did</h2>
+<p>The whole loop, in plain English:</p>
+<ol>
+<li><strong>Parsed</strong> every file under <code>models/</code>. Found one model: <code>stg__customers</code>.</li>
+<li><strong>Compiled</strong> it — expanded any Jinja into raw SQL. (Yours had none, so the compiled file is identical to your input. You can see it under <code>target/compiled/</code>.)</li>
+<li><strong>Wrapped</strong> the <code>SELECT</code> in <code>CREATE OR REPLACE VIEW dev.main_main.stg__customers AS (...)</code> and sent it to DuckDB.</li>
+<li><strong>Wrote</strong> the run result and any logs into <code>target/</code>.</li>
+</ol>
+<p>Parse → compile → execute. Every model goes through that same three-step loop, no matter how many models or how complex the SQL.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt run --select stg__customers</code> exits 0</li>
+<li>A relation named <code>stg__customers</code> exists in <code>database/dev.duckdb</code></li>
+</ul>
+<h2>Inspecting the result</h2>
+<p>From the repo root:</p>
+<pre><code class="language-bash">duckdb database/dev.duckdb -c &quot;SELECT * FROM stg__customers LIMIT 3;&quot;
+</code></pre>
+<p>You should see customer rows with the renamed <code>customer_id</code> column.</p>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Relation "dev"."main"."raw_customers" does not exist</code></td>
+<td>You skipped ingestion. From the repo root: <code>python scripts/ingest_raw.py</code>.</td>
+</tr>
+<tr>
+<td><code>Could not find profile named 'dbt_project'</code></td>
+<td><code>dbt_project/profiles.yml</code> is missing or has the wrong top-level key. Go back to the profiles exercise.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. The next exercise upgrades this model with a proper <code>_sources.yml</code> declaration and <code>{{ source(...) }}</code> so the table joins the DAG.</p>
+</body>
+
+</html>

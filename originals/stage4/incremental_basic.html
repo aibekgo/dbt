@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>Exercise — Build an incremental model</h1>
+<h2>Goal</h2>
+<p>Create a new fact table, <code>fct_order_events</code>, that materializes incrementally. First run loads all 99 rows; subsequent runs load only rows with <code>order_date</code> newer than what&rsquo;s already in the table (zero rows on a static seed, but the structure is what matters).</p>
+<h2>Steps</h2>
+<p><strong>1.</strong> From the repo root, create the new model file:</p>
+<pre><code class="language-bash">touch dbt_project/models/marts/fct_order_events.sql
+</code></pre>
+<p><strong>2.</strong> Paste this into <code>fct_order_events.sql</code>:</p>
+<pre><code class="language-sql">{{ config(materialized='incremental') }}
+
+select
+    order_id,
+    customer_id,
+    order_date,
+    status
+from {{ ref('stg__orders') }}
+
+{% if is_incremental() %}
+where order_date &gt; (select max(order_date) from {{ this }})
+{% endif %}
+</code></pre>
+<p>Key things:</p>
+<ul>
+<li><strong><code>{{ config(materialized='incremental') }}</code></strong> at the top.</li>
+<li><strong><code>{% if is_incremental() %}</code> &hellip; <code>{% endif %}</code></strong> wraps the entire <code>where ...</code> clause. The <code>where</code> keyword stays <em>inside</em> the block — without that, the first-run compile would emit a dangling <code>where</code> and fail.</li>
+<li><strong><code>{{ this }}</code></strong> is the model&rsquo;s own fully-qualified relation. Don&rsquo;t use <code>{{ ref('fct_order_events') }}</code> here — that creates a circular dependency.</li>
+</ul>
+<p><strong>3.</strong> First build — populates the table from scratch:</p>
+<pre><code class="language-bash">cd dbt_project
+dbt build --select fct_order_events
+</code></pre>
+<p>The log says <em>&ldquo;START sql incremental model&rdquo;</em> and <em>&ldquo;OK created incremental model&rdquo;</em>. Behind the scenes dbt issued <code>create table ... as select ...</code> (the filter was skipped because <code>is_incremental()</code> returned <code>false</code>).</p>
+<p><strong>4.</strong> Confirm the table has 99 rows:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from fct_order_events&quot;
+</code></pre>
+<p><strong>5.</strong> Second build — incremental insert path:</p>
+<pre><code class="language-bash">dbt build --select fct_order_events
+</code></pre>
+<p>The log still says <em>&ldquo;OK created incremental model&rdquo;</em> but this time dbt issued <code>insert into ... select ... where order_date &gt; ...</code>. The filter eliminated everything (no new rows in the seed), so the table is unchanged — still 99 rows.</p>
+<p><strong>6.</strong> Sanity check it stayed at 99:</p>
+<pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;select count(*) from fct_order_events&quot;
+</code></pre>
+<p><strong>7.</strong> Press <code>v</code> to verify.</p>
+<h2>What the verifier checks</h2>
+<ul>
+<li><code>dbt build --select fct_order_events</code> exits 0 and every node succeeds.</li>
+<li><code>target/manifest.json</code> reports <code>fct_order_events</code> as <code>materialized: incremental</code>.</li>
+<li><code>select count(*) from fct_order_events</code> returns <code>99</code>.</li>
+</ul>
+<h2>Common failure modes</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Compilation Error: ... near "where"</code> on the first run</td>
+<td>The <code>where</code> keyword is outside the <code>{% if is_incremental() %}</code> block. Move it inside — the entire clause should be wrapped.</td>
+</tr>
+<tr>
+<td><code>Compilation Error: 'this' is undefined</code></td>
+<td>Typo on <code>{{ this }}</code> (extra space inside braces or capital <code>This</code>). Lowercase, exact name, double-curly braces.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: Table with name fct_order_events does not exist!</code> on the second build</td>
+<td>The first build didn&rsquo;t create the table. Re-run the first command and check the log for the <code>OK created</code> line.</td>
+</tr>
+<tr>
+<td>Row count is 0</td>
+<td>The first run hit <code>is_incremental()</code> returning true somehow (rare — usually a stale state where the table existed before). Try <code>dbt build --select fct_order_events --full-refresh</code> to force a clean rebuild.</td>
+</tr>
+<tr>
+<td><code>Catalog Error: ... near "is_incremental"</code></td>
+<td>Spelling. The macro is <code>is_incremental()</code> exactly — including the parens. Without parens it&rsquo;s a reference, not a call.</td>
+</tr>
+</tbody>
+</table>
+<h2>After you pass</h2>
+<p>Press <code>n</code>. Next exercise extends this same model with a <code>unique_key</code> and the <code>merge</code> incremental strategy — the standard pattern for handling late-arriving updates.</p>
+</body>
+
+</html>
