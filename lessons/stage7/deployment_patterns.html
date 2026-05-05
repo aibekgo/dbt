@@ -72,6 +72,7 @@
 
 <body>
 <h1>Deployment patterns — getting dbt into production</h1>
+<p><img alt="Direct promotion: feature branches PR straight into main/master/prod, with separate dev and prod databases on the side" src="../../images/stage7/deployment_patterns/direct_promotion.png"></p>
 <p>You&rsquo;ve built a complete dbt project: sources, models, tests, snapshots, macros, packages, exposures. You can <code>dbt build</code> it locally and watch it succeed. The question Stage 7 answers is: <strong>how do other people run this code, in production, without you sitting there pressing keys?</strong></p>
 <p>That&rsquo;s deployment. It has two parts: (1) <strong>how does the code get from your laptop to a server?</strong> and (2) <strong>how does the server know which version to run, and against which warehouse?</strong></p>
 <h2>Part 1 — Code promotion: 1-trunk vs 2-trunk</h2>

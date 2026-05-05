@@ -72,6 +72,7 @@
 
 <body>
 <h1>Incremental strategies — <code>append</code>, <code>merge</code>, <code>delete+insert</code>, <code>insert_overwrite</code></h1>
+<p><img alt="Which incremental strategies each adapter supports — Postgres/Redshift/Snowflake/BigQuery/Spark/Databricks/Trino/Athena/Fabric/Teradata across append, merge, delete+insert, insert_overwrite, microbatch" src="../../images/stage4/incremental_merge/strategies_comparison.png"></p>
 <p>The <code>incremental_basic</code> exercise wired up the <em>materialization</em> but said nothing about <em>strategy</em> — what dbt does when those new rows arrive. By default, dbt picks a sensible strategy per warehouse. On DuckDB the default is <code>merge</code> if a <code>unique_key</code> is defined and <code>append</code> otherwise. Either way, the choice matters once your data has updates, not just inserts.</p>
 <p>This exercise makes the strategy explicit.</p>
 <h2>What strategy does</h2>
