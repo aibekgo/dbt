@@ -72,6 +72,7 @@
 
 <body>
 <h1><code>first_macro</code> — write <code>cents_to_dollars</code> and refactor <code>stg__payments</code></h1>
+<p><img alt="Macros are reusable Jinja-templated SQL snippets, called like functions" src="../../images/stage5/first_macro/first_macro.png"></p>
 <p><code>stg__payments.sql</code> currently has the cents→dollars conversion inline:</p>
 <pre><code class="language-sql">select
     id              as payment_id,

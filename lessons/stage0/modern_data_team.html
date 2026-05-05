@@ -95,7 +95,7 @@
 <p>This split worked when transformations happened in code outside the warehouse and only finished tables landed inside. The data engineer wrote and maintained those pipelines; the analyst just queried the output.</p>
 <h2>Modern data team (three roles)</h2>
 <p>Cloud warehouses + ELT + dbt blew up that split. Transformations now happen <em>inside</em> the warehouse as SQL, which means anyone fluent in SQL can build production data models. So a third role emerged.</p>
-<p><img alt="Comparison of data engineer, analytics engineer, and data analyst responsibilities" src="../../images/modern_data_team/data_team_roles.png"></p>
+<p><img alt="Comparison of data engineer, analytics engineer, and data analyst responsibilities" src="../../images/stage0/modern_data_team/data_team_roles.png"></p>
 <table>
 <thead>
 <tr>
@@ -123,8 +123,21 @@
 </tbody>
 </table>
 <h2>Why the analytics engineer exists</h2>
-<p><img alt="The analytics engineer role bridges data engineering and data analysis" src="../../images/modern_data_team/analytics_engineer.png"></p>
-<p>Once SQL becomes the transformation language, two problems show up:</p>
+<p><img alt="The analytics engineer role bridges data engineering and data analysis" src="../../images/stage0/modern_data_team/analytics_engineer.png"></p>
+<h3>Where this role came from</h3>
+<p>In 2016, while at RJMetrics, <strong>Tristan Handy</strong> built dbt to address the pain of complex data transformation pipelines. The pitch was almost ideological: encourage <em>data analysts</em> to take more responsibility for managing data transformations by adopting software-engineering best practices — modular SQL, version control, automated testing, code review.</p>
+<p>It wasn&rsquo;t an accident that this happened in the analyst world rather than the data-engineer world. Setting up a pipeline to move data from A to B is no trivial task. Data engineers must understand the source, the expected output format, <em>and</em> manage the underlying infrastructure: scaling Spark clusters, maintaining Airflow environments, optimizing transformation logic, ensuring data quality across potentially hundreds of pipelines. The complexity adds up fast.</p>
+<h3>The data engineer becomes the bottleneck</h3>
+<p><img alt="A small DE team can keep up with a handful of pipelines, but breaks down at scale" src="../../images/stage0/what_is_dbt/transformation_pipelines_overhead.png"></p>
+<p>A team of highly skilled data engineers is often required for large-scale systems, but not every company has the resources to build one. It&rsquo;s common to find organizations — especially mid-sized businesses and startups — operating with one or two DEs.</p>
+<p>A single data engineer can manage two or three pipelines well. What happens when that number grows to fifty? Workflows slow down because every pipeline needs time to develop, test, and deploy. Data quality slips, changes pile up, insights arrive late. The data engineer becomes the bottleneck and the data team struggles to keep up with business demands.</p>
+<h3>Democratize the transformation</h3>
+<p><img alt="With dbt, analysts can own their own transformations and bring domain knowledge from day one" src="../../images/stage0/what_is_dbt/dbt_give_da_power.png"></p>
+<p>The ultimate goal is to make data more meaningful to the organization. A better way to manage the raw-to-usable-data process is to <em>democratize</em> the transformation rather than gate it behind a small group of engineers.</p>
+<p>Imagine the alternative scenario: data analysts could take a more active role in transformation. Instead of waiting for a DE to implement every transformation they need, analysts self-serve, define, and build transformations independently. Because analysts deeply understand the business domain, they can ensure final datasets align with business needs from the start, rather than relying on multiple handoffs.</p>
+<p>That&rsquo;s the gap dbt was built to close — and it&rsquo;s the gap the analytics engineer fills today.</p>
+<h3>Why the role survives at all</h3>
+<p>Once SQL becomes the transformation language, two problems still show up:</p>
 <ol>
 <li><strong>Analysts get blocked.</strong> Without an analytics engineer, every dashboard requires writing the same joins from raw tables again, with subtly different definitions of “active customer” or “monthly revenue.”</li>
 <li><strong>Data engineers get distracted.</strong> They didn’t sign up to write business logic in SQL — they want to build pipelines and infrastructure.</li>

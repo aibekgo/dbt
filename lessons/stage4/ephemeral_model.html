@@ -72,6 +72,7 @@
 
 <body>
 <h1>Ephemeral models — inlined as CTEs, never persisted</h1>
+<p><img alt="Ephemeral models compile inline as CTEs into their downstream model" src="../../images/stage4/ephemeral_model/ephemeral_inline.png"></p>
 <p>The <code>view_to_table</code> exercise made <code>int_order_payments</code> more present in the warehouse — a real table you can query directly. This exercise does the opposite: makes it disappear from the warehouse entirely. After this change, <code>select * from int_order_payments</code> in DuckDB returns <em>&ldquo;table not found&rdquo;</em>. Yet <code>fct_orders</code> still works perfectly.</p>
 <p>That&rsquo;s <code>ephemeral</code>.</p>
 <h2>What ephemeral actually does</h2>

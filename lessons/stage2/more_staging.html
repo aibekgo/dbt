@@ -72,6 +72,7 @@
 
 <body>
 <h1>Filling out the staging layer</h1>
+<p><img alt="Multiple sources, multiple staging models — one per raw table" src="../../images/stage2/more_staging/sources_dag.png"></p>
 <p><code>stg__customers</code> is the only staging model so far. The convention is <strong>one staging model per source table</strong> — 1:1, same grain, just clean enough to be friendly downstream. This exercise adds the missing two: <code>stg__orders</code> and <code>stg__payments</code>.</p>
 <h2>What a staging model is for</h2>
 <p>Staging models do <strong>light</strong> work: rename ambiguous columns, cast types into something normal, alias unhelpful identifiers, and otherwise leave the data alone. They are deliberately boring. The boredom is the point — every downstream model knows it can join to <code>stg__orders</code> without reasoning about whether <code>id</code> means an order id or a user id.</p>

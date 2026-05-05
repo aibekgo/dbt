@@ -72,6 +72,7 @@
 
 <body>
 <h1>Intermediate models — the layer between staging and marts</h1>
+<p><img alt="Intermediate models as the connective tissue between staging and marts" src="../../images/stage2/intermediate_model/intermediate_dag.png"></p>
 <p>You’ve got three staging models — <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>. Next exercise builds the fact table that joins them: <code>fct_orders</code>. Before that, there’s a piece of work that <strong>doesn’t fit cleanly in either layer</strong>: rolling payments up to one row per order.</p>
 <p>That work belongs in a third model layer: <strong>intermediate</strong>.</p>
 <h2>What an intermediate model is</h2>

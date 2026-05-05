@@ -31,3 +31,22 @@ questions:
       (focused on infra and ingestion) nor analysts (focused on questions and
       dashboards) were the right owners. The analytics engineer fills that gap.
     related_item: modern_data_team
+
+  - id: modern_data_team_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "When Tristan Handy built dbt at RJMetrics in 2016, what problem was he trying to solve?"
+    options:
+      a: "Replacing Spark with a faster execution engine"
+      b: "Building a new cloud data warehouse that competed with Snowflake"
+      c: "Data engineers becoming a bottleneck for transformations, with no good way for analysts to self-serve"
+      d: "Replacing Airflow as the cross-system orchestrator"
+    answer: c
+    explanation: |
+      A small DE team can keep up with a few pipelines, but breaks down at fifty.
+      dbt was created so analysts — who already understand the business domain
+      and already write SQL — could own transformations themselves with
+      software-engineering rigor (version control, testing, modular code,
+      review). That democratization is what the analytics engineer role
+      institutionalized.
+    related_item: modern_data_team

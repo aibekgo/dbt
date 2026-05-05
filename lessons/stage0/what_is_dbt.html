@@ -72,11 +72,18 @@
 
 <body>
 <h1>What is dbt?</h1>
-<p><img alt="dbt sits between raw data and downstream consumers — develop, test, deploy, and serve datasets to BI, ML, and operational analytics" src="../../images/what_is_dbt/dbt_overview.png"></p>
-<p><strong>dbt</strong> (data build tool) is a transformation framework that lets you write your warehouse transformations as <code>SELECT</code> statements, organized as a directed acyclic graph (DAG) of models, with built-in testing, documentation, and lineage.</p>
-<p>You write SQL. dbt handles the rest: dependency resolution, the <code>CREATE TABLE</code> / <code>CREATE VIEW</code> wrapping, running models in the right order, generating docs, running tests, and producing artifacts you can audit.</p>
+<p><img alt="A new manager, a familiar pitch — and four years later, dbt is still on everyone's stack" src="../../images/stage0/what_is_dbt/star_story.png"></p>
+<h2>A short story before the definition</h2>
+<p>In 2021, my company reorganized the data team. The data engineering team got a new leader, and after the initial greetings he announced: <em>&ldquo;I&rsquo;m bringing dbt into our stack. Do you know dbt? It&rsquo;s popular right now.&rdquo;</em></p>
+<p>I shook my head. Most of my teammates did, too. Despite our attentive expressions, my first thought was: <em>here we go again — another leader introducing a trendy tool to prove a point.</em></p>
+<p>Fast forward four years, and dbt has proven it&rsquo;s far more than just hype. If you work in data, you&rsquo;ve probably heard of it at least once, or you may even have used it yourself. The rest of this lesson is what I wish someone had told me on day one of that reorg.</p>
+<h2>The one-line definition</h2>
+<p><img alt="dbt sits between raw data and downstream consumers — develop, test, deploy, and serve datasets to BI, ML, and operational analytics" src="../../images/stage0/what_is_dbt/dbt_overview.png"></p>
+<p><strong>dbt</strong> (data build tool) is a CLI tool that lets you efficiently transform data with SQL — organized as a directed acyclic graph (DAG) of models, with built-in testing, documentation, and lineage.</p>
+<p>That&rsquo;s it.</p>
+<p>It&rsquo;s not an engine like Spark. It&rsquo;s not a database like Postgres or Snowflake. It&rsquo;s a tool that helps you manage your SQL data transformation. You write <code>SELECT</code> statements, dbt handles the rest: dependency resolution, the <code>CREATE TABLE</code> / <code>CREATE VIEW</code> wrapping, running models in the right order, generating docs, running tests, and producing artifacts you can audit.</p>
 <h2>The core idea: a model is a SELECT</h2>
-<p>A dbt “model” is just a <code>.sql</code> file containing a <code>SELECT</code> statement. You don’t write <code>CREATE TABLE</code> or <code>INSERT INTO</code> — dbt does that for you based on the model’s configuration.</p>
+<p>A dbt &ldquo;model&rdquo; is just a <code>.sql</code> file containing a <code>SELECT</code> statement. You don&rsquo;t write <code>CREATE TABLE</code> or <code>INSERT INTO</code> — dbt does that for you based on the model&rsquo;s configuration.</p>
 <pre><code>-- models/staging/stg__customers.sql
 select
     id          as customer_id,
@@ -84,10 +91,24 @@ select
     last_name
 from {{ ref('raw_customers') }}
 </code></pre>
-<p>The <code>{{ ref('raw_customers') }}</code> is dbt’s way of saying “another model in this project named raw_customers”. dbt resolves it to the right table name at compile time and uses it to build the DAG.</p>
-<p>Once you have a few models, dbt knows how every model depends on every other one and can render the full lineage graph for you:</p>
-<p><img alt="dbt Explorer lineage graph: sources flow into staging models, then into marts, with a side panel showing the selected model's metadata" src="../../images/what_is_dbt/dbt_lineage_graph.png"></p>
+<p>Models give us a tangible form of the SQL transformation logic. Each model defines a transformation that turns one shape of data into another, inside your data warehouse. When dbt runs, it executes these queries and materializes the transformed data as a table or view.</p>
+<h2>Two components: a compiler and a runner</h2>
+<p><img alt="dbt is a CLI: you write models, dbt compiles them and runs the SQL on your warehouse" src="../../images/stage0/what_is_dbt/dbt_cli.png"></p>
+<p>Under the hood dbt has two jobs: a <strong>compiler</strong> and a <strong>runner</strong>. We write dbt models and run a few commands in the terminal. dbt compiles all the model code into raw SQL statements, and then executes them on the data warehouse — Snowflake, BigQuery, Databricks, DuckDB — or an engine like Spark or Trino.</p>
+<p><img alt="dbt does not move data — it just sends SQL to the warehouse and the data stays where it is" src="../../images/stage0/what_is_dbt/dbt_input_data_output_data.png"></p>
+<p>dbt doesn&rsquo;t load your data and it doesn&rsquo;t even know your data&rsquo;s content (except for the schema and some metadata). Everything stays inside your warehouse. dbt is the conductor; the warehouse is the orchestra.</p>
+<h2>SQL + Jinja: how dbt knows what depends on what</h2>
+<p><img alt="A dbt model is SQL plus Jinja templating — the same SELECT, sprinkled with refs and configs" src="../../images/stage0/what_is_dbt/dbt_sql_jinja.png"></p>
+<p>A model&rsquo;s code is not solely SQL — it&rsquo;s SQL combined with <strong>Jinja</strong>. Jinja is what gives dbt its two superpowers: <code>source()</code> and <code>ref()</code>.</p>
+<p><img alt="source() points at a physical table you didn't create; ref() points at another dbt model" src="../../images/stage0/what_is_dbt/dbt_ref_source.png"></p>
+<ul>
+<li><code>{{ source('jaffle_shop', 'raw_customers') }}</code> — points at a physical table in the warehouse that dbt didn&rsquo;t create (raw data loaded by some upstream tool like Fivetran).</li>
+<li><code>{{ ref('stg__customers') }}</code> — points at another dbt model in this project. dbt resolves it to the right table name at compile time and uses it to build the DAG.</li>
+</ul>
+<p>Together, these form a complete data transformation lineage: the leftmost models point at physical tables via <code>source()</code>, and every model after that uses <code>ref()</code> to chain onto a previous model.</p>
+<p><img alt="dbt Explorer lineage graph: sources flow into staging models, then into marts, with a side panel showing the selected model's metadata" src="../../images/stage0/what_is_dbt/dbt_lineage_graph.png"></p>
 <p>Each node is a model, each arrow is a <code>ref()</code>. dbt walks this graph at run time to build models in the right order — you never write a <code>CREATE TABLE</code> manually, and you never schedule the dependencies yourself.</p>
+<p>dbt also lets you write modular and reusable model structures, which lets teams break transformations into smaller, maintainable components. Before the production run, you can test your dbt models to ensure they produce the expected results. It also auto-generates documentation, giving a clear overview of your transformations and lineage. And because a dbt project is purely code, it&rsquo;s naturally compatible with Git — track changes, collaborate via pull requests, roll back, run CI/CD, just like software engineers do with application code.</p>
 <h2>Why use dbt?</h2>
 <table>
 <thead>
@@ -131,7 +152,7 @@ from {{ ref('raw_customers') }}
 </tbody>
 </table>
 <h2>Where dbt fits in the modern data stack</h2>
-<p><img alt="dbt as the T layer between ingestion tools and downstream BI / ML / reverse-ETL" src="../../images/what_is_dbt/modern_data_stack.png"></p>
+<p><img alt="dbt as the T layer between ingestion tools and downstream BI / ML / reverse-ETL" src="../../images/stage0/what_is_dbt/modern_data_stack.png"></p>
 <table>
 <thead>
 <tr>
@@ -163,7 +184,7 @@ from {{ ref('raw_customers') }}
 </tr>
 </tbody>
 </table>
-<p>Notice dbt has only one job. It does not move data into the warehouse and it does not visualize the output. It transforms what’s already in the warehouse.</p>
+<p>Notice dbt has only one job. It does not move data into the warehouse and it does not visualize the output. It transforms what&rsquo;s already in the warehouse.</p>
 <h2>What you actually write</h2>
 <p>A dbt project is mostly four kinds of files:</p>
 <ul>
@@ -172,16 +193,36 @@ from {{ ref('raw_customers') }}
 <li><strong><code>.csv</code> seeds</strong> — small static data (lookup tables, country codes) loaded with <code>dbt seed</code>.</li>
 <li><strong><code>.sql</code> macros</strong> — reusable Jinja-templated SQL snippets.</li>
 </ul>
-<p>That’s the entire surface area. The rest is just running <code>dbt run</code>, <code>dbt test</code>, and <code>dbt build</code>.</p>
-<h2>The promise</h2>
-<blockquote>
-<p>Every transformation lives in version control. Every transformation has tests. Every transformation has documentation. Every transformation runs in dependency order. None of this is optional — dbt makes the boring engineering hygiene the default.</p>
-</blockquote>
+<p>That&rsquo;s the entire surface area. The rest is just running <code>dbt run</code>, <code>dbt test</code>, and <code>dbt build</code>.</p>
+<h2>Why it took off</h2>
+<p>A quick adoption-curve check before we move on:</p>
+<ul>
+<li><strong>2016</strong> — launched with 3 companies using dbt</li>
+<li><strong>2017</strong> — ~100 companies</li>
+<li><strong>2018</strong> — ~280 companies</li>
+<li><strong>2019</strong> — still ~280 companies, steady</li>
+<li><strong>2021</strong> — surpassed 5,000 companies</li>
+<li><strong>2022</strong> — exceeded 9,000 companies</li>
+</ul>
+<p>McDonald&rsquo;s, Nasdaq, Discord, Shopify, and many others ship analytics on top of it. So why did it stick? Borrowing the Unified Theory of Acceptance and Use of Technology (UTAUT) lens:</p>
+<ul>
+<li><strong>Performance expectancy.</strong> dbt unifies how people write, test, and document SQL transformations — solving a real pain, not a fashion problem.</li>
+<li><strong>Effort expectancy.</strong> If you already know SQL (and DEs, AEs, DAs all do), 30 minutes of Jinja is enough to ship your first dbt model. <code>pip install</code> and you&rsquo;re running.</li>
+<li><strong>Social influence.</strong> Endorsements from reputable orgs and a loud community made it the obvious default.</li>
+<li><strong>Facilitating conditions.</strong> The prerequisites are an IDE, a warehouse that runs SQL, and the willpower to actually write the transformation. No dedicated hardware, no capacity planning, no CPUs/RAM to size.</li>
+</ul>
+<p>The other half of the story is the rise of cloud data warehouses — pay-as-you-go pricing, cheap storage, columnar processing as the standard — which is what made transforming-in-the-warehouse cheaper than maintaining a separate Spark or ETL tier in the first place. We covered that in the previous lesson.</p>
+<h2>My take</h2>
+<p>A few things that took me a while to internalize when I first picked dbt up:</p>
+<ul>
+<li><strong>dbt doesn&rsquo;t replace data engineers.</strong> It lets DEs and DAs collaborate efficiently. The DA brings business-domain knowledge; the DE brings the engineering rigor — query optimization, modular reusable macros, organizational standards. Both still matter.</li>
+<li><strong>dbt models are not the same thing as data modeling.</strong> Data modeling defines how data is structured and related — it&rsquo;s tool-agnostic. A dbt model is a SQL-based transformation script that <em>implements</em> a piece of a data model inside your warehouse. If you dump raw data into the warehouse and never decide on a model, adopting dbt is pointless. The tool helps you manage the SQL transformation; whether the transformation is meaningful depends on you.</li>
+</ul>
 <h2>Common pitfalls</h2>
 <ul>
-<li><strong>“dbt is a database.”</strong> — No. dbt has no storage and no execution engine of its own. It generates SQL and asks the warehouse to run it.</li>
-<li><strong>“dbt is an orchestrator.”</strong> — Sort of, but only within a single dbt run. For scheduling and cross-system orchestration you still want Airflow, Dagster, dbt Cloud, or cron.</li>
-<li><strong>“dbt replaces analysts.”</strong> — It changes <em>where</em> their work lives. Analysts now consume modeled, tested marts instead of building them on the fly. Many analysts also <em>write</em> dbt models — that’s the analytics engineer role we covered last lesson.</li>
+<li><strong>&ldquo;dbt is a database.&rdquo;</strong> — No. dbt has no storage and no execution engine of its own. It generates SQL and asks the warehouse to run it.</li>
+<li><strong>&ldquo;dbt is an orchestrator.&rdquo;</strong> — Sort of, but only within a single dbt run. For scheduling and cross-system orchestration you still want Airflow, Dagster, dbt Cloud, or cron.</li>
+<li><strong>&ldquo;dbt replaces analysts.&rdquo;</strong> — It changes <em>where</em> their work lives. Analysts now consume modeled, tested marts instead of building them on the fly. Many analysts also <em>write</em> dbt models — that&rsquo;s the analytics engineer role we covered last lesson.</li>
 </ul>
 <p>One more lesson before we start writing real dbt — press <code>n</code>.</p>
 </body>

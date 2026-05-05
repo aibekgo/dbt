@@ -72,6 +72,7 @@
 
 <body>
 <h1>Naming conventions — <code>src_</code>, <code>stg_</code>, <code>int_</code>, <code>fct_</code>, <code>dim_</code></h1>
+<p><img alt="Folder layout mirrors the layer prefix: stg__, int_, fct_, dim_" src="../../images/stage2/naming_conventions/naming_layers.png"></p>
 <p>A dbt project with no naming convention starts to rot fast. By the time you have 30 models, nobody can answer simple questions: <em>Is <code>customers</code> a fact, a dimension, or a staging view? Does <code>orders_final</code> ship to BI or is it intermediate? Why are there both <code>clean_orders</code> and <code>orders_clean</code>?</em></p>
 <p>The convention below is the dbt community’s de-facto standard. Follow it once and the answers come from the model name itself.</p>
 <h2>The five prefixes</h2>

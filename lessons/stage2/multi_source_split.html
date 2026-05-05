@@ -72,6 +72,7 @@
 
 <body>
 <h1>Splitting one source into many</h1>
+<p><img alt="Sources from different systems feeding their own staging branches" src="../../images/stage2/multi_source_split/multi_source_dag.png"></p>
 <p>In Stage 1 you declared one source — <code>raw</code> — that owns all three tables: customers, orders, payments. That works, but it’s a fiction. In a real warehouse those tables don’t come from one place. Customers and orders come out of the application database; payments come from Stripe. They have different owners, different update cadences, different schemas, and different things that go wrong with them.</p>
 <p>This exercise refactors the single <code>raw</code> source into <strong>two sources</strong> that match the real systems: <code>jaffle_shop</code> (the app) and <code>stripe</code> (the payment processor).</p>
 <h2>Why split?</h2>

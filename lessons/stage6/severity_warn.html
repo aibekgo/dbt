@@ -72,6 +72,7 @@
 
 <body>
 <h1><code>severity: warn</code> and <code>where:</code> — soft tests with row-level filters</h1>
+<p><img alt="Test severity: warn for soft failures, error to break the build" src="../../images/stage6/severity_warn/severity_warn.gif"></p>
 <p>The <code>accepted_values</code> test on <code>stg__orders.status</code> from Stage 3 is hard-pinned: a value outside <code>[placed, shipped, completed, return_pending, returned]</code> fails the test, fails the run, and blocks downstream models. That&rsquo;s the right behavior most of the time. But not always.</p>
 <p>This exercise covers two test config knobs that let you ship tests with <strong>softer behavior</strong>: <code>severity</code> (downgrade <code>error</code> to <code>warn</code>) and <code>where</code> (scope the test to a row subset).</p>
 <h2>What <code>severity: warn</code> does</h2>

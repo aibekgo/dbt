@@ -72,6 +72,7 @@
 
 <body>
 <h1>Sources — tell dbt about your raw tables</h1>
+<p><img alt="A small dbt project DAG with two source tables flowing into staging models" src="../../images/stage1/add_sources/sources_dag.png"></p>
 <p>Your <code>stg__customers</code> model already builds. So why are we doing this exercise? Because
 <code>from main.raw_customers</code> is a black box to dbt — it has no idea that table exists, nothing to put
 on the DAG, no way to track lineage or order builds correctly. This lesson is about fixing that.</p>
@@ -110,7 +111,7 @@ become first-class nodes that <code>{{ source(...) }}</code> can target and that
 The difference is who owns the upstream: <code>source()</code> says “I trust this table is already
 here”; <code>ref()</code> says “dbt built this; build the dependency first.”</p>
 <h2>Why this matters — the DAG</h2>
-<p><img alt="A dbt DAG: green source nodes feeding blue staging models, then mart models" src="../../images/first_model/dag_dbt.png"></p>
+<p><img alt="A dbt DAG: green source nodes feeding blue staging models, then mart models" src="../../images/stage1/first_model/dag_dbt.png"></p>
 <p><strong>DAG</strong> stands for <em>directed acyclic graph</em>. The buzzword sounds intimidating, but the idea is
 simple: every source, model, seed, and test in your project is a <strong>node</strong>; every
 <code>{{ source(...) }}</code> or <code>{{ ref(...) }}</code> call is an <strong>arrow</strong> from one node to
@@ -125,7 +126,7 @@ children are downstream transformations. dbt builds the tree automatically from 
   <code>--select source:raw+</code>.</li>
 <li>Tell you which downstream models break if you drop a column upstream.</li>
 </ul>
-<p><img alt="A small example DAG: raw_customers, raw_orders, raw_payments feed stg models, which feed a single mart" src="../../images/first_model/dag_example.png"></p>
+<p><img alt="A small example DAG: raw_customers, raw_orders, raw_payments feed stg models, which feed a single mart" src="../../images/stage1/first_model/dag_example.png"></p>
 <p>A hardcoded <code>FROM main.raw_customers</code> is invisible to all of that. The model still builds, but
 dbt’s mental model of your project is wrong — lineage breaks, selectors don’t work, freshness
 checks have nothing to attach to. The fix is one YAML file.</p>

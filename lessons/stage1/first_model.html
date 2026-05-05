@@ -75,7 +75,7 @@
 <p>Three raw tables sit in DuckDB — landed by <code>scripts/ingest_raw.py</code>. Time to write the thing dbt actually exists for: a <strong>model</strong>.</p>
 <p>To keep this first one focused, we’ll skip every advanced concept (sources, <code>{{ source(...) }}</code>, materialization config) and just build the simplest model that works. The next exercise (<code>add_sources</code>) re-does the same model the production way.</p>
 <h2>What a model is</h2>
-<p><img alt="A dbt model: a SELECT statement in a .sql file becomes a view or table in the warehouse" src="../../images/first_model/model.png"></p>
+<p><img alt="A dbt model: a SELECT statement in a .sql file becomes a view or table in the warehouse" src="../../images/stage1/first_model/model.png"></p>
 <p>A dbt <strong>model</strong> is a single <code>.sql</code> file under <code>models/</code> that contains exactly one <code>SELECT</code> statement. No <code>CREATE TABLE</code>, no <code>INSERT</code>, no DDL of any kind — you write the query, dbt wraps it in the right DDL and runs it for you. If the view already exists, dbt drops and rebuilds it.</p>
 <p>The walkthrough below has the exact file you&rsquo;ll write — three columns, a rename, no Jinja, hardcoded against <code>main.raw_customers</code> (the literal DuckDB table that <code>scripts/ingest_raw.py</code> wrote).</p>
 <blockquote>

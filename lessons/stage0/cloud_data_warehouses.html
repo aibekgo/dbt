@@ -75,7 +75,7 @@
 <p>dbt sits on top of a warehouse. To understand why dbt looks the way it does, you need to understand what changed about warehouses in the last fifteen years.</p>
 <h2>First — what is a data warehouse?</h2>
 <p>A <strong>data warehouse</strong> is a database designed for <em>analytics</em>, not for running an app. Your company’s production systems (Postgres, MySQL, MongoDB…) are tuned for serving live traffic — tiny, fast reads and writes for one user at a time. A warehouse is the opposite: it’s tuned for huge analytical queries that scan millions of rows to answer questions like “how many active users did we have last quarter, broken down by plan tier?”</p>
-<p><img alt="Land data in the warehouse, analyze there, then share results with downstream tools" src="../../images/cloud_data_warehouses/data_warehouse_concept.png"></p>
+<p><img alt="Land data in the warehouse, analyze there, then share results with downstream tools" src="../../images/stage0/cloud_data_warehouses/data_warehouse_concept.png"></p>
 <p>The mental model: data from many systems flows in (sales, marketing, product analytics, billing), gets organized into clean tables, and analysts/dashboards query <em>that</em> — never the production database. The warehouse is the company’s “single source of truth.”</p>
 <table>
 <thead>
@@ -123,8 +123,8 @@
 <li><strong>Multiple workloads can run side by side.</strong> A long ad-hoc query in one warehouse doesn’t starve a hourly dbt build in another.</li>
 </ol>
 <h2>The major players</h2>
-<p><img alt="Side-by-side comparison of major cloud data warehouses" src="../../images/cloud_data_warehouses/cloud_dwh_comparison.png">
-<img alt="The modern data stack: ingestion tools feeding cloud warehouses, with dbt as the transformation layer" src="../../images/cloud_data_warehouses/modern_data_stack.png"></p>
+<p><img alt="Side-by-side comparison of major cloud data warehouses" src="../../images/stage0/cloud_data_warehouses/cloud_dwh_comparison.png">
+<img alt="The modern data stack: ingestion tools feeding cloud warehouses, with dbt as the transformation layer" src="../../images/stage0/cloud_data_warehouses/modern_data_stack.png"></p>
 <table>
 <thead>
 <tr>
@@ -162,7 +162,7 @@
 </tbody>
 </table>
 <h2>Why DuckDB for this course</h2>
-<p><img alt="DuckDB logo" src="../../images/welcome/duckdb.png"></p>
+<p><img alt="DuckDB logo" src="../../images/stage0/welcome/duckdb.png"></p>
 <p>The other warehouses in the table above are <em>cloud services</em> — you sign up, give them a credit card, click around in a UI to create a project, and connect over the network. Great for production. Terrible for learning, because every exercise would need internet, an account, and money.</p>
 <p>DuckDB is “the SQLite for analytics”: a <strong>single binary that runs in-process</strong> on your laptop. No server, no Docker, no cloud account, no credit card. You install it as a Python package, point dbt at a <code>.duckdb</code> file, and you have a full warehouse you can throw away and recreate in seconds.</p>
 <p>What makes it a real warehouse and not a toy:</p>
@@ -173,6 +173,11 @@
 <li><strong>Fast enough that <code>dbt build</code> finishes in seconds</strong>, even on a laptop, even with thousands of rows of seed data.</li>
 </ul>
 <p>Because dbt is warehouse-agnostic, <strong>every concept you learn in this course transfers directly to Snowflake, BigQuery, Redshift, or Databricks.</strong> The only thing that changes between adapters is the connection profile and a small set of warehouse-specific SQL features (e.g., Snowflake’s clustering keys, BigQuery’s partition expiration).</p>
+<h2>Why this matters for dbt</h2>
+<p>In the past, data transformation happened <em>before</em> loading into the warehouse. Raw data wasn&rsquo;t present at the destination — only clean, structured, curated data was. Warehouse systems were expensive, storage disks were expensive, networks were slow, compute and storage were tightly coupled, and columnar storage wasn&rsquo;t the norm. ETL was the only sensible answer: extract carefully, transform on a separate box, load only what you need.</p>
+<p>The cloud warehouses changed every one of those constraints. Pay-as-you-go pricing, cheap object storage, fast networks, and columnar processing as the default commoditized high-performance analytics. People realized they didn&rsquo;t have to transform before loading — just dump raw data straight from the source and let the transformation happen <em>inside</em> the warehouse later, in SQL.</p>
+<p>So why invest in a separate, expensive transformation system when you&rsquo;ve already paid for one that processes massive amounts of data using SQL?</p>
+<p>That&rsquo;s the wave dbt rode. The cloud warehouse made it economical to transform-in-place with SQL. dbt is the tool that turned ad-hoc warehouse SQL into something engineering teams could actually maintain.</p>
 <h2>Common pitfalls</h2>
 <ul>
 <li><strong>“Warehouse” vs “data lake” vs “lakehouse.”</strong> — A data lake is raw files in object storage. A warehouse adds a query engine and table semantics on top. A “lakehouse” (Databricks’ term) tries to be both. dbt works with all of them as long as the engine speaks SQL.</li>

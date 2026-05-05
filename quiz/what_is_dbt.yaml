@@ -31,3 +31,37 @@ questions:
       MERGE wrapping based on each model's materialization (table, view,
       incremental, ephemeral). This keeps the SQL you write focused on logic.
     related_item: what_is_dbt
+
+  - id: what_is_dbt_03
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Which sentence best describes what dbt actually is?"
+    options:
+      a: "A query engine that executes SQL on its own compute cluster"
+      b: "A database that stores and retrieves analytical data"
+      c: "A CLI tool that compiles SQL + Jinja and asks your warehouse to run it"
+      d: "A drop-in replacement for Airflow / Dagster scheduling across systems"
+    answer: c
+    explanation: |
+      dbt has no storage and no execution engine of its own. It is a CLI tool
+      with two jobs: compile your model code (SQL + Jinja) into raw SQL, and
+      hand that SQL to the warehouse (Snowflake, BigQuery, DuckDB, …) to run.
+      The warehouse is the orchestra; dbt is the conductor.
+    related_item: what_is_dbt
+
+  - id: what_is_dbt_04
+    difficulty: medium
+    type: multiple_choice
+    prompt: "Of the factors below, which most directly lowered dbt's adoption barrier for SQL-fluent analysts?"
+    options:
+      a: "It required learning a brand-new query language"
+      b: "It reused skills the team already had — SQL — and added only a thin Jinja layer on top"
+      c: "It mandated a paid cloud account before the first run"
+      d: "It replaced Spark expertise with bespoke runtime knowledge"
+    answer: b
+    explanation: |
+      Effort expectancy was low: DEs, AEs, and DAs all already speak SQL, and
+      30 minutes of Jinja is enough to ship a first model. Combined with `pip
+      install` and zero infrastructure, the barrier to trying dbt was tiny —
+      a key reason it caught on across the data community.
+    related_item: what_is_dbt

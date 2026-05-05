@@ -72,6 +72,7 @@
 
 <body>
 <h1>Snapshots — preserving how data changed over time</h1>
+<p><img alt="dbt snapshots: SCD Type 2 history of a slowly changing source table" src="../../images/stage4/snapshot_scd2/snapshot_scd2.png"></p>
 <p>Imagine an <code>orders</code> table where <code>status</code> flips from <code>placed</code> → <code>shipped</code> → <code>completed</code>. Your warehouse only sees the <em>current</em> status. The <code>placed</code> state is gone the moment shipping happens. If a stakeholder asks <em>&ldquo;how long did orders typically sit in <code>placed</code> before shipping?&rdquo;</em>, you can&rsquo;t answer — the data was overwritten.</p>
 <p>Snapshots are dbt&rsquo;s solution. They convert a mutable source table into a <strong>slowly-changing-dimension Type 2</strong> history: every time a tracked column changes, a new row gets appended with <code>valid_from</code> and <code>valid_to</code> timestamps. The previous row&rsquo;s <code>valid_to</code> is closed off. Querying <em>&ldquo;what was order #42&rsquo;s status on 2024-03-15?&rdquo;</em> becomes a <code>where dbt_valid_from &lt;= '2024-03-15' and (dbt_valid_to is null or dbt_valid_to &gt; '2024-03-15')</code> lookup.</p>
 <h2>What a snapshot looks like</h2>

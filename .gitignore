@@ -219,8 +219,9 @@ __marimo__/
 
 /notion_dbt_series/
 
-# dbt project — created by the learner via `dbt init` in Stage 1; never committed
-dbt_project/
+# dbt project — created by the learner via `dbt init` in Stage 1; never committed.
+# Anchored to repo root so nested dbt_project/ dirs (e.g. images/stage1/dbt_project/) stay tracked.
+/dbt_project/
 
 # Local DuckDB warehouse — committed dir + README, never the actual database file
 database/*.duckdb

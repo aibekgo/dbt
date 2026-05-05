@@ -72,7 +72,7 @@
 
 <body>
 <h1>Ingestion — getting raw data into the warehouse</h1>
-<p><img alt="Landscape of ingestion tools moving data from source systems into the warehouse" src="../../images/ingestions/ingestion_tool.png"></p>
+<p><img alt="Landscape of ingestion tools moving data from source systems into the warehouse" src="../../images/stage1/ingestion/ingestion_tool.png"></p>
 <p>Your warehouse is connected and empty. dbt won’t do anything for you until there’s data in the warehouse to transform. The step that lands raw data is called <strong>ingestion</strong> — and in a real company, it isn’t your job.</p>
 <h2>Whose job is this in real life?</h2>
 <p><strong>Data engineers</strong> own ingestion. Their day-to-day is hooking up source systems (a Postgres replica of the production app, a Salesforce export, an event stream) to the warehouse so the raw bytes show up reliably. They use:</p>
@@ -81,7 +81,7 @@
 <li><strong>Custom Python or Spark jobs</strong> — for sources that don’t have an off-the-shelf connector, or where the connector is too expensive at scale.</li>
 <li><strong>Streaming pipelines</strong> — Kafka → Snowpipe / BigQuery streaming inserts → warehouse, for real-time data.</li>
 </ul>
-<p><img alt="A typical modern stack: Fivetran ingests raw data into the warehouse, then dbt transforms it" src="../../images/ingestions/dbt_fivetran.png"></p>
+<p><img alt="A typical modern stack: Fivetran ingests raw data into the warehouse, then dbt transforms it" src="../../images/stage1/ingestion/dbt_fivetran.png"></p>
 <p>Whatever the mechanism, the end result is the same: tables in the warehouse with names like <code>raw_customers</code>, <code>raw_orders</code>, <code>stripe_charges</code>, <code>segment_events</code> — untouched copies of the source. Analytics engineers (you) start your day by reading <em>those</em>.</p>
 <h3>The role split — what you actually need to know</h3>
 <table>

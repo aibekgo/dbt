@@ -82,7 +82,7 @@ dbt test
 <p>This is what you’ll use throughout this course. It’s free, it works offline (against DuckDB), and every dbt-Cloud or dbt-Fusion concept is built on top of it.</p>
 <h2>2. dbt Cloud — the managed product</h2>
 <p>dbt Cloud (run by dbt Labs, the company behind dbt) wraps dbt Core with a hosted UI, scheduler, and IDE.</p>
-<p><img alt="dbt Cloud Studio IDE: file tree on the left, SQL editor in the middle, lineage graph and command bar at the bottom" src="../../images/dbt_flavors/dbt_cloud_ide.png"></p>
+<p><img alt="dbt Cloud Studio IDE: file tree on the left, SQL editor in the middle, lineage graph and command bar at the bottom" src="../../images/stage0/dbt_flavors/dbt_cloud_ide.png"></p>
 <p>This is the dbt Cloud browser IDE: file tree, SQL editor, command bar, and live lineage all in one tab — no local setup required.</p>
 <p>What you get on top of Core:</p>
 <ul>
@@ -96,7 +96,7 @@ dbt test
 <p>dbt Cloud has a free Developer tier and paid Team / Enterprise tiers.</p>
 <h2>3. dbt Fusion — the new Rust engine</h2>
 <p>Announced in 2025, <strong>dbt Fusion</strong> is a from-scratch reimplementation of dbt’s core engine in <strong>Rust</strong>. The Python <code>dbt-core</code> parser was the bottleneck for large projects (parsing 5,000 models could take minutes). Fusion parses the same project in seconds.</p>
-<p><img alt="Familiar dbt authoring layer with the new Rust-based Fusion engine underneath" src="../../images/dbt_flavors/dbt_fusion_authoring.png"></p>
+<p><img alt="Familiar dbt authoring layer with the new Rust-based Fusion engine underneath" src="../../images/stage0/dbt_flavors/dbt_fusion_authoring.png"></p>
 <p>What Fusion adds beyond raw speed:</p>
 <ul>
 <li><strong>Native SQL comprehension</strong> — Fusion actually understands the SQL it’s about to run, not just the Jinja around it.</li>
