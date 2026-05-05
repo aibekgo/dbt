@@ -72,7 +72,6 @@
 
 <body>
 <h1><code>target/</code> — what dbt writes when it runs</h1>
-<p><img alt="target/ — manifest.json, run_results.json, compiled SQL: every artifact dbt drops on disk" src="../../images/stage6/target_directory_tour/target_dir_icon.svg"></p>
 <p>Every dbt command produces files under <code>dbt_project/target/</code>. Most of the time you ignore them — dbt manages them itself, and the <code>clean-targets:</code> config means <code>dbt clean</code> wipes them. But when something&rsquo;s wrong with a build, the <code>target/</code> directory is where you debug from.</p>
 <p>This lesson walks through every artifact dbt writes there and what to read it for.</p>
 <h2>The four critical artifacts</h2>

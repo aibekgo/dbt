@@ -72,7 +72,6 @@
 
 <body>
 <h1>State selection — rebuild only what changed</h1>
-<p><img alt="state:modified+ selects only models you changed plus their downstream dependents" src="../../images/stage5/state_selection/state_defer.png"></p>
 <p>Every <code>dbt build</code> you&rsquo;ve run so far has rebuilt the entire project. For 7 models that&rsquo;s instant. For a real project with 500+ models, rebuilding everything every time you change one is wasteful — most CI systems take 10–30 minutes per dbt run on real-world projects, almost all of which is touching models that didn&rsquo;t change.</p>
 <p><code>state:modified+</code> is dbt&rsquo;s solution. It compares the <strong>current</strong> project state against a <strong>previous</strong> state (a manifest from an earlier run) and selects only the models that differ — plus their downstream dependencies (<code>+</code>).</p>
 <h2>Why dbt is &ldquo;stateless&rdquo;… mostly</h2>

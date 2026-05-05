@@ -72,7 +72,6 @@
 
 <body>
 <h1>Exposures — extending lineage past the warehouse</h1>
-<p><img alt="Exposures hang downstream of your DAG — dashboards, reports, ML models" src="../../images/stage5/exposures/exposures_dag.png"></p>
 <p>The dbt DAG you&rsquo;ve built so far ends at the marts layer: <code>fct_orders</code> and <code>dim_customers</code>. From dbt&rsquo;s perspective, those are the leaves of the tree. But in reality, <em>something downstream</em> uses those models — a Tableau dashboard, a Looker explore, a Python notebook, a customer-facing API. dbt itself doesn&rsquo;t know about that downstream usage.</p>
 <p><strong>Exposures</strong> are the YAML construct that tells dbt about it.</p>
 <h2>What an exposure is</h2>

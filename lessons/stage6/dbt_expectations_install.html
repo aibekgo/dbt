@@ -72,7 +72,6 @@
 
 <body>
 <h1><code>dbt_expectations</code> — statistical assertions for richer data quality</h1>
-<p><img alt="dbt-expectations: Great-Expectations-flavored tests, packaged for dbt" src="../../images/stage6/dbt_expectations_install/dbt_expectations.gif"></p>
 <p><code>dbt_utils</code> (Stage 5) gives you DRY building blocks like <code>generate_surrogate_key</code> and <code>expression_is_true</code>. Useful, but those tests are still mostly about row-level shape: <em>&ldquo;this column is unique&rdquo;</em>, <em>&ldquo;this expression evaluates true&rdquo;</em>.</p>
 <p>Real data quality often needs assertions about <strong>distributions</strong>: <em>&ldquo;the average order amount this week should be between $10 and $200&rdquo;</em>, <em>&ldquo;95% of rows should have a non-null email&rdquo;</em>, <em>&ldquo;this column&rsquo;s values should fall within ±2 standard deviations of the historical mean&rdquo;</em>. Those need a test framework with statistical primitives.</p>
 <p>That&rsquo;s <code>dbt_expectations</code>. It&rsquo;s a port of the popular <a href="https://greatexpectations.io/">Great Expectations</a> Python library to dbt — same idea, dbt-native.</p>

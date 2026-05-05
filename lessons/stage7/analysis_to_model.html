@@ -72,7 +72,6 @@
 
 <body>
 <h1>Analysis-to-model — promoting one-off SQL to a tested mart</h1>
-<p><img alt="Promoting a one-off analysis into a tested, governed mart model" src="../../images/stage7/analysis_to_model/analysis_to_model.png"></p>
 <p>In Stage 3 you wrote <code>analyses/top_customers_by_revenue.sql</code> — a quick <code>select ... group by ... limit 10</code> that compiles into <code>target/compiled/</code> but doesn&rsquo;t materialize. It&rsquo;s the version of &ldquo;ad-hoc SQL&rdquo; that&rsquo;s at least version-controlled and <code>ref</code>-aware.</p>
 <p>Most analyses live and die that way: someone needs a number for a meeting, writes the query, gets the answer, moves on. But some analyses get queried again. And again. By dashboards. By other analysts. By external partners. At some point it crosses a threshold and becomes a <strong>production asset</strong> — and an analysis is the wrong shape for that.</p>
 <p>That moment is when an analysis <strong>graduates to a model</strong>. This lesson is about doing that promotion well.</p>

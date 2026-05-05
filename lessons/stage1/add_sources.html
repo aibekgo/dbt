@@ -72,7 +72,6 @@
 
 <body>
 <h1>Sources — tell dbt about your raw tables</h1>
-<p><img alt="A small dbt project DAG with two source tables flowing into staging models" src="../../images/stage1/add_sources/sources_dag.png"></p>
 <p>Your <code>stg__customers</code> model already builds. So why are we doing this exercise? Because
 <code>from main.raw_customers</code> is a black box to dbt — it has no idea that table exists, nothing to put
 on the DAG, no way to track lineage or order builds correctly. This lesson is about fixing that.</p>

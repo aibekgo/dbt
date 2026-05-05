@@ -72,7 +72,6 @@
 
 <body>
 <h1>Multi-target profiles — <code>dev</code> vs <code>prod</code> in one config file</h1>
-<p><img alt="Same project, multiple targets — dev/staging/prod from one profile" src="../../images/stage7/multi_target_profile/multi_target.png"></p>
 <p><code>profiles.yml</code> is the file that tells dbt <strong>where to run</strong>. So far yours has had one output — <code>dev</code> — pointing at a local DuckDB file. In production, the same project file declares multiple <strong>targets</strong>, and you switch between them with <code>--target</code>.</p>
 <h2>What &ldquo;target&rdquo; means in dbt</h2>
 <p>A target is a named output configuration. Each target is a YAML block under <code>outputs:</code> with everything dbt needs to connect to a warehouse:</p>

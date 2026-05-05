@@ -72,7 +72,6 @@
 
 <body>
 <h1><code>dbt build</code> — one command, in the right order</h1>
-<p><img alt="How dbt build walks the DAG, running models, tests, snapshots, and seeds in dependency order" src="../../images/stage2/dbt_build/dbt_build_selection.png"></p>
 <p>Until now you’ve used <code>dbt run</code> to materialize models. Most real projects use a different command for the “I want everything refreshed and verified” workflow: <code>dbt build</code>. It does in one shot what <code>dbt seed &amp;&amp; dbt run &amp;&amp; dbt test &amp;&amp; dbt snapshot</code> does in four — and it does them <strong>in DAG order</strong>, not in command order.</p>
 <p>This exercise replaces a habit (<code>dbt run</code>) with a sturdier one (<code>dbt build</code>).</p>
 <h2>What <code>dbt build</code> actually does</h2>

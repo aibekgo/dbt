@@ -72,7 +72,6 @@
 
 <body>
 <h1>Incremental models — load only the new rows</h1>
-<p><img alt="How incremental models append only new rows after the first full run" src="../../images/stage4/incremental_basic/incremental_diagram.jpg"></p>
 <p>So far every model in this project gets fully rebuilt on every <code>dbt run</code>. For the 99-row jaffle_shop seed that&rsquo;s instant. For a real event table — <code>pageviews</code>, <code>transactions</code>, <code>orders</code> — the source might be tens of millions of rows growing daily, and recomputing the entire transformation every time becomes the slowest step in your pipeline.</p>
 <p><code>incremental</code> is the materialization for that problem: <strong>first run loads the full history; subsequent runs load only the new rows</strong>.</p>
 <h2>The mechanism</h2>

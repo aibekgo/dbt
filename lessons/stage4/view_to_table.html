@@ -72,7 +72,6 @@
 
 <body>
 <h1>Override the folder default — make <code>int_order_payments</code> a table</h1>
-<p><img alt="Switching a model from view to table: same SQL, different cost-and-speed tradeoff" src="../../images/stage4/view_to_table/view_to_table.jpg"></p>
 <p>Right now <code>int_order_payments</code> is a <strong>view</strong>. Why? Because <code>dbt_project.yml</code> only configures <code>staging:</code> and <code>marts:</code> materializations — <code>intermediate/</code> has no entry, so it falls back to dbt&rsquo;s built-in default, which is <code>view</code>.</p>
 <p>A 99-row aggregation of payments is too small to care about either way, but the <em>exercise</em> matters: this is how you tell dbt to build one specific model differently from its folder peers.</p>
 <h2>The override mechanism</h2>

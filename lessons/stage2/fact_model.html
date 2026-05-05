@@ -72,7 +72,6 @@
 
 <body>
 <h1>The fact table — what an analyst actually queries</h1>
-<p><img alt="Sources → staging → intermediate → marts: how dbt projects layer transformations" src="../../images/stage2/fact_model/marts_multihop.png"></p>
 <p>Three staging models, one intermediate. None of them is what someone would open BI on. The fact is the model an analyst runs <code>select * from</code> against and gets answers — joins resolved, columns named for humans, grain set deliberately.</p>
 <p>This exercise builds <code>fct_orders</code>: one row per order, every column the analyst needs to answer “who ordered what, when, for how much.”</p>
 <h2>Fact vs dimension</h2>

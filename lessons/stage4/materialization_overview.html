@@ -72,7 +72,6 @@
 
 <body>
 <h1>Materializations — how dbt persists each model</h1>
-<p><img alt="view, table, incremental, ephemeral — the four ways dbt materializes a model" src="../../images/stage4/materialization_overview/materializations.jpg"></p>
 <p>Every dbt model is a <code>select</code>. The question dbt asks at build time is: <strong>what should I do with the result?</strong> The answer is the model&rsquo;s <em>materialization</em>. Stage 1 set folder-level defaults (<code>staging/</code> → view, <code>marts/</code> → table) and Stage 4 introduces the per-model override and the two non-trivial strategies — <code>ephemeral</code> and <code>incremental</code>.</p>
 <h2>The five materializations at a glance</h2>
 <table>
