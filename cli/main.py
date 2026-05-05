@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """dbt-learn CLI — interactive learning environment for dbt + DuckDB."""
 
+import html
 import os
 import shutil
+import tempfile
 import webbrowser
 import typer
 from pathlib import Path
@@ -478,6 +480,70 @@ def reset_progress() -> None:
     """Reset progress only — start from step 1 without touching exercise files or the warehouse."""
     save_state({"current": CURRICULUM[0].id, "done": [], "verified": []})
     console.print(f"[green]✅ Progress reset.[/] Next run will start at [cyan]{CURRICULUM[0].id}[/].")
+
+
+@app.command()
+def curriculum() -> None:
+    """Build a one-page HTML index of every lesson and open it in the browser."""
+    stages: dict[str, dict] = {}
+    for i, item in enumerate(CURRICULUM):
+        stage = stages.setdefault(item.stage_id, {"title": item.stage_title, "rows": []})
+        stage["rows"].append((i + 1, item))
+
+    rows_html: list[str] = []
+    for stage in stages.values():
+        rows_html.append(f'<h2>{html.escape(stage["title"])}</h2>')
+        rows_html.append("<ul>")
+        for pos, item in stage["rows"]:
+            badge = "lesson" if item.type == "lesson" else "exercise"
+            path = item.lesson_path
+            title = html.escape(item.title)
+            id_ = html.escape(item.id)
+            if path and path.exists():
+                href = path.resolve().as_uri()
+                rows_html.append(
+                    f'<li><span class="pos">{pos:>2}.</span>'
+                    f'<span class="badge {badge}">{badge}</span>'
+                    f'<a href="{href}" target="_blank">{title}</a>'
+                    f'<span class="id">{id_}</span></li>'
+                )
+            else:
+                rows_html.append(
+                    f'<li><span class="pos">{pos:>2}.</span>'
+                    f'<span class="badge {badge}">{badge}</span>'
+                    f'<span class="missing">{title}</span>'
+                    f'<span class="id">{id_}</span></li>'
+                )
+        rows_html.append("</ul>")
+
+    page = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>{COURSE_NAME} — curriculum</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       max-width: 900px; margin: 40px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.5; }}
+h1 {{ margin-bottom: 4px; }} .sub {{ color: #666; margin-bottom: 32px; }}
+h2 {{ margin-top: 36px; padding-bottom: 6px; border-bottom: 1px solid #eee; }}
+ul {{ list-style: none; padding-left: 0; }}
+li {{ display: flex; align-items: baseline; gap: 10px; padding: 4px 0; }}
+.pos {{ color: #999; font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }}
+.badge {{ font-size: 0.72em; padding: 2px 8px; border-radius: 10px; text-transform: uppercase;
+         letter-spacing: 0.04em; min-width: 60px; text-align: center; }}
+.badge.lesson {{ background: #eaf3ff; color: #1f5fbf; }}
+.badge.exercise {{ background: #fff1e0; color: #b56b00; }}
+a {{ color: #1f5fbf; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
+.id {{ color: #aaa; font-size: 0.85em; font-family: ui-monospace, monospace; }}
+.missing {{ color: #c00; }}
+</style></head><body>
+<h1>{COURSE_EMOJI} {COURSE_NAME} — curriculum</h1>
+<div class="sub">{len(CURRICULUM)} items across {len(stages)} stages. Click any title to open the lesson.</div>
+{chr(10).join(rows_html)}
+</body></html>
+"""
+    fd, tmp_path = tempfile.mkstemp(suffix="_curriculum.html", prefix=f"{COURSE_NAME}_")
+    with os.fdopen(fd, "w") as f:
+        f.write(page)
+    console.print(f"[dim]Opening curriculum index ({len(CURRICULUM)} items)...[/]")
+    webbrowser.open(Path(tmp_path).as_uri())
 
 
 @app.command()
