@@ -80,6 +80,7 @@
 </ul>
 <p>Right now you don&rsquo;t. You hope. And next time someone changes a staging model, you&rsquo;ll keep hoping.</p>
 <p>This is what <code>dbt test</code> exists to fix. Tests turn assumptions about your data into <strong>executable assertions</strong> that run alongside the models — same DAG, same <code>dbt build</code>, same green-or-red feedback loop.</p>
+<p><img alt="dbt tests catch bad data before it reaches downstream models — assertions live in YAML next to the model" src="../../images/stage3/tests_intro/test_intro.png"></p>
 <h2>Two kinds of tests</h2>
 <p>dbt has exactly two flavors:</p>
 <table>

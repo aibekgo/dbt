@@ -74,6 +74,7 @@
 <h1>Snapshots — preserving how data changed over time</h1>
 <p>Imagine an <code>orders</code> table where <code>status</code> flips from <code>placed</code> → <code>shipped</code> → <code>completed</code>. Your warehouse only sees the <em>current</em> status. The <code>placed</code> state is gone the moment shipping happens. If a stakeholder asks <em>&ldquo;how long did orders typically sit in <code>placed</code> before shipping?&rdquo;</em>, you can&rsquo;t answer — the data was overwritten.</p>
 <p>Snapshots are dbt&rsquo;s solution. They convert a mutable source table into a <strong>slowly-changing-dimension Type 2</strong> history: every time a tracked column changes, a new row gets appended with <code>valid_from</code> and <code>valid_to</code> timestamps. The previous row&rsquo;s <code>valid_to</code> is closed off. Querying <em>&ldquo;what was order #42&rsquo;s status on 2024-03-15?&rdquo;</em> becomes a <code>where dbt_valid_from &lt;= '2024-03-15' and (dbt_valid_to is null or dbt_valid_to &gt; '2024-03-15')</code> lookup.</p>
+<p><img alt="SCD2 history: each tracked-column change appends a new row with dbt_valid_from / dbt_valid_to bounds" src="../../images/stage4/snapshot_scd2/scd2_example.png"></p>
 <h2>What a snapshot looks like</h2>
 <p>A snapshot is a <code>.sql</code> file under <code>snapshots/</code>. The shape is unusual — it uses <code>{% snapshot %}</code> and <code>{% endsnapshot %}</code> tags that wrap a config block plus a <code>select</code>. The walkthrough below has the full file you&rsquo;ll write. Three pieces of the config block worth flagging:</p>
 <ul>
@@ -81,6 +82,7 @@
 <li><strong><code>unique_key='order_id'</code></strong> — same idea as incremental&rsquo;s unique key: how dbt identifies &ldquo;the same logical row across runs.&rdquo;</li>
 <li><strong><code>strategy='check'</code> + <code>check_cols=['status']</code></strong> — <em>&ldquo;watch the <code>status</code> column; whenever it changes for an existing <code>order_id</code>, append a new row to the snapshot.&rdquo;</em> The other strategy is <code>timestamp</code>, which uses an <code>updated_at</code> column instead of column-by-column comparison.</li>
 </ul>
+<p><img alt="Example snapshot file: {% snapshot %} block wrapping a config() call (target_schema, unique_key, strategy, check_cols) and a select" src="../../images/stage4/snapshot_scd2/example_of_snapshot.png"></p>
 <h2>What dbt adds to your data</h2>
 <p>After running <code>dbt snapshot</code>, the table <code>snapshots.orders_snapshot</code> exists with:</p>
 <ul>

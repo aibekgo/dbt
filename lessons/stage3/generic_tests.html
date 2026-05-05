@@ -75,6 +75,7 @@
 <p>Time to write your first tests. The <code>tests_intro</code> lesson covered the <em>why</em>; this one covers the <em>file</em> — what <code>_models.yml</code> looks like, where it sits, and how a test ends up attached to a column.</p>
 <h2>The schema YAML</h2>
 <p>Every staging model deserves a YAML entry that documents what it represents and asserts the data shape. The conventional file is <code>models/staging/_models.yml</code>:</p>
+<p><img alt="Example _models.yml: column-level unique and not_null tests attached to a staging model" src="../../images/stage3/generic_tests/seed_tests.png"></p>
 <pre><code class="language-yaml">version: 2
 
 models:

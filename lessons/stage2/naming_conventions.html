@@ -74,6 +74,7 @@
 <h1>Naming conventions — <code>src_</code>, <code>stg_</code>, <code>int_</code>, <code>fct_</code>, <code>dim_</code></h1>
 <p>A dbt project with no naming convention starts to rot fast. By the time you have 30 models, nobody can answer simple questions: <em>Is <code>customers</code> a fact, a dimension, or a staging view? Does <code>orders_final</code> ship to BI or is it intermediate? Why are there both <code>clean_orders</code> and <code>orders_clean</code>?</em></p>
 <p>The convention below is the dbt community’s de-facto standard. Follow it once and the answers come from the model name itself.</p>
+<p><img alt="Model layers in dbt with their prefixes: src_, stg_, int_, fct_, dim_" src="../../images/stage2/naming_conventions/model_layers_in_dbt.png"></p>
 <h2>The five prefixes</h2>
 <table>
 <thead>
@@ -118,6 +119,7 @@
 </tbody>
 </table>
 <p>The prefix tells you three things at once: <strong>layer</strong> (where in the DAG), <strong>role</strong> (event vs thing vs work-in-progress), and <strong>expected grain</strong> (so you can spot when a join blew up). That’s a lot of information for three letters.</p>
+<p><img alt="Model layer prefixes mapped to a concrete project: src_/stg_/int_/fct_/dim_ across the DAG" src="../../images/stage2/naming_conventions/model_layer_example_2.png"></p>
 <h2>What this project’s models look like</h2>
 <p>After Stage 2 you have:</p>
 <pre><code>models/

@@ -80,6 +80,7 @@
 </ol>
 <p>Stage 1 of this course used option 3 — <code>scripts/ingest_raw.py</code> lands the jaffle_shop CSVs into DuckDB, and Stage 2 declared them as <strong>sources</strong>. That&rsquo;s the right pattern for <em>primary</em> data: large, frequently changing, and pulled from an upstream system you don&rsquo;t control.</p>
 <p>This exercise introduces option 2 — seeds — for the use case it&rsquo;s actually best at: <strong>small reference tables that change rarely and are versioned with your dbt code</strong>.</p>
+<p><img alt="Seeds: small CSVs in seeds/ that dbt loads into the warehouse with dbt seed and become ref-able like any model" src="../../images/stage3/seed_basics/seeds_basic.png"></p>
 <h2>When to reach for a seed</h2>
 <p>The decision tree is short:</p>
 <table>

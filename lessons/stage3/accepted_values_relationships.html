@@ -73,6 +73,7 @@
 <body>
 <h1><code>accepted_values</code> and <code>relationships</code> — the other two built-ins</h1>
 <p><code>unique</code> and <code>not_null</code> are the workhorses of generic testing — almost every primary key gets both. The other two built-in tests, <code>accepted_values</code> and <code>relationships</code>, fire less often but catch a different <em>class</em> of bug. This exercise wires up one of each.</p>
+<p><img alt="accepted_values constrains a column to a fixed list; relationships enforces foreign-key integrity across models" src="../../images/stage3/accepted_values_relationships/accepted_valjues.png"></p>
 <h2><code>accepted_values</code> — enum-style assertions</h2>
 <p>Every business has columns that should only ever hold a fixed set of values. Order status, subscription tier, country code, payment method. When something <em>outside</em> that set shows up — a typo (<code>"shippeed"</code>), a new value the warehouse forgot to handle (<code>"refund_pending"</code>) — every downstream filter that says <code>where status = 'shipped'</code> silently misses it.</p>
 <p><code>accepted_values</code> is the assertion: <em>&ldquo;the only legal values for this column are X, Y, Z.&rdquo;</em> Anything else fails the test.</p>

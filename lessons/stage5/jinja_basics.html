@@ -73,6 +73,7 @@
 <body>
 <h1>Jinja in dbt — three delimiters and why they matter</h1>
 <p>Every <code>{{ ref('stg__customers') }}</code>, every <code>{% if is_incremental() %}</code>, every <code>-- {{ this }}</code> you&rsquo;ve seen so far in this course is <strong>Jinja</strong>, a Python templating language that dbt uses to turn your SQL files into… more SQL. Stage 5 is where you stop <em>consuming</em> Jinja and start <em>writing</em> it.</p>
+<p><img alt="The three Jinja delimiters in a dbt SQL file: {{ }} for expressions, {% %} for statements, {# #} for comments" src="../../images/stage5/jinja_basics/example_of_jinja.png"></p>
 <h2>The three delimiters</h2>
 <p>Jinja has exactly three syntactic forms. Knowing them is 70% of writing macros.</p>
 <table>

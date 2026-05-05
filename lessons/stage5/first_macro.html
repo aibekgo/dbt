@@ -81,6 +81,7 @@
 from {{ source('stripe', 'raw_payments') }}
 </code></pre>
 <p>That&rsquo;s fine for one model. The problem starts when <em>another</em> model — say a future <code>stg__refunds</code> or <code>stg__chargebacks</code> — needs the same conversion. Copy-paste means three places to update if the rounding policy ever changes. <strong>A macro centralizes the logic so it&rsquo;s defined once and called everywhere.</strong></p>
+<p><img alt="Example macro: cents_to_dollars wrapped in {% macro %} ... {% endmacro %}, called from a model with {{ cents_to_dollars('amount') }}" src="../../images/stage5/first_macro/macro_example.png"></p>
 <h2>How the macro and the refactor fit together</h2>
 <p>The walkthrough below has the full files. Two pieces:</p>
 <ul>

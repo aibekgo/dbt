@@ -74,6 +74,7 @@
 <h1>Intermediate models — the layer between staging and marts</h1>
 <p>You’ve got three staging models — <code>stg__customers</code>, <code>stg__orders</code>, <code>stg__payments</code>. Next exercise builds the fact table that joins them: <code>fct_orders</code>. Before that, there’s a piece of work that <strong>doesn’t fit cleanly in either layer</strong>: rolling payments up to one row per order.</p>
 <p>That work belongs in a third model layer: <strong>intermediate</strong>.</p>
+<p><img alt="Model layers in dbt: intermediate sits between staging and marts" src="../../images/stage2/intermediate_model/model_layers_in_dbt.png"></p>
 <h2>What an intermediate model is</h2>
 <p>An intermediate (<code>int_*</code>) model is a transformation that:</p>
 <ul>

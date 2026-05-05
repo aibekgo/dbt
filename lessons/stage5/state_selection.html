@@ -110,6 +110,7 @@
 </ul>
 <p>Adding a comment to the SQL counts. Even a whitespace-only change counts. dbt is conservative — if the file&rsquo;s hash differs, the model is modified.</p>
 <p>The <code>+</code> suffix expands the set: <code>state:modified+</code> includes the modified models <em>and everything downstream of them</em>. That&rsquo;s what you want in CI: rebuild what changed and everything that depends on it.</p>
+<p><img alt="State + defer: compare the current manifest against a snapshot manifest to rebuild only state:modified+ in CI" src="../../images/stage5/state_selection/state_defer.png"></p>
 <h2>The CI workflow</h2>
 <p>In production, the pattern is:</p>
 <ol>

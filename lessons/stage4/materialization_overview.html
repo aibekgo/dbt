@@ -73,6 +73,7 @@
 <body>
 <h1>Materializations — how dbt persists each model</h1>
 <p>Every dbt model is a <code>select</code>. The question dbt asks at build time is: <strong>what should I do with the result?</strong> The answer is the model&rsquo;s <em>materialization</em>. Stage 1 set folder-level defaults (<code>staging/</code> → view, <code>marts/</code> → table) and Stage 4 introduces the per-model override and the two non-trivial strategies — <code>ephemeral</code> and <code>incremental</code>.</p>
+<p><img alt="Overview of dbt materializations: view, table, ephemeral, materialized_view, and incremental" src="../../images/stage4/materialization_overview/materialization_overview.png"></p>
 <h2>The five materializations at a glance</h2>
 <table>
 <thead>
@@ -129,6 +130,7 @@
 </tbody>
 </table>
 <h2>How to set a materialization</h2>
+<p><img alt="Three places to set a materialization, in increasing precedence: dbt_project.yml folder default → schema YAML → SQL-level config()" src="../../images/stage4/materialization_overview/materialization_chosen.png"></p>
 <p>Three places, in increasing precedence:</p>
 <ol>
 <li><strong><code>dbt_project.yml</code> folder default</strong> — Stage 1&rsquo;s <code>models: dbt_project: staging: +materialized: view</code>. Lowest priority.</li>

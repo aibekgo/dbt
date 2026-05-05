@@ -91,6 +91,7 @@
 <p>The common thread: <strong>valuable SQL, but not part of the production data flow</strong>.</p>
 <h2>Where they live and what <code>dbt compile</code> does</h2>
 <p>Analyses go in <code>dbt_project/analyses/</code> (the folder is part of the default scaffold).</p>
+<p><img alt="The analyses/ folder sitting alongside models/, seeds/, and snapshots/ in a dbt project" src="../../images/stage3/analyses_intro/analysis_folder.png"></p>
 <p>When you run:</p>
 <pre><code class="language-bash">dbt compile --select top_customers_by_revenue
 </code></pre>

@@ -74,6 +74,7 @@
 <h1><code>dbt docs</code> — your project as a website</h1>
 <p>dbt builds a documentation site directly from your project. Sources, models, columns, lineage, the actual compiled SQL — all browsable, all hyperlinked. The site is regenerated from the manifest each time you ask for it; nothing’s hand-maintained.</p>
 <p>This exercise generates the docs and serves them locally.</p>
+<p><img alt="dbt docs site: model overview page with description, columns, and compiled SQL" src="../../images/stage2/dbt_docs/dbt_docs_example.png"></p>
 <h2>What <code>dbt docs generate</code> does</h2>
 <p>It produces two artifacts under <code>dbt_project/target/</code>:</p>
 <ul>
@@ -94,9 +95,11 @@ dbt docs generate
 <p>Opens a local web server (default <code>http://localhost:8080</code>) and your browser. Three things worth clicking around to:</p>
 <ol>
 <li><strong>Lineage tab (bottom-right circle icon).</strong> All the green source nodes (<code>raw_customers</code>, <code>raw_orders</code>, <code>raw_payments</code>) flowing into blue staging models, into the intermediate, into the fact. Stage 2’s whole shape, visualized.</li>
-<li><strong>Source page → freshness columns.</strong> Empty for now (we haven’t configured <code>loaded_at_field</code>), but this is where <code>dbt source freshness</code> results would show up.</li>
-<li><strong>A model page → “Compiled” tab.</strong> The actual SQL dbt sent to DuckDB, with <code>{{ source(...) }}</code> and <code>{{ ref(...) }}</code> already expanded. Useful for sanity-checking what the macros produced.</li>
 </ol>
+<p><img alt="Lineage graph in the dbt docs site: source nodes feeding staging, intermediate, and mart models" src="../../images/stage2/dbt_docs/dbt_docs_lineage_example.png">
+2. <strong>Source page → freshness columns.</strong> Empty for now (we haven’t configured <code>loaded_at_field</code>), but this is where <code>dbt source freshness</code> results would show up.
+3. <strong>A model page → “Compiled” tab.</strong> The actual SQL dbt sent to DuckDB, with <code>{{ source(...) }}</code> and <code>{{ ref(...) }}</code> already expanded. Useful for sanity-checking what the macros produced.</p>
+<p><img alt="dbt docs Compiled tab: macro-expanded SQL for a model with source/ref calls already resolved" src="../../images/stage2/dbt_docs/dbt_docs_example_2.png"></p>
 <p>Stop the server with <code>Ctrl+C</code> when done.</p>
 <h2>What docs are good for (and what they aren’t)</h2>
 <p><strong>Good for:</strong></p>
