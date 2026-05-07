@@ -41,6 +41,10 @@ stages:
         file: lessons/stage0/dbt_flavors.html
         quiz: quiz/dbt_flavors.yaml
 
+      - id: insurify_stack
+        type: lesson
+        file: lessons/stage0/insurify_stack.html
+
   - id: stage_1_first_project
     title: "Stage 1 — Your First dbt Project"
     items:

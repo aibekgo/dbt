@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 48px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 2em;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    pre {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+    }
+
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin: 16px auto;
+      display: block;
+    }
+
+    blockquote {
+      border-left: 4px solid #ccc;
+      margin: 0;
+      padding: 4px 16px;
+      color: #555;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+
+<body>
+<h1>The Insurify data stack</h1>
+<p>Stage 0 has covered the ideas: ELT, the modern data team, cloud warehouses, dbt, and dbt flavors. This capstone shows how Insurify wires those ideas into a real production stack — so when Stage 1 has you scaffolding a dbt project, you know exactly which slot in the pipeline you&rsquo;re filling.</p>
+<h2>The picture in one diagram</h2>
+<div class="diagram">
+<svg viewBox="0 0 1240 540" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block;margin:24px auto;background:#fafafa;border-radius:8px;border:1px solid #e5e5e5;">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
+    </marker>
+    <marker id="arrd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
+    </marker>
+    <marker id="arrbig" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+  <text x="110"  y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#374151" letter-spacing="1.5">SOURCES</text>
+  <text x="305"  y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#374151" letter-spacing="1.5">INGESTION</text>
+  <text x="475"  y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#374151" letter-spacing="1.5">LAKE</text>
+  <text x="620"  y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#374151" letter-spacing="1.5">LOAD</text>
+  <text x="815"  y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#374151" letter-spacing="1.5">WAREHOUSE + TRANSFORM</text>
+  <text x="1020" y="22" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="700" fill="#374151" letter-spacing="1.5">CONSUMERS</text>
+
+  <rect x="25" y="55" width="170" height="80" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="110" y="78" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Marketing APIs</text>
+  <text x="110" y="97" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">Google Ads (GAQL)</text>
+  <text x="110" y="114" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">Facebook · Microsoft</text>
+
+  <rect x="25" y="145" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="110" y="166" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Operational APIs</text>
+  <text x="110" y="183" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">leads · quotes · policies</text>
+
+  <rect x="25" y="205" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="110" y="226" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Partner files</text>
+  <text x="110" y="243" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">drop into S3 directly</text>
+
+  <rect x="25" y="265" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="110" y="286" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Partner email</text>
+  <text x="110" y="303" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">files as attachments</text>
+
+  <rect x="25" y="345" width="170" height="50" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.4"/>
+  <text x="110" y="366" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">RDS tables</text>
+  <text x="110" y="383" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">Postgres / MySQL</text>
+
+  <rect x="220" y="145" width="170" height="50" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="305" y="166" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Custom Python</text>
+  <text x="305" y="183" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">DE team — extract</text>
+
+  <rect x="220" y="265" width="170" height="50" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="305" y="286" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Email processor</text>
+  <text x="305" y="303" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">parses inbox → S3</text>
+
+  <rect x="415" y="130" width="120" height="200" rx="8" fill="#d1fae5" stroke="#059669" stroke-width="1.4"/>
+  <text x="475" y="190" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="20" font-weight="700" fill="#065f46">S3</text>
+  <text x="475" y="218" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">raw archive</text>
+  <text x="475" y="236" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">daily partitions</text>
+
+  <rect x="555" y="125" width="130" height="80" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="620" y="152" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Airbyte</text>
+  <text x="620" y="171" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">connectors</text>
+  <text x="620" y="188" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">S3 → Redshift + direct</text>
+
+  <rect x="555" y="235" width="130" height="50" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="620" y="256" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">COPY</text>
+  <text x="620" y="273" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">bulk file loads</text>
+
+  <rect x="715" y="55" width="200" height="370" rx="10" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.8"/>
+  <text x="815" y="83" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="16" font-weight="700" fill="#4c1d95">Redshift + dbt</text>
+  <line x1="735" y1="98" x2="895" y2="98" stroke="#7c3aed" stroke-opacity="0.35" stroke-width="1"/>
+
+  <text x="815" y="123" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">Redshift</text>
+  <text x="815" y="141" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">raw schemas</text>
+  <text x="815" y="158" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">+ curated marts</text>
+
+  <line x1="735" y1="180" x2="895" y2="180" stroke="#7c3aed" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <text x="815" y="205" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">dbt models</text>
+  <text x="815" y="223" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">stg → int → marts</text>
+  <text x="815" y="240" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">SQL inside Redshift</text>
+
+  <line x1="735" y1="265" x2="895" y2="265" stroke="#7c3aed" stroke-opacity="0.2" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <text x="815" y="290" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" font-weight="600" fill="#1a1a1a">dbt CI/CD</text>
+  <text x="815" y="308" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">PR checks · deploy</text>
+
+  <text x="815" y="358" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#6b7280" font-style="italic">dbt is the T —</text>
+  <text x="815" y="376" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#6b7280" font-style="italic">runs inside Redshift,</text>
+  <text x="815" y="394" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#6b7280" font-style="italic">no separate engine</text>
+
+  <rect x="935" y="95" width="170" height="65" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+  <text x="1020" y="121" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">RTB ML model</text>
+  <text x="1020" y="140" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">real-time bidding</text>
+
+  <rect x="935" y="180" width="170" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+  <text x="1020" y="201" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Mode</text>
+  <text x="1020" y="218" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">BI dashboards</text>
+
+  <rect x="935" y="255" width="170" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+  <text x="1020" y="276" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#1a1a1a">Hex</text>
+  <text x="1020" y="293" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#555">notebooks · ad-hoc</text>
+
+  <line x1="195" y1="170" x2="218" y2="170" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="195" y1="290" x2="218" y2="290" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="195" y1="230" x2="413" y2="230" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <line x1="390" y1="170" x2="413" y2="170" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="390" y1="290" x2="413" y2="290" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <path d="M195,95 L545,95 L545,165 L553,165" fill="none" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrd)"/>
+  <line x1="195" y1="370" x2="713" y2="370" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrd)"/>
+  <text x="370" y="86" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-style="italic" fill="#6b7280">direct → Airbyte (skip S3)</text>
+  <text x="450" y="362" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" font-style="italic" fill="#6b7280">direct → Redshift (skip S3 + Airbyte)</text>
+
+  <line x1="535" y1="165" x2="553" y2="165" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="535" y1="260" x2="553" y2="260" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <line x1="685" y1="165" x2="713" y2="165" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="685" y1="260" x2="713" y2="260" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <line x1="915" y1="125" x2="933" y2="125" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="915" y1="205" x2="933" y2="205" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="915" y1="280" x2="933" y2="280" stroke="#374151" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <text x="620" y="463" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#7c3aed">Airflow on MWAA</text>
+  <line x1="270" y1="478" x2="970" y2="478" stroke="#7c3aed" stroke-width="6" stroke-linecap="round" marker-end="url(#arrbig)"/>
+  <text x="990" y="482" text-anchor="start" font-family="-apple-system, sans-serif" font-size="14" font-weight="700" fill="#7c3aed">orchestration</text>
+  <text x="620" y="505" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#7c3aed" font-style="italic">schedules ingestion · dbt runs · data-quality checks · CI/CD</text>
+
+  <text x="620" y="528" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#9ca3af">Solid arrows = primary flow · Dashed arrows = direct paths skipping S3</text>
+</svg>
+</div>
+
+<h2>Sources — what flows in</h2>
+<h3>Operational APIs</h3>
+<p>The transactional side of the business: leads coming in from the website, quote requests, bound policies, agent activity, claims events. Some come from internal services we own; some from third-party partners (carriers, comparison engines). Schemas vary, auth varies, and not every endpoint has a clean off-the-shelf connector — so this is the bucket where Custom Python earns its keep.</p>
+<h3>Marketing APIs</h3>
+<p>Ad-spend reporting, lifted straight from the platforms&rsquo; reporting APIs:</p>
+<ul>
+<li><strong>Google Ads</strong> — pulled via <strong>GAQL</strong> (the Google Ads Query Language).</li>
+<li><strong>Facebook (Meta)</strong> — pulled via the Graph API.</li>
+<li><strong>Microsoft Advertising</strong> — pulled via the Microsoft Advertising API.</li>
+</ul>
+<p>These connectors are well-trodden and Airbyte handles them out of the box, so they take the <strong>direct</strong> path (skip S3, land straight in Redshift).</p>
+<h3>RDS tables</h3>
+<p>Operational data living in our managed Postgres / MySQL instances on Amazon RDS — application databases, internal tools, transactional state we want to analyze without hammering production. RDS replicates <strong>straight into Redshift</strong> (federated queries / AWS DMS / Redshift&rsquo;s zero-ETL integration), so the rows arrive without going through S3 <em>or</em> Airbyte at all — the most direct path on the diagram.</p>
+<h3>Partner deliveries</h3>
+<p>Files, not APIs. Two flavors:</p>
+<ul>
+<li><strong>Drop into S3</strong> — the partner has S3 write access (SFTP-to-S3, cross-account IAM role, a pre-signed URL, etc.). Files appear in a known prefix on a known cadence.</li>
+<li><strong>Email attachments</strong> — the partner emails files to a shared inbox. A small <strong>email processor</strong> watches that inbox, extracts attachments, validates them, and writes them into S3.</li>
+</ul>
+<p>Either way, once the file is in S3 it joins the same downstream path as anything else in the lake.</p>
+<h2>Ingestion — six paths data takes to get to Redshift</h2>
+<p>Six recurring patterns. Pick the one that fits the source.</p>
+<ol>
+<li>
+<p><strong>API → Custom Python (DE team) → S3 → Airbyte → Redshift</strong>
+   The default for non-standard sources. Custom Python handles the auth, pagination, retry, and any pre-landing transform; the raw extract lands in S3 (so we always have an archive); Airbyte then loads from S3 into Redshift on a schedule.</p>
+</li>
+<li>
+<p><strong>API → Airbyte → Redshift (direct)</strong>
+   When an off-the-shelf Airbyte connector exists and we don&rsquo;t need an S3 archive, we skip the lake entirely. Most marketing sources (Google Ads, Facebook, Microsoft Advertising) take this path.</p>
+</li>
+<li>
+<p><strong>RDS → Redshift (direct, no Airbyte)</strong>
+   Operational Postgres / MySQL on RDS replicates straight into Redshift via federated queries, AWS DMS, or Redshift&rsquo;s zero-ETL integration — no S3 landing, no Airbyte connector, no Custom Python step. Just the database showing up as queryable tables in the warehouse.</p>
+</li>
+<li>
+<p><strong>S3 → Redshift via <code>COPY</code></strong>
+   For bulk file loads where Airbyte is overkill — backfills, large historical dumps, or sources where the file format already maps cleanly to a Redshift table. The Redshift <code>COPY</code> command parallel-loads from S3 in one shot.</p>
+</li>
+<li>
+<p><strong>Partner → S3 directly</strong>
+   The partner writes files into S3 (SFTP-to-S3, cross-account role). From there path 1 or path 3 picks them up — same as anything we put there ourselves.</p>
+</li>
+<li>
+<p><strong>Partner → Email → email processor → S3</strong>
+   Files arrive as attachments to a shared inbox. The email processor pulls them out, drops them into S3, and from there path 1 or path 3 picks them up.</p>
+</li>
+</ol>
+<blockquote>
+<p>All of the above run on a <strong>daily incremental</strong> schedule by default. The unit of work is &ldquo;yesterday&rsquo;s slice&rdquo; landed once a day, not streaming.</p>
+</blockquote>
+<h2>Storage — S3 as lake</h2>
+<p><strong>S3</strong> is the durable archive. Anything we ever pulled from an API or received from a partner gets a copy here, partitioned by date. If a transformation downstream goes wrong we can rebuild from S3 without re-extracting from the source. It&rsquo;s also where files start their journey when partners drop them or the email processor unpacks them.</p>
+<h2>Warehouse + Transform — Redshift and dbt as one block</h2>
+<p>The diagram draws Redshift and dbt as a single block on purpose: dbt doesn&rsquo;t run anywhere else. There is no separate transform engine, no Spark cluster, no pandas job — every <code>dbt run</code> compiles to SQL that executes <em>inside</em> Redshift. The compute that loaded the raw rows is the same compute that builds the curated marts.</p>
+<p>What lives in that block:</p>
+<ul>
+<li><strong>Redshift</strong> holds two layers — <strong>raw schemas</strong> (what ingestion writes; roughly mirrors the source) and <strong>curated marts</strong> (what dbt produces; what consumers actually query).</li>
+<li><strong>dbt models</strong> read from raw and write back to marts, organized in the conventional <code>stg → int → marts</code> progression.</li>
+<li><strong>dbt CI/CD</strong> gates every change. Each PR triggers a Slim CI <code>dbt build</code> (compile + run + test); merging to <code>main</code> triggers a deploy. The same <code>dbt build</code> command underlies both — there is no separate deployment script to drift out of sync.</li>
+</ul>
+<p>In ELT terms: the <strong>E</strong> and <strong>L</strong> end at Redshift&rsquo;s raw schemas. The <strong>T</strong> is dbt, running inside the same warehouse.</p>
+<h2>Orchestration — Airflow on MWAA</h2>
+<p>That big purple arrow underneath the diagram is <strong>Airflow on MWAA</strong> (AWS Managed Workflows for Apache Airflow). It is the schedule that ticks the whole pipeline: ingestion jobs, the dbt runs that produce marts, freshness checks, data-quality alerts, and one-off operational tasks. dbt is the largest single tenant, but Airflow&rsquo;s job is everything end-to-end — that&rsquo;s why it&rsquo;s drawn as one continuous arrow rather than another column.</p>
+<h2>Consumers — who reads the marts</h2>
+<p>Two distinct audiences, both reading from Redshift&rsquo;s marts.</p>
+<ul>
+<li><strong>RTB ML model</strong> — real-time bidding. Marketing-spend, conversion, and policy data flowing out of Redshift feed the model that decides how much to bid for impressions in real time. Marts must be fresh and correct: the ML team is the most demanding internal consumer of the dbt project.</li>
+<li><strong>Mode</strong> and <strong>Hex</strong> — BI tools. Mode hosts dashboards and recurring reports for finance, marketing, and product. Hex is the notebook-style environment for ad-hoc analysis and prototyping. Both query Redshift directly; both rely on the marts dbt produces.</li>
+</ul>
+<h2>Where dbt sits, in one sentence</h2>
+<p>dbt is the <strong>T</strong> in this ELT — running on <strong>Redshift</strong>, fed by <strong>Custom Python + Airbyte + <code>COPY</code> + partner drops</strong>, orchestrated by <strong>Airflow on MWAA</strong>, gated by <strong>dbt&rsquo;s own CI/CD</strong>, and consumed by the <strong>RTB ML model + Mode + Hex</strong>.</p>
+<p>That&rsquo;s the slot Stage 1 onward will be filling. Press <code>n</code> to start scaffolding your first dbt project.</p>
+</body>
+
+</html>
