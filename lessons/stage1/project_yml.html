@@ -236,7 +236,7 @@ from {{ ref('stg__customers') }}
 <pre><code class="language-bash">duckdb ../database/dev.duckdb -c &quot;
   select table_name, table_type
   from information_schema.tables
-  where table_schema = 'main_main'
+  where table_schema = 'main'
   order by table_name;
 &quot;
 </code></pre>
